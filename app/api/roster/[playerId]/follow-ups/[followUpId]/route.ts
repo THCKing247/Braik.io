@@ -5,6 +5,7 @@ import { requireTeamAccess, getUserMembership } from "@/lib/auth/rbac"
 import { canEditRoster } from "@/lib/auth/roles"
 import { logPlayerProfileActivity } from "@/lib/player-profile-activity"
 import { revalidateTeamCalendar } from "@/lib/cache/lightweight-get-cache"
+import { resolveRosterApiPlayerUuid } from "@/lib/roster/resolve-roster-route-player-api"
 
 /**
  * PATCH /api/roster/[playerId]/follow-ups/[followUpId]
@@ -20,11 +21,16 @@ export async function PATCH(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const { playerId, followUpId } = await params
+    const { playerId: segment, followUpId } = await params
     const { searchParams } = new URL(request.url)
     const teamId = searchParams.get("teamId")
-    if (!playerId || !followUpId || !teamId) {
+    if (!segment || !followUpId || !teamId) {
       return NextResponse.json({ error: "playerId, followUpId, and teamId are required" }, { status: 400 })
+    }
+
+    const resolvedPlayerId = await resolveRosterApiPlayerUuid(teamId, segment)
+    if (!resolvedPlayerId) {
+      return NextResponse.json({ error: "Player not found" }, { status: 404 })
     }
 
     const supabase = getSupabaseServer()
@@ -32,7 +38,7 @@ export async function PATCH(
       .from("player_follow_ups")
       .select("id, player_id, team_id, category, status")
       .eq("id", followUpId)
-      .eq("player_id", playerId)
+      .eq("player_id", resolvedPlayerId)
       .eq("team_id", teamId)
       .maybeSingle()
 

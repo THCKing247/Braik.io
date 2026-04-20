@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
+import { resolvePlayerUuidForTeamRosterSegment } from "@/lib/roster/resolve-roster-player-segment"
 
 type TeamIdentityRow = {
   id: string
@@ -323,4 +324,67 @@ export async function resolveDefaultShortOrgIdForUser(
   const organizationPortalUuid = await resolveDefaultOrganizationPortalUuidForUser(supabase, userId)
   if (!organizationPortalUuid) return null
   return resolveShortOrgIdForOrganizationPortalUuid(supabase, organizationPortalUuid)
+}
+
+/** Canonical player profile URL params (browser-visible short IDs only). */
+export type DashboardTeamPlayerPathParams = DashboardTeamPathParams & {
+  playerAccountId: string
+}
+
+export function buildDashboardTeamPlayerPath(parts: DashboardTeamPlayerPathParams): string {
+  const id = encodeURIComponent(parts.playerAccountId.trim())
+  return buildDashboardTeamPath(parts, `/roster/${id}`)
+}
+
+/** Parse `/dashboard/org/.../team/.../roster/:playerAccountId` from pathname (nested segments ignored here). */
+export function parseCanonicalDashboardTeamRosterPlayerPath(
+  pathname: string
+): DashboardTeamPlayerPathParams | null {
+  const bare = pathname.split("?")[0] ?? pathname
+  const m = bare.match(/^\/dashboard\/org\/([^/]+)\/team\/([^/]+)\/roster\/([^/]+)/)
+  if (!m) return null
+  return {
+    shortOrgId: decodeURIComponent(m[1]),
+    shortTeamId: decodeURIComponent(m[2]),
+    playerAccountId: decodeURIComponent(m[3]),
+  }
+}
+
+export type CanonicalPlayerRoute = CanonicalTeamRoute & {
+  playerAccountId: string
+}
+
+/** Player UUID → short org/team segments + player_account_id for canonical URLs. */
+export async function resolveCanonicalPlayerRouteByPlayerUuid(
+  supabase: SupabaseClient,
+  playerUuid: string
+): Promise<CanonicalPlayerRoute | null> {
+  const { data: player } = await supabase
+    .from("players")
+    .select("team_id, player_account_id")
+    .eq("id", playerUuid)
+    .maybeSingle()
+  const row = player as { team_id?: string | null; player_account_id?: string | null } | null
+  const teamId = row?.team_id ?? null
+  const playerAccountId = row?.player_account_id ?? null
+  if (!teamId || !playerAccountId) return null
+
+  const teamCanon = await resolveCanonicalTeamRouteByTeamId(supabase, teamId)
+  if (!teamCanon) return null
+  return {
+    ...teamCanon,
+    playerAccountId,
+  }
+}
+
+/** Short-ID route → internal player UUID (scoped to resolved team from org/team short IDs). */
+export async function resolvePlayerUuidFromDashboardShortRoute(
+  supabase: SupabaseClient,
+  shortOrgId: string,
+  shortTeamId: string,
+  playerRouteSegment: string
+): Promise<string | null> {
+  const teamId = await resolveTeamIdFromShortOrgTeamIds(supabase, shortOrgId, shortTeamId)
+  if (!teamId) return null
+  return resolvePlayerUuidForTeamRosterSegment(supabase, teamId, playerRouteSegment)
 }

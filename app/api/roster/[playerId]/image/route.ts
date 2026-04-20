@@ -8,6 +8,7 @@ import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { requireTeamAccess, getUserMembership } from "@/lib/auth/rbac"
 import { canEditRoster } from "@/lib/auth/roles"
 import { logPlayerProfileActivity, PLAYER_PROFILE_ACTION_TYPES } from "@/lib/player-profile-activity"
+import { resolveRosterApiPlayerUuid } from "@/lib/roster/resolve-roster-route-player-api"
 
 const PLAYER_IMAGES_BUCKET = "player-images"
 
@@ -52,9 +53,15 @@ export async function POST(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const { playerId } = await params
-    if (!playerId) {
+    const { playerId: segment } = await params
+    if (!segment) {
       return NextResponse.json({ error: "playerId is required" }, { status: 400 })
+    }
+
+    const teamIdHint = new URL(request.url).searchParams.get("teamId")
+    const resolvedPlayerId = await resolveRosterApiPlayerUuid(teamIdHint, segment)
+    if (!resolvedPlayerId) {
+      return NextResponse.json({ error: "Player not found" }, { status: 404 })
     }
 
     const supabase = getSupabaseServer()
@@ -62,7 +69,7 @@ export async function POST(
     const { data: player, error: playerError } = await supabase
       .from("players")
       .select("id, team_id, user_id")
-      .eq("id", playerId)
+      .eq("id", resolvedPlayerId)
       .maybeSingle()
 
     if (playerError || !player) {
@@ -99,8 +106,8 @@ export async function POST(
 
     const timestamp = Date.now()
     const random = Math.random().toString(36).substring(2, 15)
-    const secureFileName = `${timestamp}-${random}-${playerId}.webp`
-    const storagePath = `teams/${teamId}/players/${playerId}/${secureFileName}`
+    const secureFileName = `${timestamp}-${random}-${resolvedPlayerId}.webp`
+    const storagePath = `teams/${teamId}/players/${resolvedPlayerId}/${secureFileName}`
 
     const rawBuffer = Buffer.from(await file.arrayBuffer())
     const buffer = await sharp(rawBuffer)
@@ -126,7 +133,7 @@ export async function POST(
     const { error: updateError } = await supabase
       .from("players")
       .update({ image_url: fileUrl })
-      .eq("id", playerId)
+      .eq("id", resolvedPlayerId)
 
     if (updateError) {
       console.error("[POST /api/roster/[playerId]/image]", updateError)
@@ -134,12 +141,12 @@ export async function POST(
     }
 
     await logPlayerProfileActivity({
-      playerId,
+      playerId: resolvedPlayerId,
       teamId,
       actorId: session.user.id,
       actionType: PLAYER_PROFILE_ACTION_TYPES.PHOTO_CHANGED,
       targetType: "player",
-      targetId: playerId,
+      targetId: resolvedPlayerId,
     })
 
     return NextResponse.json({ imageUrl: fileUrl })
@@ -158,7 +165,7 @@ export async function POST(
  * Removes a player image from Storage (if Supabase URL) or filesystem (legacy), and clears image_url.
  */
 export async function DELETE(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ playerId: string }> }
 ) {
   try {
@@ -167,9 +174,15 @@ export async function DELETE(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const { playerId } = await params
-    if (!playerId) {
+    const { playerId: segment } = await params
+    if (!segment) {
       return NextResponse.json({ error: "playerId is required" }, { status: 400 })
+    }
+
+    const teamIdHint = new URL(request.url).searchParams.get("teamId")
+    const resolvedPlayerId = await resolveRosterApiPlayerUuid(teamIdHint, segment)
+    if (!resolvedPlayerId) {
+      return NextResponse.json({ error: "Player not found" }, { status: 404 })
     }
 
     const supabase = getSupabaseServer()
@@ -177,7 +190,7 @@ export async function DELETE(
     const { data: player, error: playerError } = await supabase
       .from("players")
       .select("id, team_id, user_id, image_url")
-      .eq("id", playerId)
+      .eq("id", resolvedPlayerId)
       .maybeSingle()
 
     if (playerError || !player) {
@@ -213,7 +226,7 @@ export async function DELETE(
     const { error: updateError } = await supabase
       .from("players")
       .update({ image_url: null })
-      .eq("id", playerId)
+      .eq("id", resolvedPlayerId)
 
     if (updateError) {
       console.error("[DELETE /api/roster/[playerId]/image]", updateError)
@@ -221,12 +234,12 @@ export async function DELETE(
     }
 
     await logPlayerProfileActivity({
-      playerId,
+      playerId: resolvedPlayerId,
       teamId,
       actorId: session.user.id,
       actionType: PLAYER_PROFILE_ACTION_TYPES.PHOTO_REMOVED,
       targetType: "player",
-      targetId: playerId,
+      targetId: resolvedPlayerId,
     })
 
     return NextResponse.json({ success: true })

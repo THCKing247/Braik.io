@@ -4,6 +4,7 @@ import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { MembershipLookupError } from "@/lib/auth/rbac"
 import { normalizePlayerImageUrl } from "@/lib/player-image-url"
 import { assertCanAddActivePlayers } from "@/lib/billing/roster-entitlement"
+import { resolveRosterApiPlayerUuid } from "@/lib/roster/resolve-roster-route-player-api"
 
 /**
  * PATCH /api/roster/[playerId] - Update a player (e.g. invite_code, invite_status).
@@ -19,18 +20,23 @@ export async function PATCH(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const { playerId } = await params
-    if (!playerId) {
+    const { playerId: segment } = await params
+    if (!segment) {
       return NextResponse.json({ error: "playerId is required" }, { status: 400 })
     }
 
     const { requireTeamPermission } = await import("@/lib/auth/rbac")
     const supabase = getSupabaseServer()
 
+    const playerUuid = await resolveRosterApiPlayerUuid(null, segment)
+    if (!playerUuid) {
+      return NextResponse.json({ error: "Player not found" }, { status: 404 })
+    }
+
     const { data: player, error: fetchErr } = await supabase
       .from("players")
       .select("id, team_id, status")
-      .eq("id", playerId)
+      .eq("id", playerUuid)
       .maybeSingle()
 
     if (fetchErr || !player) {
@@ -113,7 +119,7 @@ export async function PATCH(
     const { data: updated, error } = await supabase
       .from("players")
       .update(updates)
-      .eq("id", playerId)
+      .eq("id", playerUuid)
       .select()
       .single()
 
@@ -184,18 +190,23 @@ export async function DELETE(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const { playerId } = await params
-    if (!playerId) {
+    const { playerId: segment } = await params
+    if (!segment) {
       return NextResponse.json({ error: "playerId is required" }, { status: 400 })
     }
 
     const { requireTeamPermission } = await import("@/lib/auth/rbac")
     const supabase = getSupabaseServer()
 
+    const playerUuid = await resolveRosterApiPlayerUuid(null, segment)
+    if (!playerUuid) {
+      return NextResponse.json({ error: "Player not found" }, { status: 404 })
+    }
+
     const { data: player, error: fetchErr } = await supabase
       .from("players")
       .select("id, team_id")
-      .eq("id", playerId)
+      .eq("id", playerUuid)
       .maybeSingle()
 
     if (fetchErr || !player) {
@@ -204,7 +215,7 @@ export async function DELETE(
 
     await requireTeamPermission(player.team_id, "edit_roster")
 
-    const { error: deleteErr } = await supabase.from("players").delete().eq("id", playerId)
+    const { error: deleteErr } = await supabase.from("players").delete().eq("id", playerUuid)
 
     if (deleteErr) {
       console.error("[DELETE /api/roster/[playerId]]", deleteErr.message)

@@ -5,6 +5,7 @@ import { requireTeamAccess, getUserMembership } from "@/lib/auth/rbac"
 import { canEditRoster } from "@/lib/auth/roles"
 import { computeReadiness, resolveRequiredDocCategoriesFromStored } from "@/lib/readiness"
 import { activeDocumentCategoriesForReadiness } from "@/lib/readiness-documents"
+import { resolveRosterApiPlayerUuid } from "@/lib/roster/resolve-roster-route-player-api"
 
 /**
  * GET /api/roster/[playerId]/readiness?teamId=xxx
@@ -21,11 +22,16 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const { playerId } = await params
+    const { playerId: segment } = await params
     const { searchParams } = new URL(request.url)
     const teamId = searchParams.get("teamId")
-    if (!playerId || !teamId) {
+    if (!segment || !teamId) {
       return NextResponse.json({ error: "playerId and teamId are required" }, { status: 400 })
+    }
+
+    const resolvedPlayerId = await resolveRosterApiPlayerUuid(teamId, segment)
+    if (!resolvedPlayerId) {
+      return NextResponse.json({ error: "Player not found" }, { status: 404 })
     }
 
     const supabase = getSupabaseServer()
@@ -34,7 +40,7 @@ export async function GET(
       .select(
         "id, team_id, user_id, first_name, last_name, email, player_phone, parent_guardian_contact, eligibility_status"
       )
-      .eq("id", playerId)
+      .eq("id", resolvedPlayerId)
       .eq("team_id", teamId)
       .maybeSingle()
 
@@ -69,7 +75,7 @@ export async function GET(
     const { data: docs } = await supabase
       .from("player_documents")
       .select("category, document_type, deleted_at, expires_at")
-      .eq("player_id", playerId)
+      .eq("player_id", resolvedPlayerId)
       .eq("team_id", teamId)
     const categories = activeDocumentCategoriesForReadiness(docs ?? [])
 
@@ -77,7 +83,7 @@ export async function GET(
       .from("inventory_items")
       .select("*", { count: "exact", head: true })
       .eq("team_id", teamId)
-      .eq("assigned_to_player_id", playerId)
+      .eq("assigned_to_player_id", resolvedPlayerId)
 
     const { data: teamMeta } = await supabase
       .from("teams")

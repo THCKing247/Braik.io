@@ -53,6 +53,7 @@ export async function loadTeamRosterForBootstrap(
       .from("players")
       .select(`
         id,
+        player_account_id,
         first_name,
         last_name,
         grade,
@@ -145,6 +146,7 @@ export async function loadTeamRosterForBootstrap(
 
     return {
       id: p.id,
+      playerAccountId: (p as { player_account_id?: string }).player_account_id ?? "",
       firstName: p.first_name ?? "",
       lastName: p.last_name ?? "",
       grade: p.grade ?? null,

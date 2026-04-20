@@ -6,6 +6,7 @@ import { getPositionSide, toPlayerStatsRow } from "@/lib/stats-helpers"
 
 type PlayerRow = {
   id: string
+  player_account_id: string | null
   first_name: string
   last_name: string
   jersey_number: number | null
@@ -36,7 +37,7 @@ export async function GET(request: Request) {
 
     const { data: rows, error } = await supabase
       .from("players")
-      .select("id, first_name, last_name, jersey_number, position_group, season_stats")
+      .select("id, player_account_id, first_name, last_name, jersey_number, position_group, season_stats")
       .eq("team_id", teamId)
       .order("last_name", { ascending: true })
       .order("first_name", { ascending: true })
@@ -57,6 +58,7 @@ export async function GET(request: Request) {
     const players = typedRows.map((p) =>
       toPlayerStatsRow({
         id: p.id,
+        playerAccountId: p.player_account_id,
         firstName: p.first_name ?? "",
         lastName: p.last_name ?? "",
         jerseyNumber: p.jersey_number ?? null,

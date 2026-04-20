@@ -24,15 +24,52 @@ interface Overview {
 
 interface DashboardData {
   overview?: Overview
-  breakout?: { candidates: { playerId: string; playerName: string; teamLevel: string | null; positionGroup: string | null; score: number; explanation: string }[] }
-  promotions?: { candidates: { playerId: string; playerName: string; currentLevel: string; positionGroup: string | null; score: number; explanation: string }[] }
+  breakout?: {
+    candidates: {
+      playerId: string
+      playerName: string
+      teamLevel: string | null
+      positionGroup: string | null
+      score: number
+      explanation: string
+      dashboardPlayerPath: string | null
+    }[]
+  }
+  promotions?: {
+    candidates: {
+      playerId: string
+      playerName: string
+      currentLevel: string
+      positionGroup: string | null
+      score: number
+      explanation: string
+      dashboardPlayerPath: string | null
+    }[]
+  }
   playbookReadiness?: {
     offenseReadinessPct: number | null
     defenseReadinessPct: number | null
     lowestReadinessPositionGroups: { positionGroup: string; avgPct: number; playerCount: number }[]
-    playersBehindOnAssignments: { playerId: string; playerName: string; completed: number; total: number; pct: number }[]
+    playersBehindOnAssignments: {
+      playerId: string
+      playerName: string
+      completed: number
+      total: number
+      pct: number
+      dashboardPlayerPath: string | null
+    }[]
   }
-  recruitingReady?: { players: { playerId: string; playerName: string; teamLevel: string | null; positionGroup: string | null; hasVisibility: boolean; explanation: string }[] }
+  recruitingReady?: {
+    players: {
+      playerId: string
+      playerName: string
+      teamLevel: string | null
+      positionGroup: string | null
+      hasVisibility: boolean
+      explanation: string
+      dashboardPlayerPath: string | null
+    }[]
+  }
   risks?: { risks: { type: string; severity: string; title: string; explanation: string; linkToTeamId?: string }[] }
 }
 
@@ -186,7 +223,10 @@ export default function ProgramIntelligencePage() {
                     {(data.breakout?.candidates ?? []).map((c) => (
                       <li key={c.playerId} className="flex items-center justify-between rounded-lg border border-[#E5E7EB] p-3">
                         <div>
-                          <Link href={`/dashboard/roster/${c.playerId}`} className="font-medium text-[#2563EB] hover:underline">
+                          <Link
+                            href={c.dashboardPlayerPath ?? `/dashboard/roster/${c.playerId}`}
+                            className="font-medium text-[#2563EB] hover:underline"
+                          >
                             {c.playerName}
                           </Link>
                           <p className="text-xs text-[#6B7280]">
@@ -209,7 +249,10 @@ export default function ProgramIntelligencePage() {
                     {(data.promotions?.candidates ?? []).map((c) => (
                       <li key={c.playerId} className="flex items-center justify-between rounded-lg border border-[#E5E7EB] p-3">
                         <div>
-                          <Link href={`/dashboard/roster/${c.playerId}`} className="font-medium text-[#2563EB] hover:underline">
+                          <Link
+                            href={c.dashboardPlayerPath ?? `/dashboard/roster/${c.playerId}`}
+                            className="font-medium text-[#2563EB] hover:underline"
+                          >
                             {c.playerName}
                           </Link>
                           <p className="text-xs text-[#6B7280]">{c.currentLevel} · {c.explanation}</p>
@@ -255,7 +298,10 @@ export default function ProgramIntelligencePage() {
                       <ul className="mt-1 space-y-1 text-sm">
                         {data.playbookReadiness.playersBehindOnAssignments.slice(0, 5).map((p) => (
                           <li key={p.playerId}>
-                            <Link href={`/dashboard/roster/${p.playerId}`} className="text-[#2563EB] hover:underline">
+                            <Link
+                              href={p.dashboardPlayerPath ?? `/dashboard/roster/${p.playerId}`}
+                              className="text-[#2563EB] hover:underline"
+                            >
                               {p.playerName}
                             </Link>
                             {" "}({p.pct}%)
@@ -276,7 +322,10 @@ export default function ProgramIntelligencePage() {
                     {(data.recruitingReady?.players ?? []).map((p) => (
                       <li key={p.playerId} className="flex items-center justify-between rounded-lg border border-[#E5E7EB] p-3">
                         <div>
-                          <Link href={`/dashboard/roster/${p.playerId}`} className="font-medium text-[#2563EB] hover:underline">
+                          <Link
+                            href={p.dashboardPlayerPath ?? `/dashboard/roster/${p.playerId}`}
+                            className="font-medium text-[#2563EB] hover:underline"
+                          >
                             {p.playerName}
                           </Link>
                           <p className="text-xs text-[#6B7280]">{[p.positionGroup, p.teamLevel].filter(Boolean).join(" · ")} — {p.explanation}</p>

@@ -3,6 +3,7 @@ import { getServerSession } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { resolvePlayerDocumentAccess } from "@/lib/player-documents/access"
 import { effectiveDocumentStatus } from "@/lib/player-documents/status"
+import { resolveRosterApiPlayerUuid } from "@/lib/roster/resolve-roster-route-player-api"
 
 /**
  * GET /api/player-documents?teamId=&playerId=&includeExpired=&status=
@@ -16,14 +17,19 @@ export async function GET(request: Request) {
 
     const { searchParams } = new URL(request.url)
     const teamId = searchParams.get("teamId")
-    const playerId = searchParams.get("playerId")
+    const playerIdParam = searchParams.get("playerId")
     const includeExpired = searchParams.get("includeExpired") === "1" || searchParams.get("includeExpired") === "true"
     const statusFilter = searchParams.get("status") // active | expired | all
 
-    if (!teamId || !playerId) {
+    if (!teamId || !playerIdParam) {
       return NextResponse.json({ error: "teamId and playerId are required" }, { status: 400 })
     }
 
+    const playerIdResolved = await resolveRosterApiPlayerUuid(teamId, playerIdParam)
+    if (!playerIdResolved) {
+      return NextResponse.json({ error: "Player not found" }, { status: 404 })
+    }
+    const playerId = playerIdResolved
     const supabase = getSupabaseServer()
     const access = await resolvePlayerDocumentAccess(supabase, session.user.id, playerId, teamId)
     if (!access?.canView) {

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { getServerSession } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { MembershipLookupError } from "@/lib/auth/rbac"
+import { resolveRosterApiPlayerUuid } from "@/lib/roster/resolve-roster-route-player-api"
 
 /**
  * POST /api/roster/[playerId]/invite/revoke
@@ -17,9 +18,14 @@ export async function POST(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const { playerId } = await params
-    if (!playerId) {
+    const { playerId: segment } = await params
+    if (!segment) {
       return NextResponse.json({ error: "playerId is required" }, { status: 400 })
+    }
+
+    const resolvedPlayerId = await resolveRosterApiPlayerUuid(null, segment)
+    if (!resolvedPlayerId) {
+      return NextResponse.json({ error: "Player not found" }, { status: 404 })
     }
 
     const { requireTeamPermission } = await import("@/lib/auth/rbac")
@@ -28,7 +34,7 @@ export async function POST(
     const { data: player, error: fetchErr } = await supabase
       .from("players")
       .select("id, team_id")
-      .eq("id", playerId)
+      .eq("id", resolvedPlayerId)
       .maybeSingle()
 
     if (fetchErr || !player) {
@@ -40,7 +46,7 @@ export async function POST(
     const { data: invite, error: inviteErr } = await supabase
       .from("player_invites")
       .select("id")
-      .eq("player_id", playerId)
+      .eq("player_id", resolvedPlayerId)
       .in("status", ["pending", "sent"])
       .maybeSingle()
 

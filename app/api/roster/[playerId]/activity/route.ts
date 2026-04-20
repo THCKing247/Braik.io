@@ -3,6 +3,7 @@ import { getServerSession } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { requireTeamAccess, getUserMembership } from "@/lib/auth/rbac"
 import { canEditRoster } from "@/lib/auth/roles"
+import { resolveRosterApiPlayerUuid } from "@/lib/roster/resolve-roster-route-player-api"
 
 const DEFAULT_LIMIT = 25
 const MAX_LIMIT = 100
@@ -23,7 +24,7 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const { playerId } = await params
+    const { playerId: segment } = await params
     const { searchParams } = new URL(request.url)
     const teamId = searchParams.get("teamId")
     const actionType = searchParams.get("actionType")?.trim() || null
@@ -34,15 +35,20 @@ export async function GET(
     const offset = Math.max(0, parseInt(searchParams.get("offset") ?? "0", 10) || 0)
     const pageMode = searchParams.get("pageMode") === "1" || searchParams.has("offset")
 
-    if (!playerId || !teamId) {
+    if (!segment || !teamId) {
       return NextResponse.json({ error: "playerId and teamId are required" }, { status: 400 })
+    }
+
+    const resolvedPlayerId = await resolveRosterApiPlayerUuid(teamId, segment)
+    if (!resolvedPlayerId) {
+      return NextResponse.json({ error: "Player not found" }, { status: 404 })
     }
 
     const supabase = getSupabaseServer()
     const { data: player, error: playerErr } = await supabase
       .from("players")
       .select("id, team_id, user_id")
-      .eq("id", playerId)
+      .eq("id", resolvedPlayerId)
       .eq("team_id", teamId)
       .maybeSingle()
 
@@ -63,7 +69,7 @@ export async function GET(
       .select("id, player_id, team_id, actor_id, action_type, target_type, target_id, metadata_json, created_at", {
         count: pageMode ? "exact" : undefined,
       })
-      .eq("player_id", playerId)
+      .eq("player_id", resolvedPlayerId)
       .eq("team_id", teamId)
       .order("created_at", { ascending: false })
       .range(offset, offset + limit - 1)

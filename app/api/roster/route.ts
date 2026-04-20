@@ -16,6 +16,7 @@ import { buildPlayerInviteSignupPath } from "@/lib/invites/build-join-link"
 /** Player row shape from DB (GET select + optional new columns from migration). */
 type PlayerRow = {
   id: string
+  player_account_id?: string
   first_name: string
   last_name: string
   grade: number | null
@@ -68,7 +69,7 @@ export async function GET(request: Request) {
       const { data: rows, error } = await routePerf(sink, "query_players_lite", async () =>
         await supabase
           .from("players")
-          .select("id, first_name, last_name, grade, jersey_number, position_group")
+          .select("id, player_account_id, first_name, last_name, grade, jersey_number, position_group")
           .eq("team_id", teamId)
           .order("last_name", { ascending: true })
           .order("first_name", { ascending: true })
@@ -79,6 +80,7 @@ export async function GET(request: Request) {
       }
       const litePlayers = (rows ?? []).map((p: Record<string, unknown>) => ({
         id: p.id as string,
+        playerAccountId: (p.player_account_id as string | undefined) ?? "",
         firstName: (p.first_name as string) ?? "",
         lastName: (p.last_name as string) ?? "",
         grade:
@@ -114,7 +116,7 @@ export async function GET(request: Request) {
         supabase
           .from("players")
           .select(
-            "id, first_name, last_name, grade, jersey_number, position_group, secondary_position, status, notes, image_url, user_id, email, player_phone, invite_code, invite_status, claimed_at, created_by, updated_at"
+            "id, player_account_id, first_name, last_name, grade, jersey_number, position_group, secondary_position, status, notes, image_url, user_id, email, player_phone, invite_code, invite_status, claimed_at, created_by, updated_at"
           )
           .eq("team_id", teamId)
           .order("last_name", { ascending: true })
@@ -194,6 +196,7 @@ export async function GET(request: Request) {
           : undefined
       return {
         id: p.id,
+        playerAccountId: (p as PlayerRow).player_account_id ?? "",
         firstName: p.first_name ?? "",
         lastName: p.last_name ?? "",
         grade: p.grade ?? null,
@@ -441,7 +444,7 @@ export async function POST(request: Request) {
         title: `Roster: ${p.first_name} ${p.last_name} added`,
         body: "New player added",
         linkType: "player",
-        linkId: p.id,
+        linkId: (p as PlayerRow).player_account_id ?? p.id,
         excludeUserIds: [session.user.id],
       })
     } catch {
@@ -458,6 +461,7 @@ export async function POST(request: Request) {
 
     const out = {
       id: p.id,
+      playerAccountId: (p as PlayerRow & { player_account_id?: string }).player_account_id ?? "",
       firstName: p.first_name,
       lastName: p.last_name,
       grade: p.grade ?? null,

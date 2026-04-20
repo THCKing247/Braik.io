@@ -72,3 +72,28 @@ export async function lookupTeamRouteMapByShortIds(
   if (error) throw error
   return data as TeamRouteMapRow | null
 }
+
+export type PlayerRouteMapRow = {
+  player_uuid: string
+  player_account_id: string
+  team_uuid: string
+  short_team_id: string
+  short_org_id: string
+  organization_portal_uuid: string
+  team_name: string | null
+}
+
+export async function lookupPlayerRouteMapByPlayerUuid(
+  supabase: SupabaseClient,
+  playerUuid: string
+): Promise<PlayerRouteMapRow | null> {
+  const { data, error } = await supabase
+    .from("v_braik_player_route_map")
+    .select(
+      "player_uuid, player_account_id, team_uuid, short_team_id, short_org_id, organization_portal_uuid, team_name"
+    )
+    .eq("player_uuid", playerUuid)
+    .maybeSingle()
+  if (error) throw error
+  return data as PlayerRouteMapRow | null
+}

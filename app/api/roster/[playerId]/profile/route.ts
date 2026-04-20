@@ -17,6 +17,7 @@ import { isLinkedParentOfPlayer } from "@/lib/player-documents/access"
 import { getRequestClientIp } from "@/lib/http/request-client-ip"
 import { SEASON_STAT_KEYS } from "@/lib/stats-helpers"
 import { recalculateSeasonStatsFromWeeklyForPlayers } from "@/lib/stats-weekly-season-sync"
+import { resolveRosterApiPlayerUuid } from "@/lib/roster/resolve-roster-route-player-api"
 
 const SYNCED_STAT_KEYS = new Set<string>(SEASON_STAT_KEYS as unknown as string[])
 
@@ -34,8 +35,8 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const { playerId } = await params
-    if (!playerId) {
+    const { playerId: segment } = await params
+    if (!segment) {
       return NextResponse.json({ error: "playerId is required" }, { status: 400 })
     }
 
@@ -43,6 +44,11 @@ export async function GET(
     const teamId = searchParams.get("teamId")
     if (!teamId) {
       return NextResponse.json({ error: "teamId is required" }, { status: 400 })
+    }
+
+    const resolvedPlayerId = await resolveRosterApiPlayerUuid(teamId, segment)
+    if (!resolvedPlayerId) {
+      return NextResponse.json({ error: "Player not found" }, { status: 404 })
     }
 
     await requireTeamAccess(teamId)
@@ -56,7 +62,7 @@ export async function GET(
       .select(
         "id, team_id, first_name, last_name, grade, jersey_number, position_group, status, suspension_end_date, notes, image_url, user_id, email, weight, height, health_status, preferred_name, secondary_position, graduation_year, date_of_birth, school, parent_guardian_contact, player_phone, sms_opt_in, sms_opt_in_at, address, emergency_contact, emergency_contact_relationship, medical_notes, medical_alerts, eligibility_status, role_depth_notes, season_stats, game_stats, practice_metrics, coach_notes, assigned_equipment, equipment_issue_return_notes, profile_tags, profile_notes, document_refs, invite_code, max_bench_lbs, max_squat_lbs, max_power_clean_lbs, max_deadlift_lbs"
       )
-      .eq("id", playerId)
+      .eq("id", resolvedPlayerId)
       .eq("team_id", teamId)
       .maybeSingle()
 
@@ -66,7 +72,7 @@ export async function GET(
 
     const row = player as DbPlayerRow
     const isOwnProfile = row.user_id === session.user.id
-    const isParentViewer = await isLinkedParentOfPlayer(supabase, session.user.id, playerId)
+    const isParentViewer = await isLinkedParentOfPlayer(supabase, session.user.id, resolvedPlayerId)
     if (!isCoach && !isOwnProfile && !isParentViewer) {
       return NextResponse.json(
         { error: "You can only view your own profile." },
@@ -81,7 +87,7 @@ export async function GET(
         "id, category, name, condition, status, notes, damage_report_text, damage_reported_at, damage_reported_by_player_id"
       )
       .eq("team_id", teamId)
-      .eq("assigned_to_player_id", playerId)
+      .eq("assigned_to_player_id", resolvedPlayerId)
 
     const assignedEquipmentItems: AssignedEquipmentItemRow[] = (invItems ?? []).map((i) => ({
       id: i.id,
@@ -138,9 +144,14 @@ export async function PATCH(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const { playerId } = await params
-    if (!playerId) {
+    const { playerId: segment } = await params
+    if (!segment) {
       return NextResponse.json({ error: "playerId is required" }, { status: 400 })
+    }
+
+    const resolvedPlayerId = await resolveRosterApiPlayerUuid(null, segment)
+    if (!resolvedPlayerId) {
+      return NextResponse.json({ error: "Player not found" }, { status: 404 })
     }
 
     const body = (await request.json()) as PlayerProfileUpdateBody
@@ -148,7 +159,7 @@ export async function PATCH(
     const { data: player, error: fetchErr } = await supabase
       .from("players")
       .select("id, team_id, user_id, health_status, status, season_stats")
-      .eq("id", playerId)
+      .eq("id", resolvedPlayerId)
       .maybeSingle()
 
     if (fetchErr || !player) {
@@ -317,7 +328,7 @@ export async function PATCH(
     const { data: updated, error: updateErr } = await supabase
       .from("players")
       .update(updates)
-      .eq("id", playerId)
+      .eq("id", resolvedPlayerId)
       .select()
       .single()
 
@@ -328,7 +339,7 @@ export async function PATCH(
 
     if (isCoach && bodyToUse.seasonStats !== undefined) {
       try {
-        await recalculateSeasonStatsFromWeeklyForPlayers(supabase, teamId, [playerId])
+        await recalculateSeasonStatsFromWeeklyForPlayers(supabase, teamId, [resolvedPlayerId])
       } catch (e) {
         console.error("[PATCH /api/roster/.../profile] weekly→season sync failed", e)
       }
@@ -341,7 +352,7 @@ export async function PATCH(
         "id, category, name, condition, status, notes, damage_report_text, damage_reported_at, damage_reported_by_player_id"
       )
       .eq("team_id", teamId)
-      .eq("assigned_to_player_id", playerId)
+      .eq("assigned_to_player_id", resolvedPlayerId)
 
     const assignedEquipmentItems: AssignedEquipmentItemRow[] = (invItems ?? []).map((i) => ({
       id: i.id,
@@ -378,12 +389,12 @@ export async function PATCH(
 
     if (healthChanged) {
       await logPlayerProfileActivity({
-        playerId,
+        playerId: resolvedPlayerId,
         teamId,
         actorId: session.user.id,
         actionType: PLAYER_PROFILE_ACTION_TYPES.HEALTH_STATUS_UPDATED,
         targetType: "player",
-        targetId: playerId,
+        targetId: resolvedPlayerId,
         metadata: { healthStatus: nextHealth },
       })
     }
@@ -395,12 +406,12 @@ export async function PATCH(
 
     if (shouldLogProfileOrStats) {
       await logPlayerProfileActivity({
-        playerId,
+        playerId: resolvedPlayerId,
         teamId,
         actorId: session.user.id,
         actionType: hadStats ? PLAYER_PROFILE_ACTION_TYPES.STATS_UPDATED : PLAYER_PROFILE_ACTION_TYPES.PROFILE_UPDATED,
         targetType: "player",
-        targetId: playerId,
+        targetId: resolvedPlayerId,
         metadata: hadStats ? { updatedFields: ["stats"] } : {},
       })
     }

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { getServerSession } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { MembershipLookupError } from "@/lib/auth/rbac"
+import { resolveRosterApiPlayerUuid } from "@/lib/roster/resolve-roster-route-player-api"
 
 /**
  * PATCH /api/roster/[playerId]/forms - Update player forms status
@@ -17,9 +18,14 @@ export async function PATCH(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const { playerId } = await params
-    if (!playerId) {
+    const { playerId: segment } = await params
+    if (!segment) {
       return NextResponse.json({ error: "playerId is required" }, { status: 400 })
+    }
+
+    const resolvedPlayerId = await resolveRosterApiPlayerUuid(null, segment)
+    if (!resolvedPlayerId) {
+      return NextResponse.json({ error: "Player not found" }, { status: 404 })
     }
 
     const { requireTeamPermission } = await import("@/lib/auth/rbac")
@@ -28,7 +34,7 @@ export async function PATCH(
     const { data: player, error: fetchErr } = await supabase
       .from("players")
       .select("id, team_id")
-      .eq("id", playerId)
+      .eq("id", resolvedPlayerId)
       .maybeSingle()
 
     if (fetchErr || !player) {
@@ -72,7 +78,7 @@ export async function PATCH(
     const { data: updated, error } = await supabase
       .from("players")
       .update(updates)
-      .eq("id", playerId)
+      .eq("id", resolvedPlayerId)
       .select("id, forms_complete, missing_forms, health_status")
       .single()
 

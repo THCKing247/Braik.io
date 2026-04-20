@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react"
 import Link from "next/link"
+import { usePathname } from "next/navigation"
 import { prefetchPropForDashboardScheduleHref } from "@/lib/navigation/dashboard-schedule-prefetch"
 import { startOfDay } from "date-fns"
 import { Button } from "@/components/ui/button"
@@ -11,9 +12,14 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { DatePicker, dateToYmd } from "@/components/portal/date-time-picker"
 import { Stethoscope, Plus, X } from "lucide-react"
+import {
+  buildDashboardTeamPlayerPath,
+  parseCanonicalDashboardTeamPath,
+} from "@/lib/navigation/organization-routes"
 
 interface Player {
   id: string
+  playerAccountId?: string
   firstName: string
   lastName: string
   jerseyNumber: number | null
@@ -44,6 +50,8 @@ interface HealthManagerProps {
 }
 
 export function HealthManager({ teamId }: HealthManagerProps) {
+  const pathname = usePathname() ?? ""
+  const canonicalTeam = parseCanonicalDashboardTeamPath(pathname)
   const [players, setPlayers] = useState<Player[]>([])
   const [injuries, setInjuries] = useState<Injury[]>([])
   const [loading, setLoading] = useState(true)
@@ -65,6 +73,19 @@ export function HealthManager({ teamId }: HealthManagerProps) {
   const [showPastInjuries, setShowPastInjuries] = useState(false)
   const [healthPageSize, setHealthPageSize] = useState<10 | 25 | 50>(25)
   const [healthPage, setHealthPage] = useState(1)
+
+  const playersById = useMemo(() => new Map(players.map((p) => [p.id, p])), [players])
+
+  const injuryPlayerProfileHref = useMemo(() => {
+    if (!detailInjury) return null
+    const pl = playersById.get(detailInjury.player_id)
+    const acc = pl?.playerAccountId?.trim()
+    if (canonicalTeam && acc) {
+      return buildDashboardTeamPlayerPath({ ...canonicalTeam, playerAccountId: acc })
+    }
+    const segment = acc || detailInjury.player_id
+    return `/dashboard/roster/${segment}?teamId=${encodeURIComponent(teamId)}`
+  }, [detailInjury, playersById, canonicalTeam, teamId])
 
   const filteredPlayersForPick = useMemo(() => {
     const q = playerPickQuery.trim().toLowerCase()
@@ -91,12 +112,13 @@ export function HealthManager({ teamId }: HealthManagerProps) {
 
       if (playersRes.ok) {
         const playersData = await playersRes.json()
-        setPlayers(playersData.map((p: any) => ({
-          id: p.id,
-          firstName: p.firstName,
-          lastName: p.lastName,
-          jerseyNumber: p.jerseyNumber,
-          healthStatus: p.healthStatus || "active",
+        setPlayers(playersData.map((p: Record<string, unknown>) => ({
+          id: String(p.id ?? ""),
+          playerAccountId: typeof p.playerAccountId === "string" ? p.playerAccountId : undefined,
+          firstName: String(p.firstName ?? ""),
+          lastName: String(p.lastName ?? ""),
+          jerseyNumber: typeof p.jerseyNumber === "number" ? p.jerseyNumber : null,
+          healthStatus: (p.healthStatus as Player["healthStatus"]) || "active",
         })))
       }
 
@@ -907,10 +929,8 @@ export function HealthManager({ teamId }: HealthManagerProps) {
                 </Button>
                 <Button variant="outline" asChild className="flex-1 border-border">
                   <Link
-                    href={`/dashboard/roster/${detailInjury.player_id}?teamId=${encodeURIComponent(teamId)}`}
-                    prefetch={prefetchPropForDashboardScheduleHref(
-                      `/dashboard/roster/${detailInjury.player_id}`
-                    )}
+                    href={injuryPlayerProfileHref ?? "#"}
+                    prefetch={prefetchPropForDashboardScheduleHref(injuryPlayerProfileHref ?? "")}
                   >
                     Player profile
                   </Link>

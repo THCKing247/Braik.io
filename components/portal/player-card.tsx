@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button"
 
 interface PlayerCardPlayer {
   id: string
+  playerAccountId?: string
   firstName: string
   lastName: string
   jerseyNumber: number | null
@@ -125,7 +126,7 @@ export function PlayerCard({
       input.accept = "image/jpeg,image/png,image/gif,image/webp"
       input.onchange = (e) => {
         const file = (e.target as HTMLInputElement).files?.[0]
-        if (file) onImageUpload(player.id, file)
+        if (file) onImageUpload(player.playerAccountId ?? player.id, file)
       }
       input.click()
     }

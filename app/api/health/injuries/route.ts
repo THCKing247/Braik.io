@@ -4,6 +4,7 @@ import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { requireTeamPermission } from "@/lib/auth/rbac"
 import { trackProductEventServer } from "@/lib/analytics/track-server"
 import { BRAIK_EVENTS } from "@/lib/analytics/event-names"
+import { resolveRosterApiPlayerUuid } from "@/lib/roster/resolve-roster-route-player-api"
 
 /**
  * GET /api/health/injuries?teamId=xxx
@@ -18,7 +19,7 @@ export async function GET(request: Request) {
 
     const { searchParams } = new URL(request.url)
     const teamId = searchParams.get("teamId")
-    const playerId = searchParams.get("playerId")?.trim() || null
+    const playerIdParam = searchParams.get("playerId")?.trim() || null
     if (!teamId) {
       return NextResponse.json({ error: "teamId is required" }, { status: 400 })
     }
@@ -26,6 +27,14 @@ export async function GET(request: Request) {
     await requireTeamPermission(teamId, "edit_roster")
 
     const supabase = getSupabaseServer()
+    let playerId: string | null = null
+    if (playerIdParam) {
+      const r = await resolveRosterApiPlayerUuid(teamId, playerIdParam)
+      if (!r) {
+        return NextResponse.json({ error: "Player not found" }, { status: 404 })
+      }
+      playerId = r
+    }
     let injuryQuery = supabase
       .from("player_injuries")
       .select(`
@@ -81,10 +90,10 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json()
-    const { playerId, teamId, injuryReason, injuryDate, expectedReturnDate, notes, severity, exemptFromPractice } = body
+    const { playerId: playerIdRaw, teamId, injuryReason, injuryDate, expectedReturnDate, notes, severity, exemptFromPractice } = body
 
     const reasonTrimmed = typeof injuryReason === "string" ? injuryReason.trim() : ""
-    if (!playerId || !teamId || !reasonTrimmed) {
+    if (!playerIdRaw || !teamId || !reasonTrimmed) {
       return NextResponse.json(
         { error: "playerId, teamId, and a non-empty injuryReason are required" },
         { status: 400 }
@@ -95,10 +104,15 @@ export async function POST(request: Request) {
 
     const supabase = getSupabaseServer()
 
+    const playerIdResolved = await resolveRosterApiPlayerUuid(teamId, String(playerIdRaw))
+    if (!playerIdResolved) {
+      return NextResponse.json({ error: "Player not found" }, { status: 404 })
+    }
+
     const { data: playerRow, error: playerLookupErr } = await supabase
       .from("players")
       .select("id")
-      .eq("id", playerId)
+      .eq("id", playerIdResolved)
       .eq("team_id", teamId)
       .maybeSingle()
 
@@ -117,7 +131,7 @@ export async function POST(request: Request) {
     const { data: injury, error: injuryError } = await supabase
       .from("player_injuries")
       .insert({
-        player_id: playerId,
+        player_id: playerIdResolved,
         team_id: teamId,
         injury_reason: reasonTrimmed,
         injury_date: injuryDate ? new Date(injuryDate).toISOString() : new Date().toISOString(),
@@ -141,7 +155,7 @@ export async function POST(request: Request) {
       const { data: player } = await supabase
         .from("players")
         .select("first_name, last_name")
-        .eq("id", playerId)
+        .eq("id", playerIdResolved)
         .single()
 
       if (player) {

@@ -4,6 +4,7 @@ import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { requireProgramCoach } from "@/lib/auth/rbac"
 import { MembershipLookupError } from "@/lib/auth/rbac"
 import { getRecruitingReport } from "@/lib/recruiting/report"
+import { resolveRosterApiPlayerUuid } from "@/lib/roster/resolve-roster-route-player-api"
 
 /**
  * GET /api/recruiting/report?playerId=xxx
@@ -17,16 +18,22 @@ export async function GET(request: Request) {
     }
 
     const { searchParams } = new URL(request.url)
-    const playerId = searchParams.get("playerId")
-    if (!playerId) {
+    const segment = searchParams.get("playerId")
+    if (!segment) {
       return NextResponse.json({ error: "playerId is required" }, { status: 400 })
     }
 
+    const teamHint = searchParams.get("teamId")?.trim()
     const supabase = getSupabaseServer()
+    const resolvedUuid = await resolveRosterApiPlayerUuid(teamHint || undefined, segment)
+    if (!resolvedUuid) {
+      return NextResponse.json({ error: "Player not found" }, { status: 404 })
+    }
+
     const { data: player } = await supabase
       .from("players")
       .select("id, team_id")
-      .eq("id", playerId)
+      .eq("id", resolvedUuid)
       .maybeSingle()
 
     if (!player) {
@@ -46,7 +53,7 @@ export async function GET(request: Request) {
 
     await requireProgramCoach(programId)
 
-    const report = await getRecruitingReport(supabase, playerId)
+    const report = await getRecruitingReport(supabase, resolvedUuid)
     if (!report) {
       return NextResponse.json({ error: "Report could not be generated" }, { status: 500 })
     }

@@ -60,6 +60,8 @@ function readAssistedTackles(stats: Record<string, unknown>): number | null {
 /** One row for the All Stats table (profile + aggregated stats). */
 export interface PlayerStatsRow {
   id: string
+  /** Canonical roster URL segment when provided by API (not the internal UUID). */
+  playerAccountId?: string
   firstName: string
   lastName: string
   jerseyNumber: number | null
@@ -114,6 +116,7 @@ export interface PlayerStatsRow {
 /** Build a PlayerStatsRow from API player + season_stats (supports legacy JSON keys). */
 export function toPlayerStatsRow(p: {
   id: string
+  playerAccountId?: string | null
   firstName: string
   lastName: string
   jerseyNumber: number | null
@@ -125,6 +128,9 @@ export function toPlayerStatsRow(p: {
 
   return {
     id: p.id,
+    ...(p.playerAccountId?.trim()
+      ? { playerAccountId: p.playerAccountId.trim() }
+      : {}),
     firstName: p.firstName ?? "",
     lastName: p.lastName ?? "",
     jerseyNumber: p.jerseyNumber ?? null,

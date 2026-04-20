@@ -50,6 +50,7 @@ import { trackProductEvent } from "@/lib/utils/analytics-client"
 import { BRAIK_EVENTS } from "@/lib/analytics/event-names"
 import {
   buildDashboardTeamPath,
+  buildDashboardTeamPlayerPath,
   type DashboardTeamPathParams,
 } from "@/lib/navigation/organization-routes"
 import { depthChartAssignmentsEqual } from "@/lib/depth-chart/compare-assignments"
@@ -62,6 +63,8 @@ const ROSTER_BILLING_WARNING =
 
 interface Player {
   id: string
+  /** Canonical roster URL segment (`player_account_id`). */
+  playerAccountId?: string
   firstName: string
   lastName: string
   grade: number | null
@@ -1629,13 +1632,14 @@ export function RosterManagerEnhanced({
     return () => window.removeEventListener("beforeunload", onBeforeUnload)
   }, [showDepthChartModal, hasUnsavedChanges])
 
-  const playerProfileHrefFor = (playerId: string) => {
+  const playerProfileHrefFor = (playerId: string, playerAccountId?: string) => {
+    const segment = playerAccountId?.trim() || playerId
     if (canonicalTeamParts) {
       const p = new URLSearchParams()
       if (rosterViewMode !== "card") p.set("view", rosterViewMode)
       if (rosterSearchQuery.trim()) p.set("q", rosterSearchQuery.trim())
       if (rosterPositionFilter) p.set("position", rosterPositionFilter)
-      const base = buildDashboardTeamPath(canonicalTeamParts, `/roster/${playerId}`)
+      const base = buildDashboardTeamPlayerPath({ ...canonicalTeamParts, playerAccountId: segment })
       const qs = p.toString()
       return qs ? `${base}?${qs}` : base
     }
@@ -1645,10 +1649,10 @@ export function RosterManagerEnhanced({
     if (rosterSearchQuery.trim()) params.set("q", rosterSearchQuery.trim())
     if (rosterPositionFilter) params.set("position", rosterPositionFilter)
     const qs = params.toString()
-    return `/dashboard/roster/${playerId}${qs ? `?${qs}` : ""}`
+    return `/dashboard/roster/${segment}${qs ? `?${qs}` : ""}`
   }
 
-  const rosterProfileHref = (p: Player) => playerProfileHrefFor(p.id)
+  const rosterProfileHref = (p: Player) => playerProfileHrefFor(p.id, p.playerAccountId)
 
   const tabBtnClass = (active: boolean) =>
     `flex min-h-[44px] shrink-0 items-center justify-center whitespace-nowrap px-3 text-sm font-semibold transition-colors sm:px-4 lg:min-h-10 lg:rounded-none lg:border-b-2 lg:px-4 ${
@@ -2858,6 +2862,7 @@ export function RosterManagerEnhanced({
           ) : rosterViewMode === "card" ? (
             <RosterGridView
               players={filteredRosterPlayers}
+              teamId={teamId}
               filterKey={rosterPaginationFilterKey}
               canEdit={canEdit}
               onEditPlayer={canEdit ? (p) => setEditingPlayer(p as Player) : undefined}

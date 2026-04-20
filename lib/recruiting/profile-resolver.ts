@@ -79,23 +79,42 @@ export async function getRecruitingProfileByPlayerIdOrSlug(
 ): Promise<RecruitingProfileView | null> {
   const { requireVisible = false } = options
 
-  const isId = /^[0-9a-f-]{36}$/i.test(playerIdOrSlug)
+  const trimmed = playerIdOrSlug.trim()
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(trimmed)
 
   let profileRow: PlayerRecruitingProfileRow | null = null
-  if (isId) {
+  if (isUuid) {
     const { data } = await supabase
       .from("player_recruiting_profiles")
       .select("*")
-      .eq("player_id", playerIdOrSlug)
+      .eq("player_id", trimmed)
       .maybeSingle()
     profileRow = data as PlayerRecruitingProfileRow | null
   } else {
-    const { data } = await supabase
+    const { data: slugHit } = await supabase
       .from("player_recruiting_profiles")
       .select("*")
-      .eq("slug", playerIdOrSlug)
+      .eq("slug", trimmed)
       .maybeSingle()
-    profileRow = data as PlayerRecruitingProfileRow | null
+    profileRow = slugHit as PlayerRecruitingProfileRow | null
+
+    if (!profileRow && /^\d+$/.test(trimmed)) {
+      const normalizedAcct = trimmed.padStart(6, "0")
+      const { data: byAcct } = await supabase
+        .from("players")
+        .select("id")
+        .eq("player_account_id", normalizedAcct)
+        .maybeSingle()
+      const pid = (byAcct as { id?: string } | null)?.id
+      if (pid) {
+        const { data } = await supabase
+          .from("player_recruiting_profiles")
+          .select("*")
+          .eq("player_id", pid)
+          .maybeSingle()
+        profileRow = data as PlayerRecruitingProfileRow | null
+      }
+    }
   }
 
   if (!profileRow) return null

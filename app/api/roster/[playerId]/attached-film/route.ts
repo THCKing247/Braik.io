@@ -5,6 +5,7 @@ import { requireTeamAccess, getUserMembership } from "@/lib/auth/rbac"
 import { canEditRoster } from "@/lib/auth/roles"
 import { isLinkedParentOfPlayer } from "@/lib/player-documents/access"
 import { loadPlayerPortalFilmPayload } from "@/lib/recruiting/recruiting-media"
+import { resolveRosterApiPlayerUuid } from "@/lib/roster/resolve-roster-route-player-api"
 
 export const runtime = "nodejs"
 
@@ -23,11 +24,16 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const { playerId } = await params
+    const { playerId: segment } = await params
     const { searchParams } = new URL(request.url)
     const teamId = searchParams.get("teamId")
-    if (!teamId || !playerId) {
+    if (!teamId || !segment) {
       return NextResponse.json({ error: "teamId and playerId required" }, { status: 400 })
+    }
+
+    const resolvedPlayerId = await resolveRosterApiPlayerUuid(teamId, segment)
+    if (!resolvedPlayerId) {
+      return NextResponse.json({ error: "Player not found" }, { status: 404 })
     }
 
     await requireTeamAccess(teamId)
@@ -39,7 +45,7 @@ export async function GET(
     const { data: player, error: pErr } = await supabase
       .from("players")
       .select("id, team_id, user_id")
-      .eq("id", playerId)
+      .eq("id", resolvedPlayerId)
       .eq("team_id", teamId)
       .maybeSingle()
 
@@ -49,13 +55,13 @@ export async function GET(
 
     const row = player as { user_id: string | null }
     const isOwnProfile = row.user_id === session.user.id
-    const isParentViewer = await isLinkedParentOfPlayer(supabase, session.user.id, playerId)
+    const isParentViewer = await isLinkedParentOfPlayer(supabase, session.user.id, resolvedPlayerId)
 
     if (!isCoach && !isOwnProfile && !isParentViewer) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
 
-    const film = await loadPlayerPortalFilmPayload(supabase, playerId, teamId)
+    const film = await loadPlayerPortalFilmPayload(supabase, resolvedPlayerId, teamId)
     return NextResponse.json({ film })
   } catch (err) {
     const message = err instanceof Error ? err.message : "Access denied"

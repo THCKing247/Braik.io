@@ -127,7 +127,8 @@ function formatHeightParts(ft: string, inch: string): string | null {
 }
 
 interface PlayerProfileViewProps {
-  playerId: string
+  /** Public roster URL segment (`player_account_id` or legacy UUID). */
+  rosterPlayerSegment: string
   teamId: string
   canEdit: boolean
   isOwnProfile?: boolean
@@ -135,7 +136,7 @@ interface PlayerProfileViewProps {
 }
 
 export function PlayerProfileView({
-  playerId,
+  rosterPlayerSegment,
   teamId,
   canEdit,
   isOwnProfile = false,
@@ -186,7 +187,10 @@ export function PlayerProfileView({
       try {
         const formData = new FormData()
         formData.append("file", file)
-        const res = await fetch(`/api/roster/${playerId}/image`, { method: "POST", body: formData })
+        const res = await fetch(
+          `/api/roster/${rosterPlayerSegment}/image?teamId=${encodeURIComponent(teamId)}`,
+          { method: "POST", body: formData }
+        )
         if (!res.ok) {
           const data = await res.json().catch(() => ({}))
           throw new Error((data as { error?: string }).error ?? "Upload failed")
@@ -204,7 +208,7 @@ export function PlayerProfileView({
         })
       }
     },
-    [playerId, profile]
+    [rosterPlayerSegment, profile]
   )
 
   const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -253,7 +257,9 @@ export function PlayerProfileView({
     setPhotoError(null)
     setPhotoRemoving(true)
     try {
-      const res = await fetch(`/api/roster/${playerId}/image`, { method: "DELETE" })
+      const res = await fetch(`/api/roster/${rosterPlayerSegment}/image?teamId=${encodeURIComponent(teamId)}`, {
+        method: "DELETE",
+      })
       if (!res.ok) {
         const data = await res.json().catch(() => ({}))
         throw new Error((data as { error?: string }).error ?? "Remove failed")
@@ -283,8 +289,8 @@ export function PlayerProfileView({
   }, [saveMessage])
 
   const refetchProfile = useCallback(() => {
-    const profileUrl = `/api/roster/${playerId}/profile?teamId=${encodeURIComponent(teamId)}`
-    const readinessUrl = `/api/roster/${playerId}/readiness?teamId=${encodeURIComponent(teamId)}`
+    const profileUrl = `/api/roster/${rosterPlayerSegment}/profile?teamId=${encodeURIComponent(teamId)}`
+    const readinessUrl = `/api/roster/${rosterPlayerSegment}/readiness?teamId=${encodeURIComponent(teamId)}`
     Promise.all([
       fetch(profileUrl).then((res) => (res.ok ? res.json() : null)),
       fetch(readinessUrl).then((res) => (res.ok ? res.json() : null)),
@@ -298,14 +304,14 @@ export function PlayerProfileView({
         if (readiness) setReadinessOverview(readiness as ReadinessResponse)
       })
       .catch(() => {})
-  }, [playerId, teamId])
+  }, [rosterPlayerSegment, teamId])
 
   useEffect(() => {
     let cancelled = false
     setLoading(true)
     setError(null)
-    const profileUrl = `/api/roster/${playerId}/profile?teamId=${encodeURIComponent(teamId)}`
-    const readinessUrl = `/api/roster/${playerId}/readiness?teamId=${encodeURIComponent(teamId)}`
+    const profileUrl = `/api/roster/${rosterPlayerSegment}/profile?teamId=${encodeURIComponent(teamId)}`
+    const readinessUrl = `/api/roster/${rosterPlayerSegment}/readiness?teamId=${encodeURIComponent(teamId)}`
     Promise.all([
       fetch(profileUrl).then((res) => {
         if (!res.ok) throw new Error(res.status === 403 ? "You can only view your own profile." : "Failed to load profile")
@@ -330,7 +336,7 @@ export function PlayerProfileView({
     return () => {
       cancelled = true
     }
-  }, [playerId, teamId])
+  }, [rosterPlayerSegment, teamId])
 
   const handleSave = async () => {
     if (!profile || !canEditProfile) return
@@ -388,7 +394,7 @@ export function PlayerProfileView({
         if (editDraft.gameStats !== undefined) body.gameStats = editDraft.gameStats
         if (editDraft.practiceMetrics !== undefined) body.practiceMetrics = editDraft.practiceMetrics
       }
-      const res = await fetch(`/api/roster/${playerId}/profile`, {
+      const res = await fetch(`/api/roster/${rosterPlayerSegment}/profile`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
@@ -610,7 +616,7 @@ export function PlayerProfileView({
           {activeTab === "overview" && (
             <OverviewTab
               profile={profile}
-              playerId={playerId}
+              playerId={rosterPlayerSegment}
               teamId={teamId}
               canEdit={canEditProfile}
               canEditRoster={canEdit}
@@ -620,7 +626,7 @@ export function PlayerProfileView({
               readiness={readinessOverview}
               onProfilePatched={(p) => {
                 setProfile(p)
-                void fetch(`/api/roster/${playerId}/readiness?teamId=${encodeURIComponent(teamId)}`)
+                void fetch(`/api/roster/${rosterPlayerSegment}/readiness?teamId=${encodeURIComponent(teamId)}`)
                   .then((r) => (r.ok ? r.json() : null))
                   .then((r: ReadinessResponse | null) => setReadinessOverview(r))
               }}
@@ -629,7 +635,7 @@ export function PlayerProfileView({
           {activeTab === "info" && (
             <InfoTab
               profile={profile}
-              playerId={playerId}
+              playerId={rosterPlayerSegment}
               teamId={teamId}
               canEdit={canEditProfile}
               editDraft={editDraft}
@@ -642,7 +648,7 @@ export function PlayerProfileView({
           )}
           {activeTab === "stats" && (
             <StatsTab
-              playerId={playerId}
+              playerId={rosterPlayerSegment}
               teamId={teamId}
               profile={profile}
               canManageWeeklyStats={false}
@@ -653,18 +659,18 @@ export function PlayerProfileView({
             <EquipmentTab
               profile={profile}
               teamId={teamId}
-              playerId={playerId}
+              playerId={rosterPlayerSegment}
               canEdit={canEditProfile}
               isOwnProfile={isOwnProfile || isOwnProfileFromApi}
               onProfileRefetch={refetchProfile}
             />
           )}
           {activeTab === "documents" && (
-            <DocumentsTab playerId={playerId} teamId={teamId} />
+            <DocumentsTab playerId={rosterPlayerSegment} teamId={teamId} />
           )}
           {activeTab === "health" && (
             <HealthTab
-              playerId={playerId}
+              playerId={rosterPlayerSegment}
               teamId={teamId}
               profile={profile}
               canEditMedical={canEdit}
@@ -674,7 +680,7 @@ export function PlayerProfileView({
             />
           )}
           {activeTab === "history" && (
-            <HistoryTab playerId={playerId} teamId={teamId} />
+            <HistoryTab playerId={rosterPlayerSegment} teamId={teamId} />
           )}
 
         </CardContent>
@@ -1855,7 +1861,7 @@ function EquipmentTab({
     () => inventoryList.filter(isAssignableInventoryItem),
     [inventoryList]
   )
-  const assignedToThisPlayer = inventoryList.filter((i) => i.assignedToPlayerId === playerId)
+  const assignedToThisPlayer = inventoryList.filter((i) => i.assignedToPlayerId === profile.id)
 
   const assignBucketOptions = useMemo(() => {
     const set = new Set<string>()
@@ -1902,7 +1908,7 @@ function EquipmentTab({
       const res = await fetch(`/api/teams/${teamId}/inventory/${itemId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ assignedToPlayerId: playerId }),
+        body: JSON.stringify({ assignedToPlayerId: profile.id }),
       })
       if (!res.ok) {
         const data = await res.json().catch(() => ({}))
@@ -1910,7 +1916,7 @@ function EquipmentTab({
       }
       onProfileRefetch?.()
       setInventoryList((prev) =>
-        prev.map((i) => (i.id === itemId ? { ...i, assignedToPlayerId: playerId } : i))
+        prev.map((i) => (i.id === itemId ? { ...i, assignedToPlayerId: profile.id } : i))
       )
       setAssignModalOpen(false)
       setAssignBucket("")
@@ -2807,11 +2813,11 @@ function HealthTab({
       })
       .then((data: { injuries?: InjuryListRow[] }) => {
         const all = Array.isArray(data?.injuries) ? data.injuries : []
-        setInjuries(all.filter((i) => i.player_id === playerId))
+        setInjuries(all.filter((i) => i.player_id === profile.id))
       })
       .catch(() => setInjuries([]))
       .finally(() => setInjLoading(false))
-  }, [teamId, playerId])
+  }, [teamId, playerId, profile.id])
 
   useEffect(() => {
     loadInjuries()

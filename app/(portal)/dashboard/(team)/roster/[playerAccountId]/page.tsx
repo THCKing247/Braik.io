@@ -28,7 +28,7 @@ function PlayerProfilePageContent({
   const params = useParams()
   const pathname = usePathname() ?? ""
   const searchParams = useSearchParams()
-  const playerId = (params?.playerId as string) ?? ""
+  const playerRouteSegment = (params?.playerAccountId as string) ?? ""
   const canonicalTeamParts = parseCanonicalDashboardTeamPath(pathname)
   const resolvedTeamId = searchParams.get("teamId") || teamId
   const view = searchParams.get("view")
@@ -44,7 +44,7 @@ function PlayerProfilePageContent({
     ? `${buildDashboardTeamRosterPath(canonicalTeamParts)}${qs ? `?${qs}` : ""}`
     : `/dashboard/roster${qs ? `?${qs}` : ""}`
 
-  if (!playerId) {
+  if (!playerRouteSegment) {
     return (
       <div className="rounded-lg border border-[rgb(var(--border))] bg-white p-6 text-center">
         <p className="text-sm text-[rgb(var(--muted))]">Invalid player.</p>
@@ -55,7 +55,7 @@ function PlayerProfilePageContent({
 
   return (
     <PlayerProfileView
-      playerId={playerId}
+      rosterPlayerSegment={playerRouteSegment}
       teamId={resolvedTeamId}
       canEdit={canEdit}
       backHref={backHref}

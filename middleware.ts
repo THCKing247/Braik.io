@@ -189,6 +189,60 @@ export async function middleware(request: NextRequest) {
       return finish(NextResponse.redirect(u))
     }
 
+    // Redirect legacy player UUID in canonical roster profile URLs to `/roster/:playerAccountId`.
+    const canonPlayerUuidMatch = pathname.match(
+      /^\/dashboard\/org\/([^/]+)\/team\/([^/]+)\/roster\/([^/]+)(\/.*)?$/
+    )
+    if (canonPlayerUuidMatch && UUID_RE.test(canonPlayerUuidMatch[3] ?? "")) {
+      const legacyPlayerUuid = canonPlayerUuidMatch[3] ?? ""
+      const nested = canonPlayerUuidMatch[4] ?? ""
+      try {
+        const canonRes = await fetch(
+          `${origin}/api/routing/roster-player-canonical?playerId=${encodeURIComponent(legacyPlayerUuid)}&nested=${encodeURIComponent(nested)}`,
+          { headers: { cookie: cookieHeader } }
+        )
+        if (canonRes.ok) {
+          const payload = (await canonRes.json()) as { path?: string }
+          const nextPath = payload.path?.trim()
+          if (nextPath) {
+            const target = new URL(request.url)
+            target.pathname = nextPath.split("?")[0]
+            target.search = request.nextUrl.search
+            target.searchParams.delete("teamId")
+            return finish(NextResponse.redirect(target))
+          }
+        }
+      } catch {
+        /* fall through */
+      }
+    }
+
+    // Redirect `/dashboard/roster/:playerUuid` (with optional nested path) to canonical org/team roster URL.
+    const legacyDashRosterMatch = pathname.match(/^\/dashboard\/roster\/([^/]+)(\/.*)?$/)
+    if (legacyDashRosterMatch && UUID_RE.test(legacyDashRosterMatch[1] ?? "")) {
+      const legacyPlayerUuid = legacyDashRosterMatch[1] ?? ""
+      const nested = legacyDashRosterMatch[2] ?? ""
+      try {
+        const canonRes = await fetch(
+          `${origin}/api/routing/roster-player-canonical?playerId=${encodeURIComponent(legacyPlayerUuid)}&nested=${encodeURIComponent(nested)}`,
+          { headers: { cookie: cookieHeader } }
+        )
+        if (canonRes.ok) {
+          const payload = (await canonRes.json()) as { path?: string }
+          const nextPath = payload.path?.trim()
+          if (nextPath) {
+            const target = new URL(request.url)
+            target.pathname = nextPath.split("?")[0]
+            target.search = request.nextUrl.search
+            target.searchParams.delete("teamId")
+            return finish(NextResponse.redirect(target))
+          }
+        }
+      } catch {
+        /* fall through */
+      }
+    }
+
     const canonicalTeamMatch = pathname.match(/^\/dashboard\/org\/([^/]+)\/team\/([^/]+)(?:\/(.*))?$/)
     if (canonicalTeamMatch) {
       const shortOrgId = decodeURIComponent(canonicalTeamMatch[1] ?? "")

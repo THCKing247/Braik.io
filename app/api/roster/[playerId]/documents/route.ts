@@ -3,6 +3,7 @@ import { getServerSession } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { resolvePlayerDocumentAccess } from "@/lib/player-documents/access"
 import { effectiveDocumentStatus } from "@/lib/player-documents/status"
+import { resolveRosterApiPlayerUuid } from "@/lib/roster/resolve-roster-route-player-api"
 
 /**
  * GET /api/roster/[playerId]/documents?teamId=xxx
@@ -18,15 +19,20 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const { playerId } = await params
+    const { playerId: segment } = await params
     const { searchParams } = new URL(request.url)
     const teamId = searchParams.get("teamId")
-    if (!playerId || !teamId) {
+    if (!segment || !teamId) {
       return NextResponse.json({ error: "playerId and teamId are required" }, { status: 400 })
     }
 
+    const resolvedPlayerId = await resolveRosterApiPlayerUuid(teamId, segment)
+    if (!resolvedPlayerId) {
+      return NextResponse.json({ error: "Player not found" }, { status: 404 })
+    }
+
     const supabase = getSupabaseServer()
-    const access = await resolvePlayerDocumentAccess(supabase, session.user.id, playerId, teamId)
+    const access = await resolvePlayerDocumentAccess(supabase, session.user.id, resolvedPlayerId, teamId)
     if (!access?.canView) {
       return NextResponse.json({ error: "Access denied" }, { status: 403 })
     }
@@ -36,7 +42,7 @@ export async function GET(
       .select(
         "id, player_id, team_id, title, file_name, file_url, file_path, file_size, mime_type, category, document_type, created_at, uploaded_at, created_by, uploaded_by_profile_id, visible_to_player, deleted_at, expires_at, status"
       )
-      .eq("player_id", playerId)
+      .eq("player_id", resolvedPlayerId)
       .eq("team_id", teamId)
       .is("deleted_at", null)
       .order("uploaded_at", { ascending: false })

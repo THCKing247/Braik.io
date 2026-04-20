@@ -2,6 +2,16 @@
 
 import { useEffect, useState, useRef, useCallback } from "react"
 import { useRouter } from "next/navigation"
+
+async function fetchCanonicalPlayerPath(playerUuid: string): Promise<string | null> {
+  const res = await fetch(
+    `/api/routing/roster-player-canonical?playerId=${encodeURIComponent(playerUuid)}`,
+    { credentials: "same-origin" }
+  )
+  if (!res.ok) return null
+  const data = (await res.json().catch(() => ({}))) as { path?: string }
+  return data.path?.trim() ?? null
+}
 import { DashboardPageShell } from "@/components/portal/dashboard-page-shell"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -40,7 +50,8 @@ function MyProfileContent({ teamId, userId }: { teamId: string; userId: string }
     })
     const data = await res.json().catch(() => ({})) as { linked?: boolean; playerId?: string; teamId?: string }
     if (res.ok && data.linked && data.playerId && data.teamId) {
-      router.replace(`/dashboard/roster/${data.playerId}?teamId=${encodeURIComponent(data.teamId)}`)
+      const path = await fetchCanonicalPlayerPath(data.playerId)
+      router.replace(path ?? `/dashboard/roster/${data.playerId}?teamId=${encodeURIComponent(data.teamId)}`)
       return true
     }
     return false
@@ -72,7 +83,9 @@ function MyProfileContent({ teamId, userId }: { teamId: string; userId: string }
         if (data.playerId && !replaceStarted.current) {
           replaceStarted.current = true
           setStatus("found")
-          router.replace(`/dashboard/roster/${data.playerId}?teamId=${encodeURIComponent(data.teamId)}`)
+          void fetchCanonicalPlayerPath(data.playerId).then((path) => {
+            router.replace(path ?? `/dashboard/roster/${data.playerId}?teamId=${encodeURIComponent(data.teamId)}`)
+          })
           return
         }
       }
@@ -112,7 +125,9 @@ function MyProfileContent({ teamId, userId }: { teamId: string; userId: string }
       const resolvedTeamId = data.team_id ?? teamId
       if (playerId && resolvedTeamId) {
         setTimeout(() => {
-          router.replace(`/dashboard/roster/${playerId}?teamId=${encodeURIComponent(resolvedTeamId)}`)
+          void fetchCanonicalPlayerPath(playerId).then((path) => {
+            router.replace(path ?? `/dashboard/roster/${playerId}?teamId=${encodeURIComponent(resolvedTeamId)}`)
+          })
         }, 1500)
       } else {
         router.refresh()

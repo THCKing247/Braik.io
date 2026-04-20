@@ -7,6 +7,7 @@ import { normalizePhone } from "@/lib/player-invite-auto-link"
 import { logInviteAction } from "@/lib/audit/structured-logger"
 import { resolveTrustedAppOrigin } from "@/lib/invites/resolve-invite-app-origin"
 import { buildPlayerInviteSignupPath, buildPlayerJoinUrl } from "@/lib/invites/build-join-link"
+import { resolveRosterApiPlayerUuid } from "@/lib/roster/resolve-roster-route-player-api"
 
 function generateInviteCode(length = 8): string {
   const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
@@ -38,9 +39,14 @@ export async function POST(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const { playerId } = await params
-    if (!playerId) {
+    const { playerId: segment } = await params
+    if (!segment) {
       return NextResponse.json({ error: "playerId is required" }, { status: 400 })
+    }
+
+    const resolvedPlayerId = await resolveRosterApiPlayerUuid(null, segment)
+    if (!resolvedPlayerId) {
+      return NextResponse.json({ error: "Player not found" }, { status: 404 })
     }
 
     const { requireTeamPermission } = await import("@/lib/auth/rbac")
@@ -49,7 +55,7 @@ export async function POST(
     const { data: player, error: fetchErr } = await supabase
       .from("players")
       .select("id, team_id, user_id, invite_code, invite_status, email")
-      .eq("id", playerId)
+      .eq("id", resolvedPlayerId)
       .maybeSingle()
 
     if (fetchErr || !player) {
@@ -106,7 +112,7 @@ export async function POST(
     const { data: existingInvite } = await supabase
       .from("player_invites")
       .select("id")
-      .eq("player_id", playerId)
+      .eq("player_id", resolvedPlayerId)
       .in("status", ["pending", "sent"])
       .maybeSingle()
 
@@ -126,13 +132,13 @@ export async function POST(
         console.error("[POST /api/roster/[playerId]/invite] player_invites update", updateInviteErr)
         return NextResponse.json({ error: "Failed to update invite" }, { status: 500 })
       }
-      logInviteAction("invite_created", { playerId, inviteId: (existingInvite as { id: string }).id })
+      logInviteAction("invite_created", { playerId: resolvedPlayerId, inviteId: (existingInvite as { id: string }).id })
     } else {
       const { data: inserted, error: insertInviteErr } = await supabase
         .from("player_invites")
         .insert({
           team_id: player.team_id,
-          player_id: playerId,
+          player_id: resolvedPlayerId,
           email: inviteEmail,
           phone: invitePhone,
           token,
@@ -147,13 +153,14 @@ export async function POST(
         console.error("[POST /api/roster/[playerId]/invite] player_invites insert", insertInviteErr)
         return NextResponse.json({ error: "Failed to create invite" }, { status: 500 })
       }
-      if (inserted) logInviteAction("invite_created", { playerId, inviteId: (inserted as { id: string }).id })
+      if (inserted)
+        logInviteAction("invite_created", { playerId: resolvedPlayerId, inviteId: (inserted as { id: string }).id })
     }
 
     const { data: updated, error } = await supabase
       .from("players")
       .update({ invite_code: code, invite_status: "invited" })
-      .eq("id", playerId)
+      .eq("id", resolvedPlayerId)
       .select()
       .single()
 
@@ -170,7 +177,7 @@ export async function POST(
       .from("invite_codes")
       .update({ is_active: false, updated_at: new Date().toISOString() })
       .eq("invite_type", "player_claim_invite")
-      .eq("target_player_id", playerId)
+      .eq("target_player_id", resolvedPlayerId)
       .eq("is_active", true)
 
     const expiresAtIso = expiresAt.toISOString()
@@ -180,7 +187,7 @@ export async function POST(
       organization_id: null,
       program_id: programIdForInvite,
       team_id: teamIdForInvite,
-      target_player_id: playerId,
+      target_player_id: resolvedPlayerId,
       max_uses: 1,
       expires_at: expiresAtIso,
       is_active: true,

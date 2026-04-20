@@ -1,6 +1,7 @@
 "use client"
 
 import React, { useMemo, useState, useCallback, useEffect } from "react"
+import { usePathname } from "next/navigation"
 import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -20,12 +21,18 @@ import {
 } from "@/lib/depth-chart/formation-presets"
 import { getValidSlotKeys, getBestFitSlotKeys, getAcceptedGroupsDisplay } from "@/lib/depth-chart/eligibility"
 import { getPlayerPhotoUrl, type RosterPlayerForSlot } from "@/lib/depth-chart/player-resolve"
+import {
+  buildDashboardTeamPlayerPath,
+  parseCanonicalDashboardTeamPath,
+} from "@/lib/navigation/organization-routes"
 
 type Side = "offense" | "defense" | "special_teams"
 type MobileMode = "roster" | "formation" | "suggestions"
 
 interface MobilePlayer {
   id: string
+  /** Canonical roster segment when known (coach dashboard URLs). */
+  playerAccountId?: string
   firstName: string
   lastName: string
   jerseyNumber: number | null
@@ -89,6 +96,20 @@ export function DepthChartMobileWorkspace({
   hasUnsavedChanges = false,
   isSaving = false,
 }: DepthChartMobileWorkspaceProps) {
+  const pathname = usePathname() ?? ""
+  const canonicalTeam = parseCanonicalDashboardTeamPath(pathname)
+  const rosterPlayerProfileHref = useCallback(
+    (player: { id: string; playerAccountId?: string | null }) => {
+      const acc = player.playerAccountId?.trim()
+      if (canonicalTeam && acc) {
+        return buildDashboardTeamPlayerPath({ ...canonicalTeam, playerAccountId: acc })
+      }
+      const segment = acc || player.id
+      return `/dashboard/roster/${segment}?teamId=${encodeURIComponent(teamId)}`
+    },
+    [canonicalTeam, teamId]
+  )
+
   const [mode, setMode] = useState<MobileMode>("roster")
   const [selectedUnit, setSelectedUnit] = useState<Side>("offense")
   const [selectedPresetByUnit, setSelectedPresetByUnit] = useState<Record<Side, string>>(() => ({
@@ -1201,7 +1222,7 @@ export function DepthChartMobileWorkspace({
                   Assign to position
                 </Button>
                 <Button variant="outline" className="min-h-[48px] w-full rounded-xl" asChild>
-                  <a href={`/dashboard/roster/${playerQuickView.id}?teamId=${teamId}`}>
+                  <a href={rosterPlayerProfileHref(playerQuickView)}>
                     View profile
                   </a>
                 </Button>
@@ -1373,7 +1394,7 @@ export function DepthChartMobileWorkspace({
                   </Button>
                 )}
                 <Button variant="ghost" className="min-h-[48px] w-full rounded-xl" asChild>
-                  <a href={`/dashboard/roster/${slotDetails.player.id}?teamId=${teamId}`}>
+                  <a href={rosterPlayerProfileHref(slotDetails.player)}>
                     View player
                   </a>
                 </Button>

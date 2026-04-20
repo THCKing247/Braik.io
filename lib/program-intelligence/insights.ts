@@ -1,5 +1,18 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
 import { getPlayerIdsWithFilmListingSignal } from "@/lib/recruiting/listing-film"
+import { buildDashboardTeamPlayerPath, resolveCanonicalTeamRouteByTeamId } from "@/lib/navigation/organization-routes"
+
+async function resolvePlayerDashboardPath(
+  supabase: SupabaseClient,
+  teamId: string,
+  playerAccountId: string | null | undefined
+): Promise<string | null> {
+  const pa = playerAccountId?.trim()
+  if (!pa) return null
+  const team = await resolveCanonicalTeamRouteByTeamId(supabase, teamId)
+  if (!team) return null
+  return buildDashboardTeamPlayerPath({ ...team, playerAccountId: pa })
+}
 
 export interface ProgramOverview {
   programId: string
@@ -20,6 +33,8 @@ export interface BreakoutCandidate {
   positionGroup: string | null
   score: number
   explanation: string
+  /** Canonical coach dashboard profile URL when resolvable (short IDs only). */
+  dashboardPlayerPath: string | null
 }
 
 export interface PromotionCandidate {
@@ -29,6 +44,7 @@ export interface PromotionCandidate {
   positionGroup: string | null
   score: number
   explanation: string
+  dashboardPlayerPath: string | null
 }
 
 export interface PlaybookReadiness {
@@ -36,7 +52,14 @@ export interface PlaybookReadiness {
   defenseReadinessPct: number | null
   specialTeamsReadinessPct: number | null
   lowestReadinessPositionGroups: { positionGroup: string; avgPct: number; playerCount: number }[]
-  playersBehindOnAssignments: { playerId: string; playerName: string; completed: number; total: number; pct: number }[]
+  playersBehindOnAssignments: {
+    playerId: string
+    playerName: string
+    completed: number
+    total: number
+    pct: number
+    dashboardPlayerPath: string | null
+  }[]
 }
 
 export interface RecruitingReadyPlayer {
@@ -49,6 +72,7 @@ export interface RecruitingReadyPlayer {
   hasVideoLinks: boolean
   hasEvaluations: boolean
   explanation: string
+  dashboardPlayerPath: string | null
 }
 
 export interface ProgramRisk {
@@ -186,7 +210,10 @@ export async function getPlayerBreakoutCandidates(
   const teamIds = (teams ?? []).map((t) => t.id)
   if (teamIds.length === 0) return []
 
-  const { data: players } = await supabase.from("players").select("id, first_name, last_name, team_id, position_group").in("team_id", teamIds)
+  const { data: players } = await supabase
+    .from("players")
+    .select("id, first_name, last_name, team_id, position_group, player_account_id")
+    .in("team_id", teamIds)
   if (!players?.length) return []
 
   const playerIds = players.map((p) => p.id)
@@ -274,14 +301,33 @@ export async function getPlayerBreakoutCandidates(
   })
 
   scored.sort((a, b) => b.score - a.score)
-  return scored.slice(0, limit).map((s) => ({
-    playerId: (s.player as { id: string }).id,
-    playerName: `${(s.player as { first_name?: string }).first_name ?? ""} ${(s.player as { last_name?: string }).last_name ?? ""}`.trim() || "Unknown",
-    teamLevel: teamLevelById.get((s.player as { team_id: string }).team_id) ?? null,
-    positionGroup: (s.player as { position_group?: string }).position_group ?? null,
-    score: Math.round(s.score),
-    explanation: s.explanation,
-  }))
+  const top = scored.slice(0, limit)
+  return Promise.all(
+    top.map(async (s) => {
+      const pl = s.player as {
+        id: string
+        team_id: string
+        first_name?: string
+        last_name?: string
+        position_group?: string
+        player_account_id?: string | null
+      }
+      const dashboardPlayerPath = await resolvePlayerDashboardPath(
+        supabase,
+        pl.team_id,
+        pl.player_account_id
+      )
+      return {
+        playerId: pl.id,
+        playerName: `${pl.first_name ?? ""} ${pl.last_name ?? ""}`.trim() || "Unknown",
+        teamLevel: teamLevelById.get(pl.team_id) ?? null,
+        positionGroup: pl.position_group ?? null,
+        score: Math.round(s.score),
+        explanation: s.explanation,
+        dashboardPlayerPath,
+      }
+    })
+  )
 }
 
 /**
@@ -300,7 +346,10 @@ export async function getPromotionCandidates(
   const teamIds = (teams ?? []).map((t) => t.id)
   if (teamIds.length === 0) return []
 
-  const { data: players } = await supabase.from("players").select("id, first_name, last_name, team_id, position_group").in("team_id", teamIds)
+  const { data: players } = await supabase
+    .from("players")
+    .select("id, first_name, last_name, team_id, position_group, player_account_id")
+    .in("team_id", teamIds)
   if (!players?.length) return []
 
   const playerIds = players.map((p) => p.id)
@@ -353,14 +402,33 @@ export async function getPromotionCandidates(
   })
 
   scored.sort((a, b) => b.score - a.score)
-  return scored.slice(0, limit).map((s) => ({
-    playerId: (s.player as { id: string }).id,
-    playerName: `${(s.player as { first_name?: string }).first_name ?? ""} ${(s.player as { last_name?: string }).last_name ?? ""}`.trim() || "Unknown",
-    currentLevel: teamLevelById.get((s.player as { team_id: string }).team_id) ?? "jv",
-    positionGroup: (s.player as { position_group?: string }).position_group ?? null,
-    score: Math.round(s.score),
-    explanation: s.explanation,
-  }))
+  const top = scored.slice(0, limit)
+  return Promise.all(
+    top.map(async (s) => {
+      const pl = s.player as {
+        id: string
+        team_id: string
+        first_name?: string
+        last_name?: string
+        position_group?: string
+        player_account_id?: string | null
+      }
+      const dashboardPlayerPath = await resolvePlayerDashboardPath(
+        supabase,
+        pl.team_id,
+        pl.player_account_id
+      )
+      return {
+        playerId: pl.id,
+        playerName: `${pl.first_name ?? ""} ${pl.last_name ?? ""}`.trim() || "Unknown",
+        currentLevel: teamLevelById.get(pl.team_id) ?? "jv",
+        positionGroup: pl.position_group ?? null,
+        score: Math.round(s.score),
+        explanation: s.explanation,
+        dashboardPlayerPath,
+      }
+    })
+  )
 }
 
 /**
@@ -376,7 +444,10 @@ export async function getPlaybookReadiness(supabase: SupabaseClient, programId: 
     totalByLevel.set(level, (totalByLevel.get(level) ?? 0) + 1)
   }
 
-  const { data: players } = await supabase.from("players").select("id, first_name, last_name, team_id, position_group").in("team_id", teamIds)
+  const { data: players } = await supabase
+    .from("players")
+    .select("id, first_name, last_name, team_id, position_group, player_account_id")
+    .in("team_id", teamIds)
   const playerIds = (players ?? []).map((p) => p.id)
   const { data: knowledge } = await supabase
     .from("player_play_knowledge")
@@ -447,13 +518,17 @@ export async function getPlaybookReadiness(supabase: SupabaseClient, programId: 
     .slice(0, 5)
 
   const totalAssigned = totalVarsity + totalJv + totalFreshman
-  const playersBehindOnAssignments = (players ?? [])
+  const behindRaw = (players ?? [])
     .map((p) => {
       const completed = completedByPlayer.get(p.id) ?? 0
       const pct = totalAssigned > 0 ? Math.round((completed / totalAssigned) * 100) : 0
       return {
         playerId: p.id,
-        playerName: `${(p as { first_name?: string }).first_name ?? ""} ${(p as { last_name?: string }).last_name ?? ""}`.trim() || "Unknown",
+        teamId: (p as { team_id: string }).team_id,
+        playerAccountId: (p as { player_account_id?: string | null }).player_account_id ?? null,
+        playerName:
+          `${(p as { first_name?: string }).first_name ?? ""} ${(p as { last_name?: string }).last_name ?? ""}`.trim() ||
+          "Unknown",
         completed,
         total: totalAssigned,
         pct,
@@ -462,6 +537,17 @@ export async function getPlaybookReadiness(supabase: SupabaseClient, programId: 
     .filter((x) => x.pct < 50)
     .sort((a, b) => a.pct - b.pct)
     .slice(0, 10)
+
+  const playersBehindOnAssignments = await Promise.all(
+    behindRaw.map(async (x) => ({
+      playerId: x.playerId,
+      playerName: x.playerName,
+      completed: x.completed,
+      total: x.total,
+      pct: x.pct,
+      dashboardPlayerPath: await resolvePlayerDashboardPath(supabase, x.teamId, x.playerAccountId),
+    }))
+  )
 
   return {
     offenseReadinessPct,
@@ -484,7 +570,10 @@ export async function getRecruitingReadyPlayers(
   const teamIds = (teams ?? []).map((t) => t.id)
   if (teamIds.length === 0) return []
 
-  const { data: players } = await supabase.from("players").select("id, first_name, last_name, team_id, position_group").in("team_id", teamIds)
+  const { data: players } = await supabase
+    .from("players")
+    .select("id, first_name, last_name, team_id, position_group, player_account_id")
+    .in("team_id", teamIds)
   if (!players?.length) return []
 
   const playerIds = players.map((p) => p.id)
@@ -537,17 +626,36 @@ export async function getRecruitingReadyPlayers(
   })
 
   scored.sort((a, b) => b.score - a.score)
-  return scored.slice(0, limit).map((s) => ({
-    playerId: (s.player as { id: string }).id,
-    playerName: `${(s.player as { first_name?: string }).first_name ?? ""} ${(s.player as { last_name?: string }).last_name ?? ""}`.trim() || "Unknown",
-    teamLevel: teamLevelById.get((s.player as { team_id: string }).team_id) ?? null,
-    positionGroup: (s.player as { position_group?: string }).position_group ?? null,
-    score: s.score,
-    hasVisibility: visibilityByPlayer.get((s.player as { id: string }).id) ?? false,
-    hasVideoLinks: hasVideoByPlayer.get((s.player as { id: string }).id) ?? false,
-    hasEvaluations: hasEvalByPlayer.has((s.player as { id: string }).id),
-    explanation: s.explanation,
-  }))
+  const top = scored.slice(0, limit)
+  return Promise.all(
+    top.map(async (s) => {
+      const pl = s.player as {
+        id: string
+        team_id: string
+        first_name?: string
+        last_name?: string
+        position_group?: string
+        player_account_id?: string | null
+      }
+      const dashboardPlayerPath = await resolvePlayerDashboardPath(
+        supabase,
+        pl.team_id,
+        pl.player_account_id
+      )
+      return {
+        playerId: pl.id,
+        playerName: `${pl.first_name ?? ""} ${pl.last_name ?? ""}`.trim() || "Unknown",
+        teamLevel: teamLevelById.get(pl.team_id) ?? null,
+        positionGroup: pl.position_group ?? null,
+        score: s.score,
+        hasVisibility: visibilityByPlayer.get(pl.id) ?? false,
+        hasVideoLinks: hasVideoByPlayer.get(pl.id) ?? false,
+        hasEvaluations: hasEvalByPlayer.has(pl.id),
+        explanation: s.explanation,
+        dashboardPlayerPath,
+      }
+    })
+  )
 }
 
 /**

@@ -5,6 +5,7 @@
  */
 export interface RosterPlayerForSlot {
   id: string
+  playerAccountId?: string
   firstName: string
   lastName: string
   jerseyNumber: number | null

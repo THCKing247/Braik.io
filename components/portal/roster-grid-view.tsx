@@ -20,6 +20,7 @@ function validateImageFile(file: File): string | null {
 
 export interface Player {
   id: string
+  playerAccountId?: string
   firstName: string
   lastName: string
   grade: number | null
@@ -41,6 +42,8 @@ export interface Player {
 
 interface RosterGridViewProps {
   players: Player[]
+  /** Used for roster image API resolution. */
+  teamId?: string
   canEdit: boolean
   onEditPlayer?: (player: Player) => void
   onSendInvite?: (player: Player) => void | Promise<void>
@@ -58,6 +61,7 @@ interface RosterGridViewProps {
 
 export function RosterGridView({
   players,
+  teamId,
   canEdit,
   onEditPlayer,
   onSendInvite,
@@ -113,7 +117,8 @@ export function RosterGridView({
       try {
         const formData = new FormData()
         formData.append("file", file)
-        const response = await fetch(`/api/roster/${playerId}/image`, {
+        const q = teamId ? `?teamId=${encodeURIComponent(teamId)}` : ""
+        const response = await fetch(`/api/roster/${playerId}/image${q}`, {
           method: "POST",
           body: formData,
         })
@@ -135,7 +140,7 @@ export function RosterGridView({
         })
       }
     },
-    [onImageUploadSuccess]
+    [onImageUploadSuccess, teamId]
   )
 
   const handleImageUpload = useCallback(

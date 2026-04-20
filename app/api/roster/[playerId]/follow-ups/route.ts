@@ -7,6 +7,7 @@ import { profileRoleToUserRole } from "@/lib/auth/user-roles"
 import { logPlayerProfileActivity } from "@/lib/player-profile-activity"
 import { FOLLOW_UP_CATEGORY_LABELS, FOLLOW_UP_DEFAULT_DURATION_MS } from "@/lib/roster/follow-up-ui"
 import { revalidateTeamCalendar } from "@/lib/cache/lightweight-get-cache"
+import { resolveRosterApiPlayerUuid } from "@/lib/roster/resolve-roster-route-player-api"
 
 const FOLLOW_UP_CATEGORIES = [
   "physical_follow_up",
@@ -31,20 +32,25 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const { playerId } = await params
+    const { playerId: segment } = await params
     const { searchParams } = new URL(request.url)
     const teamId = searchParams.get("teamId")
     const status = searchParams.get("status")?.trim() || null
 
-    if (!playerId || !teamId) {
+    if (!segment || !teamId) {
       return NextResponse.json({ error: "playerId and teamId are required" }, { status: 400 })
+    }
+
+    const resolvedPlayerId = await resolveRosterApiPlayerUuid(teamId, segment)
+    if (!resolvedPlayerId) {
+      return NextResponse.json({ error: "Player not found" }, { status: 404 })
     }
 
     const supabase = getSupabaseServer()
     const { data: player, error: playerErr } = await supabase
       .from("players")
       .select("id, team_id, user_id")
-      .eq("id", playerId)
+      .eq("id", resolvedPlayerId)
       .eq("team_id", teamId)
       .maybeSingle()
 
@@ -63,7 +69,7 @@ export async function GET(
     let query = supabase
       .from("player_follow_ups")
       .select("id, player_id, team_id, category, status, note, created_by, created_at, updated_at, resolved_at")
-      .eq("player_id", playerId)
+      .eq("player_id", resolvedPlayerId)
       .eq("team_id", teamId)
       .order("created_at", { ascending: false })
 
@@ -162,18 +168,23 @@ export async function POST(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const { playerId } = await params
+    const { playerId: segment } = await params
     const { searchParams } = new URL(request.url)
     const teamId = searchParams.get("teamId")
-    if (!playerId || !teamId) {
+    if (!segment || !teamId) {
       return NextResponse.json({ error: "playerId and teamId are required" }, { status: 400 })
+    }
+
+    const resolvedPlayerId = await resolveRosterApiPlayerUuid(teamId, segment)
+    if (!resolvedPlayerId) {
+      return NextResponse.json({ error: "Player not found" }, { status: 404 })
     }
 
     const supabase = getSupabaseServer()
     const { data: player, error: playerErr } = await supabase
       .from("players")
       .select("id, team_id, first_name, last_name")
-      .eq("id", playerId)
+      .eq("id", resolvedPlayerId)
       .eq("team_id", teamId)
       .maybeSingle()
 
@@ -225,7 +236,7 @@ export async function POST(
     const { data: inserted, error } = await supabase
       .from("player_follow_ups")
       .insert({
-        player_id: playerId,
+        player_id: resolvedPlayerId,
         team_id: teamId,
         category,
         status: "open",
@@ -286,7 +297,7 @@ export async function POST(
     }
 
     await logPlayerProfileActivity({
-      playerId,
+      playerId: resolvedPlayerId,
       teamId,
       actorId: session.user.id,
       actionType: "follow_up_created",

@@ -3,6 +3,7 @@ import { getServerSession } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { requireTeamAccess, getUserMembership } from "@/lib/auth/rbac"
 import { canEditRoster } from "@/lib/auth/roles"
+import { resolveRosterApiPlayerUuid } from "@/lib/roster/resolve-roster-route-player-api"
 
 /**
  * GET /api/roster/[playerId]/guardians?teamId=xxx
@@ -19,18 +20,23 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const { playerId } = await params
+    const { playerId: segment } = await params
     const { searchParams } = new URL(request.url)
     const teamId = searchParams.get("teamId")
-    if (!playerId || !teamId) {
+    if (!segment || !teamId) {
       return NextResponse.json({ error: "playerId and teamId are required" }, { status: 400 })
+    }
+
+    const resolvedPlayerId = await resolveRosterApiPlayerUuid(teamId, segment)
+    if (!resolvedPlayerId) {
+      return NextResponse.json({ error: "Player not found" }, { status: 404 })
     }
 
     const supabase = getSupabaseServer()
     const { data: player, error: playerErr } = await supabase
       .from("players")
       .select("id, team_id, user_id")
-      .eq("id", playerId)
+      .eq("id", resolvedPlayerId)
       .eq("team_id", teamId)
       .maybeSingle()
 
@@ -49,7 +55,7 @@ export async function GET(
     const { data: links, error: linksErr } = await supabase
       .from("guardian_links")
       .select("id, guardian_id, player_id, relationship, verified")
-      .eq("player_id", playerId)
+      .eq("player_id", resolvedPlayerId)
 
     if (linksErr) {
       console.error("[GET /api/roster/.../guardians]", linksErr.message)

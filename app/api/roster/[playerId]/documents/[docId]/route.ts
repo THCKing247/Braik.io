@@ -7,6 +7,7 @@ import { resolvePlayerDocumentAccess, canSoftDeleteDocument } from "@/lib/player
 import { removeStorageObject } from "@/lib/player-documents/storage"
 import { writeDocumentAuditLog } from "@/lib/player-documents/audit"
 import { logPlayerProfileActivity, PLAYER_PROFILE_ACTION_TYPES } from "@/lib/player-profile-activity"
+import { resolveRosterApiPlayerUuid } from "@/lib/roster/resolve-roster-route-player-api"
 
 function clientIp(request: Request): string | null {
   const xff = request.headers.get("x-forwarded-for")
@@ -28,16 +29,21 @@ export async function PATCH(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const { playerId, docId } = await params
-    if (!playerId || !docId) {
+    const { playerId: segment, docId } = await params
+    if (!segment || !docId) {
       return NextResponse.json({ error: "playerId and docId are required" }, { status: 400 })
+    }
+
+    const resolvedPlayerId = await resolveRosterApiPlayerUuid(null, segment)
+    if (!resolvedPlayerId) {
+      return NextResponse.json({ error: "Player not found" }, { status: 404 })
     }
 
     const supabase = getSupabaseServer()
     const { data: player, error: playerErr } = await supabase
       .from("players")
       .select("id, team_id")
-      .eq("id", playerId)
+      .eq("id", resolvedPlayerId)
       .maybeSingle()
 
     if (playerErr || !player) {
@@ -63,7 +69,7 @@ export async function PATCH(
       .from("player_documents")
       .update(updates)
       .eq("id", docId)
-      .eq("player_id", playerId)
+      .eq("player_id", resolvedPlayerId)
       .eq("team_id", teamId)
       .select()
       .single()
@@ -99,16 +105,21 @@ export async function DELETE(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const { playerId, docId } = await params
-    if (!playerId || !docId) {
+    const { playerId: segment, docId } = await params
+    if (!segment || !docId) {
       return NextResponse.json({ error: "playerId and docId are required" }, { status: 400 })
+    }
+
+    const resolvedPlayerId = await resolveRosterApiPlayerUuid(null, segment)
+    if (!resolvedPlayerId) {
+      return NextResponse.json({ error: "Player not found" }, { status: 404 })
     }
 
     const supabase = getSupabaseServer()
     const { data: player, error: playerErr } = await supabase
       .from("players")
       .select("id, team_id, user_id")
-      .eq("id", playerId)
+      .eq("id", resolvedPlayerId)
       .maybeSingle()
 
     if (playerErr || !player) {
@@ -116,7 +127,7 @@ export async function DELETE(
     }
 
     const teamId = (player as { team_id: string }).team_id
-    const access = await resolvePlayerDocumentAccess(supabase, session.user.id, playerId, teamId)
+    const access = await resolvePlayerDocumentAccess(supabase, session.user.id, resolvedPlayerId, teamId)
     if (!access?.canDelete) {
       return NextResponse.json({ error: "You cannot delete this document." }, { status: 403 })
     }
@@ -125,7 +136,7 @@ export async function DELETE(
       .from("player_documents")
       .select("id, title, file_path, file_url, deleted_at, uploaded_by_profile_id, created_by")
       .eq("id", docId)
-      .eq("player_id", playerId)
+      .eq("player_id", resolvedPlayerId)
       .eq("team_id", teamId)
       .maybeSingle()
 
@@ -144,7 +155,7 @@ export async function DELETE(
         access,
         {
           uploaded_by_profile_id: (row.uploaded_by_profile_id as string | null) ?? (row.created_by as string | null),
-          player_id: playerId,
+          player_id: resolvedPlayerId,
         },
         playerOwnerUserId
       )
@@ -181,11 +192,11 @@ export async function DELETE(
       accessMethod: "api",
       ipAddress: clientIp(request),
       userAgent: request.headers.get("user-agent"),
-      metadata: { team_id: teamId, player_id: playerId, route: "roster_documents" },
+      metadata: { team_id: teamId, player_id: resolvedPlayerId, route: "roster_documents" },
     })
 
     await logPlayerProfileActivity({
-      playerId,
+      playerId: resolvedPlayerId,
       teamId,
       actorId: session.user.id,
       actionType: PLAYER_PROFILE_ACTION_TYPES.DOCUMENT_DELETED,

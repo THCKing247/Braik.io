@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic"
 import { useEffect, useState, useMemo, useRef } from "react"
-import { useSearchParams } from "next/navigation"
+import { useSearchParams, usePathname } from "next/navigation"
 import { DashboardPageShell } from "@/components/portal/dashboard-page-shell"
 import { PortalStandardPageHeader, PortalStandardPageRoot } from "@/components/portal/portal-standard-page"
 import { PortalUnderlineTabs } from "@/components/portal/portal-underline-tabs"
@@ -50,6 +50,10 @@ import {
 import { trackProductEvent } from "@/lib/utils/analytics-client"
 import { BRAIK_EVENTS } from "@/lib/analytics/event-names"
 import { getPrimaryPlayerRowStatKeysForGroup, getStatsViewForPosition } from "@/lib/stats-position-views"
+import {
+  buildDashboardTeamPlayerPath,
+  parseCanonicalDashboardTeamPath,
+} from "@/lib/navigation/organization-routes"
 
 const SAMPLE_WEEKLY_ROW = [
   "<player_id>",
@@ -101,6 +105,8 @@ export default function StatsPage() {
 }
 
 function StatsPageContent({ teamId, canEdit }: { teamId: string; canEdit: boolean }) {
+  const pathname = usePathname()
+  const canonicalTeamFromPath = parseCanonicalDashboardTeamPath(pathname ?? "")
   const searchParams = useSearchParams()
   const [players, setPlayers] = useState<PlayerStatsRow[]>([])
   const [loading, setLoading] = useState(true)
@@ -304,8 +310,14 @@ function StatsPageContent({ teamId, canEdit }: { teamId: string; canEdit: boolea
     return list
   }, [players, searchQuery, positionFilter, sideFilter])
 
+  const playerAccountByUuid = useMemo(() => new Map(players.map((p) => [p.id, p.playerAccountId])), [players])
+
   const filteredWeeklyTableRows = useMemo((): StatsTableRow[] => {
-    let list = weeklyEntries.map(weeklyEntryToStatsTableRow)
+    let list = weeklyEntries.map((e) => {
+      const row = weeklyEntryToStatsTableRow(e)
+      const aid = playerAccountByUuid.get(e.playerId)
+      return aid ? { ...row, playerAccountId: aid } : row
+    })
     const q = searchQuery.trim().toLowerCase()
     if (q) {
       list = list.filter(
@@ -322,7 +334,7 @@ function StatsPageContent({ teamId, canEdit }: { teamId: string; canEdit: boolea
       list = list.filter((p) => p.sideOfBall === sideFilter)
     }
     return list
-  }, [weeklyEntries, searchQuery, positionFilter, sideFilter])
+  }, [weeklyEntries, searchQuery, positionFilter, sideFilter, playerAccountByUuid])
 
   const gpCountByPlayerId = useMemo(() => {
     const map = new Map<string, number>()
@@ -360,8 +372,17 @@ function StatsPageContent({ teamId, canEdit }: { teamId: string; canEdit: boolea
     return Array.from(set).sort((a, b) => a.localeCompare(b))
   }, [players])
 
-  const getProfileHref = (row: StatsTableRow) =>
-    `/dashboard/roster/${row.id}${teamId ? `?teamId=${encodeURIComponent(teamId)}` : ""}`
+  const getProfileHref = (row: StatsTableRow) => {
+    const aid = row.playerAccountId ?? playerAccountByUuid.get(row.id)
+    if (canonicalTeamFromPath && aid?.trim()) {
+      return buildDashboardTeamPlayerPath({
+        ...canonicalTeamFromPath,
+        playerAccountId: aid.trim(),
+      })
+    }
+    const segment = aid?.trim() || row.id
+    return `/dashboard/roster/${segment}${teamId ? `?teamId=${encodeURIComponent(teamId)}` : ""}`
+  }
 
   const downloadTemplate = (withRoster: boolean) => {
     const url = `/api/stats/template?teamId=${encodeURIComponent(teamId)}${withRoster ? "&withRoster=1" : ""}`

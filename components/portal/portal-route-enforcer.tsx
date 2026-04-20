@@ -7,7 +7,8 @@ import { defaultDashboardEntryForPortal } from "@/lib/portal/dashboard-path"
 import { isDashboardPathForbiddenForPortal } from "@/lib/permissions/dashboard-route-policy"
 
 /**
- * Keeps non-coach portals from staying on routes they must not access (legacy URLs included).
+ * Keeps non-coach portals from staying on routes they must not access (legacy `/dashboard/...` URLs).
+ * Standalone `/player` / `/parent` tails are enforced separately by {@link FreePortalRouteEnforcer}.
  */
 export function PortalRouteEnforcer({
   portalKind,

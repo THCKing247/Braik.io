@@ -20,4 +20,8 @@ export type DashboardShellPayload =
       subscriptionPaid: boolean
       remainingBalance: number
       currentTeamStatus?: string
+      /** Resolved for standalone `/player/:accountId` shell (numeric `player_account_id`). */
+      playerAccountSegment?: string | null
+      /** Resolved for standalone `/parent/:linkCode` shell (primary linked child key). */
+      parentPortalSegment?: string | null
     }

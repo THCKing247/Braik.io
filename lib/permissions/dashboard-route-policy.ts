@@ -1,4 +1,5 @@
 import type { BraikPortalKind } from "@/lib/portal/braik-portal-kind"
+import { freePortalRestPath, parseFreePortalPath } from "@/lib/portal/free-portal-path-utils"
 import { stripDashboardPortalPrefix } from "@/lib/portal/dashboard-path"
 
 /**
@@ -55,11 +56,10 @@ function restPath(normalizedDashboardPath: string): string {
   return p.slice("/dashboard".length) || ""
 }
 
-/** Returns true when the pathname should be blocked for this portal kind (404-style redirect to home). */
-export function isDashboardPathForbiddenForPortal(kind: BraikPortalKind, pathname: string): boolean {
-  const normalized = stripDashboardPortalPrefix(pathname.split("?")[0] ?? pathname)
-  const rest = restPath(normalized)
-
+/**
+ * Inner route tail (after `/dashboard` or free-portal segment) forbidden for player/parent/recruiter.
+ */
+export function isPortalRestForbiddenForNonCoach(kind: BraikPortalKind, rest: string): boolean {
   if (kind === "coach") return false
 
   if (kind === "recruiter") {
@@ -69,6 +69,23 @@ export function isDashboardPathForbiddenForPortal(kind: BraikPortalKind, pathnam
 
   const forbidden = kind === "parent" ? PARENT_FORBIDDEN_REST : PLAYER_FORBIDDEN_REST
   return forbidden.some((prefix) => rest === prefix || rest.startsWith(`${prefix}/`))
+}
+
+/** `/player/:id` and `/parent/:code` — same RBAC tails as prefixed `/dashboard/player` routes. */
+export function isFreePortalPathForbiddenForPortal(kind: BraikPortalKind, pathname: string): boolean {
+  const parsed = parseFreePortalPath(pathname.split("?")[0] ?? pathname)
+  if (!parsed) return false
+  if (parsed.portal === "player" && kind !== "player") return true
+  if (parsed.portal === "parent" && kind !== "parent") return true
+  const rest = freePortalRestPath(parsed)
+  return isPortalRestForbiddenForNonCoach(kind, rest)
+}
+
+/** Returns true when the pathname should be blocked for this portal kind (404-style redirect to home). */
+export function isDashboardPathForbiddenForPortal(kind: BraikPortalKind, pathname: string): boolean {
+  const normalized = stripDashboardPortalPrefix(pathname.split("?")[0] ?? pathname)
+  const rest = restPath(normalized)
+  return isPortalRestForbiddenForNonCoach(kind, rest)
 }
 
 export function forbiddenRestListForPortalKind(kind: BraikPortalKind): readonly string[] {

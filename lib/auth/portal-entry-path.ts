@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
 import { canAccessAdPortalRoutes, resolveFootballAdAccessState } from "@/lib/enforcement/football-ad-access"
 import { resolveBraikPortalKind } from "@/lib/portal/resolve-portal-kind"
-import { defaultDashboardEntryForPortal } from "@/lib/portal/dashboard-path"
+import { resolveDefaultAppPathForPortalUser } from "@/lib/portal/resolve-default-app-path-for-user"
 import {
   buildOrganizationPortalPath,
   resolveDefaultShortOrgIdForUser,
@@ -46,7 +46,7 @@ export async function resolvePortalEntryPathWithProfileRole(
     userId,
     profileRoleUpper: profileDbRoleToUpper(profileRoleFromDb),
   })
-  return defaultDashboardEntryForPortal(portalKind)
+  return resolveDefaultAppPathForPortalUser(supabase, userId, portalKind)
 }
 
 /**

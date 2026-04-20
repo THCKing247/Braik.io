@@ -8,6 +8,9 @@ import { authTimingServer } from "@/lib/auth/login-flow-timing"
 import { loadDashboardShellTeamsUncached } from "@/lib/dashboard/load-dashboard-shell-teams-uncached"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { resolveBraikPortalKind } from "@/lib/portal/resolve-portal-kind"
+import {
+  resolvePortalHomeForUser,
+} from "@/lib/portal/resolve-default-app-path-for-user"
 import { defaultDashboardEntryForPortal } from "@/lib/portal/dashboard-path"
 import { BRAIK_DASHBOARD_TEAM_HINT_COOKIE } from "@/lib/navigation/dashboard-team-hint-cookie"
 import {
@@ -106,14 +109,17 @@ export async function GET(request: Request) {
     const effectiveUserId = impersonationSession?.target_user_id ?? shellUser.id
     const isImpersonating = Boolean(impersonationSession)
 
+    const supabase = getSupabaseServer()
     const portalKind = await resolveBraikPortalKind({
-      supabase: getSupabaseServer(),
+      supabase,
       userId: shellUser.id,
       profileRoleUpper: userRole ?? "USER",
     })
+    const portalHome = await resolvePortalHomeForUser(supabase, shellUser.id, portalKind)
+    const { defaultPath: resolvedDefaultPath, playerAccountSegment, parentPortalSegment } = portalHome
     const userForShell: SessionUser = {
       ...shellUser,
-      defaultAppPath: defaultDashboardEntryForPortal(portalKind),
+      defaultAppPath: resolvedDefaultPath || defaultDashboardEntryForPortal(portalKind),
     }
 
     const tBeforeTeams = performance.now()
@@ -170,6 +176,8 @@ export async function GET(request: Request) {
         subscriptionPaid,
         remainingBalance,
         currentTeamStatus: currentTeam?.teamStatus,
+        playerAccountSegment,
+        parentPortalSegment,
       },
       { auth: msAuth, teams: msTeams }
     )

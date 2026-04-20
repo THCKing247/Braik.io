@@ -68,7 +68,11 @@ export async function middleware(request: NextRequest) {
   }
 
   const requiresAuth =
-    pathname.startsWith("/dashboard") || pathname.startsWith("/admin") || pathname.startsWith("/org")
+    pathname.startsWith("/dashboard") ||
+    pathname.startsWith("/admin") ||
+    pathname.startsWith("/org") ||
+    pathname.startsWith("/player") ||
+    pathname.startsWith("/parent")
   if (!requiresAuth) {
     return finish(NextResponse.next())
   }
@@ -316,5 +320,14 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/dashboard/:path*", "/admin/:path*", "/org/:path*", "/api/dev/:path*", "/signup", "/signup/:path*"],
+  matcher: [
+    "/dashboard/:path*",
+    "/admin/:path*",
+    "/org/:path*",
+    "/player/:path*",
+    "/parent/:path*",
+    "/api/dev/:path*",
+    "/signup",
+    "/signup/:path*",
+  ],
 }

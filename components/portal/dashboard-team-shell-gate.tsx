@@ -22,6 +22,9 @@ import { PortalShellProvider } from "@/components/portal/portal-shell-context"
 import { PortalRouteEnforcer } from "@/components/portal/portal-route-enforcer"
 
 /**
+ * Coach / recruiter **team dashboard** chrome (sidebar, coach nav). Player and parent roles should prefer
+ * standalone portals at `/player/:accountId` and `/parent/:linkCode` — do not reuse this shell for those UIs.
+ *
  * First paint: one GET /api/dashboard/shell (React Query). Downstream pages should consume
  * bootstrap/shell payloads instead of duplicating the same data with ad-hoc fetches.
  * PERFORMANCE_GUIDELINES.md — fetching rules.

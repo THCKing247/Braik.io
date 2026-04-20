@@ -108,7 +108,7 @@ export function OperatorTeams({
         <h2 className={cn(adminUi.sectionTitle, "text-base")}>Organizations</h2>
         <p className="mt-1 text-xs font-medium text-admin-secondary">
           All organization records ({organizationDirectory.length}). Team counts reflect teams whose resolved owner is that
-          organization (not the Athletic departments page).
+          organization (resolved ownership for this list only).
         </p>
         {organizationDirectory.length === 0 ? (
           <p className="mt-3 text-sm font-medium text-admin-muted">No organizations in the database.</p>

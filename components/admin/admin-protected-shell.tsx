@@ -147,8 +147,7 @@ export function AdminProtectedShell({ children }: { children: ReactNode }) {
               <NavLink href="/admin/overview">Overview</NavLink>
               <NavLink href="/admin/users">Accounts</NavLink>
               <NavLink href="/admin/teams">Teams</NavLink>
-              <NavLink href="/admin/athletic-departments">Athletic departments</NavLink>
-              <NavLink href="/admin/provisioning">Provisioning</NavLink>
+              <NavLink href="/admin/provisioning">Onboarding</NavLink>
             </NavSection>
 
             <NavSection title="Platform">

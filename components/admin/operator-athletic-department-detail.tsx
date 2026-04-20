@@ -173,7 +173,7 @@ export function OperatorAthleticDepartmentDetail({
     <div className="space-y-6">
       <div className="flex flex-wrap items-center gap-3 text-sm">
         <Link href="/admin/athletic-departments" className={cn(adminUi.link, "text-sm underline-offset-2")}>
-          ← Athletic Departments
+          ← Back to list
         </Link>
         <span className="text-admin-muted">/</span>
         <span className="text-admin-secondary">{overview.schoolName}</span>

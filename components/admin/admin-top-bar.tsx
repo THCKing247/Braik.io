@@ -11,7 +11,7 @@ const QUICK_LINKS = [
   { href: "/admin/overview", label: "Overview" },
   { href: "/admin/users", label: "Accounts" },
   { href: "/admin/teams", label: "Teams" },
-  { href: "/admin/provisioning", label: "Provisioning" },
+  { href: "/admin/provisioning", label: "Onboarding" },
   { href: "/admin/audit", label: "Audit" },
 ] as const
 

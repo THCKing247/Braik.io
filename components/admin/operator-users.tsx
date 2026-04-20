@@ -159,7 +159,7 @@ export function OperatorUsers({ users }: { users: UserRow[] }) {
         action={
           <div className="flex flex-wrap items-center gap-2">
             <Link href="/admin/provisioning" className={cn(adminUi.btnPrimarySm, "no-underline")}>
-              Provisioning
+              Onboarding
             </Link>
             <input
               value={query}

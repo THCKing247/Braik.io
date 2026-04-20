@@ -5,7 +5,7 @@ export default function AdminProvisioningPage() {
   return (
     <div className="space-y-6">
       <AdminPageHeader
-        title="Provisioning"
+        title="Onboarding"
         description="Organizations, teams, and user invites (admin-created accounts only)."
       />
       <AdminProvisioningConsole />

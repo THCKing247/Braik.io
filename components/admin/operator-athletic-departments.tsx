@@ -37,7 +37,7 @@ export function OperatorAthleticDepartments({ initialRows }: { initialRows: Athl
         <div className={adminUi.emptyState}>
           <p className="text-sm font-medium text-admin-secondary">
             {initialRows.length === 0
-              ? "No athletic departments found. Provisioning may create schools and departments."
+              ? "No athletic departments found. Onboarding may create schools and departments."
               : "No rows match your search."}
           </p>
         </div>

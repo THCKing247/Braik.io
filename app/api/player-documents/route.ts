@@ -91,6 +91,8 @@ export async function GET(request: Request) {
         const docType = (d.document_type as string) || (d.category as string) || "other"
         const uploadedBy =
           (d.uploaded_by_profile_id as string | undefined) ?? (d.created_by as string | undefined)
+        const uploadedByPid = (d.uploaded_by_profile_id as string | null | undefined) ?? null
+        const createdByUid = (d.created_by as string | null | undefined) ?? null
         return {
           id: d.id as string,
           playerId: d.player_id as string,
@@ -107,6 +109,8 @@ export async function GET(request: Request) {
           retentionDays: d.retention_days as number | null,
           visibleToPlayer: d.visible_to_player !== false,
           uploadedBy: uploadedBy ? nameById.get(uploadedBy) ?? null : null,
+          uploadedByProfileId: uploadedByPid,
+          createdByUserId: createdByUid,
           seasonLabel: (d.season_label as string | null) ?? null,
           notes: (d.notes as string | null) ?? null,
           effectiveStatus: eff,

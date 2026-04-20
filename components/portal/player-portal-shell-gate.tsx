@@ -1,7 +1,6 @@
 "use client"
 
 import { useEffect } from "react"
-import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import {
   useDashboardShellQuery,
@@ -12,6 +11,8 @@ import { DashboardShellLoadingSkeleton } from "@/components/portal/dashboard-she
 import { DashboardLayoutFallback } from "@/components/portal/dashboard-layout-fallback"
 import { FreePortalRouteEnforcer } from "@/components/portal/free-portal-route-enforcer"
 import { normalizePlayerAccountIdSegment } from "@/lib/roster/resolve-roster-player-segment"
+import { PlayerPortalProvider } from "@/components/portal/player-portal/player-portal-context"
+import { PlayerPortalChrome } from "@/components/portal/player-portal/player-portal-chrome"
 
 export function PlayerPortalShellGate({
   urlAccountSegment,
@@ -75,42 +76,28 @@ export function PlayerPortalShellGate({
   const segment = payload.playerAccountSegment ?? urlAccountSegment
   const baseHref = `/player/${encodeURIComponent(segment)}`
 
-  const teamName =
-    payload.teams.find((t) => t.id === payload.currentTeamId)?.name ??
-    payload.teams[0]?.name ??
-    "Team"
+  const currentTeam =
+    payload.teams.find((t) => t.id === payload.currentTeamId) ?? payload.teams[0] ?? null
+  const teamName = currentTeam?.name ?? "Team"
+  const sport = currentTeam?.sport ?? ""
+
+  const su = payload.user
+  const userName = su.name?.trim() || null
+  const userEmail = su.email ?? null
 
   return (
     <FreePortalRouteEnforcer portalKind="player" portalBaseHref={baseHref}>
-      <div className="flex min-h-screen flex-col bg-[#f8fafc]">
-        <header className="sticky top-0 z-30 border-b border-slate-200 bg-white shadow-sm">
-          <div className="mx-auto flex max-w-3xl flex-wrap items-center justify-between gap-2 px-4 py-3">
-            <div className="min-w-0">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-sky-700">Player</p>
-              <p className="truncate text-lg font-semibold text-slate-900">{teamName}</p>
-            </div>
-            <nav className="flex shrink-0 flex-wrap gap-2 text-sm">
-              <Link className="rounded-full px-3 py-1 text-slate-700 hover:bg-slate-100" href={baseHref}>
-                Home
-              </Link>
-              <Link
-                className="rounded-full px-3 py-1 text-slate-700 hover:bg-slate-100"
-                href={`${baseHref}/messages`}
-              >
-                Messages
-              </Link>
-              <Link
-                className="rounded-full px-3 py-1 text-slate-700 hover:bg-slate-100"
-                href={`${baseHref}/calendar`}
-              >
-                Calendar
-              </Link>
-            </nav>
-          </div>
-        </header>
-
-        <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-6">{children}</main>
-      </div>
+      <PlayerPortalProvider
+        accountSegment={segment}
+        teamId={payload.currentTeamId}
+        teamName={teamName}
+        sport={sport}
+        userId={su.id}
+        userName={userName}
+        userEmail={userEmail}
+      >
+        <PlayerPortalChrome>{children}</PlayerPortalChrome>
+      </PlayerPortalProvider>
     </FreePortalRouteEnforcer>
   )
 }

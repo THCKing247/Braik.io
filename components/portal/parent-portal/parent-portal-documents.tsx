@@ -16,6 +16,15 @@ import {
   type DocumentType,
   isPlayerDocumentType,
 } from "@/lib/player-documents/constants"
+import {
+  PORTAL_DOCUMENTS_MY_TITLE,
+  PORTAL_DOCUMENTS_STAFF_FOLDER_SUBTITLE,
+  PORTAL_DOCUMENTS_STAFF_FOLDER_TITLE,
+  PORTAL_DOCUMENTS_TEAM_LIBRARY_SUBTITLE,
+  PORTAL_DOCUMENTS_TEAM_LIBRARY_TITLE,
+  PORTAL_DOCUMENTS_EMPTY_STAFF_FOLDER,
+  PORTAL_DOCUMENTS_EMPTY_TEAM_LIBRARY,
+} from "@/lib/player-documents/portal-documents-section-copy"
 
 type PlayerDocRow = {
   id: string
@@ -168,7 +177,7 @@ export function ParentPortalDocuments() {
   return (
     <div className="space-y-8">
       <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-        <h3 className="text-lg font-bold text-slate-900">My documents</h3>
+        <h3 className="text-lg font-bold text-slate-900">{PORTAL_DOCUMENTS_MY_TITLE}</h3>
         <p className="mt-1 text-xs leading-relaxed text-slate-600">{PLAYER_DOCUMENT_UPLOAD_HELPER}</p>
 
         {access.canUpload !== false ? (
@@ -242,11 +251,11 @@ export function ParentPortalDocuments() {
       </section>
 
       <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-        <h3 className="text-lg font-bold text-slate-900">Shared with you</h3>
-        <p className="mt-1 text-xs text-slate-600">Forms and files linked to your athlete&apos;s folder.</p>
+        <h3 className="text-lg font-bold text-slate-900">{PORTAL_DOCUMENTS_STAFF_FOLDER_TITLE}</h3>
+        <p className="mt-1 text-xs text-slate-600">{PORTAL_DOCUMENTS_STAFF_FOLDER_SUBTITLE}</p>
         <DocList
           loading={loading}
-          emptyHint="Nothing shared yet."
+          emptyHint={PORTAL_DOCUMENTS_EMPTY_STAFF_FOLDER}
           items={sharedPlayerDocs.map((d) => ({
             key: d.id,
             primary: d.title || d.fileName,
@@ -261,11 +270,11 @@ export function ParentPortalDocuments() {
       </section>
 
       <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-        <h3 className="text-lg font-bold text-slate-900">Team documents</h3>
-        <p className="mt-1 text-xs text-slate-600">Coach-published files — view and download only.</p>
+        <h3 className="text-lg font-bold text-slate-900">{PORTAL_DOCUMENTS_TEAM_LIBRARY_TITLE}</h3>
+        <p className="mt-1 text-xs text-slate-600">{PORTAL_DOCUMENTS_TEAM_LIBRARY_SUBTITLE}</p>
         <DocList
           loading={loading}
-          emptyHint="No team files visible to you yet."
+          emptyHint={PORTAL_DOCUMENTS_EMPTY_TEAM_LIBRARY}
           items={teamDocs.map((d) => ({
             key: d.id,
             primary: d.title || d.fileName,

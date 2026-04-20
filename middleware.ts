@@ -137,6 +137,48 @@ export async function middleware(request: NextRequest) {
       }
     }
 
+    const legacyTeamQuery = request.nextUrl.searchParams.get("teamId")?.trim()
+    const skipLegacyTeamRedirect =
+      pathname.startsWith("/dashboard/org/") ||
+      pathname.startsWith("/dashboard/ad") ||
+      pathname.startsWith("/dashboard/admin") ||
+      pathname.startsWith("/dashboard/recruiter") ||
+      pathname.startsWith("/dashboard/recruiting")
+
+    if (
+      legacyTeamQuery &&
+      UUID_RE.test(legacyTeamQuery) &&
+      !skipLegacyTeamRedirect &&
+      pathname.startsWith("/dashboard") &&
+      pathname !== "/dashboard" &&
+      pathname !== "/dashboard/"
+    ) {
+      try {
+        const canonRes = await fetch(
+          `${origin}/api/routing/team-canonical?teamId=${encodeURIComponent(legacyTeamQuery)}`,
+          { headers: { cookie: cookieHeader } }
+        )
+        if (canonRes.ok) {
+          const payload = (await canonRes.json()) as { path?: string }
+          const basePath = payload.path?.trim()
+          if (basePath) {
+            let tail = pathname.slice("/dashboard".length) || "/"
+            if (pathname.startsWith("/dashboard/coach")) {
+              tail = pathname.slice("/dashboard/coach".length) || "/"
+            }
+            if (!tail.startsWith("/")) tail = `/${tail}`
+            const target = new URL(request.url)
+            target.pathname =
+              tail === "/" ? basePath : `${basePath.replace(/\/$/, "")}${tail}`
+            target.searchParams.delete("teamId")
+            return finish(NextResponse.redirect(target))
+          }
+        }
+      } catch {
+        /* fall through to legacy routes */
+      }
+    }
+
     const canonicalTeamMatch = pathname.match(/^\/dashboard\/org\/([^/]+)\/team\/([^/]+)(?:\/(.*))?$/)
     if (canonicalTeamMatch) {
       const shortOrgId = decodeURIComponent(canonicalTeamMatch[1] ?? "")

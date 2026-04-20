@@ -1,7 +1,8 @@
 "use client"
 
 import { Suspense, useEffect, useMemo, type ReactNode } from "react"
-import { useSearchParams } from "next/navigation"
+import { usePathname, useSearchParams } from "next/navigation"
+import { parseCanonicalDashboardTeamPath } from "@/lib/navigation/organization-routes"
 import { useSession } from "@/lib/auth/client-auth"
 import { PortalTeamProvider, useEffectiveTeamId } from "@/components/portal/portal-team-context"
 import { AppBootstrapProvider } from "@/components/portal/app-bootstrap-context"
@@ -14,9 +15,28 @@ import { LoadingState } from "@/components/ui/loading-state"
 interface Team {
   id: string
   name: string
+  shortOrgId?: string | null
+  shortTeamId?: string | null
   organization: { name: string }
   sport: string
   seasonName: string
+}
+
+function resolveCurrentTeamIdForPortal(args: {
+  pathname: string | null
+  urlTeamId: string | null
+  teams: Team[]
+  serverResolved: string
+}): string {
+  const valid = new Set(args.teams.map((t) => t.id))
+  const canon = args.pathname ? parseCanonicalDashboardTeamPath(args.pathname) : null
+  const fromCanon =
+    canon &&
+    args.teams.find((t) => t.shortOrgId === canon.shortOrgId && t.shortTeamId === canon.shortTeamId)?.id
+  if (fromCanon && valid.has(fromCanon)) return fromCanon
+  if (args.urlTeamId && valid.has(args.urlTeamId)) return args.urlTeamId
+  if (args.serverResolved && valid.has(args.serverResolved)) return args.serverResolved
+  return args.teams[0]?.id || ""
 }
 
 function UrlResolvedTeamBootstrap({ teams, children }: { teams: Team[]; children: ReactNode }) {
@@ -67,17 +87,24 @@ export function DashboardTeamInner({
   serverCurrentTeamId: string
   children: ReactNode
 }) {
+  const pathname = usePathname()
   const searchParams = useSearchParams()
   const shellTeamIds = teams.map((t) => t.id)
   const validTeamIds = useMemo(() => new Set(shellTeamIds), [shellTeamIds])
-  const serverResolved = serverCurrentTeamId.trim() || teams[0]?.id || ""
+  const serverTrim = serverCurrentTeamId.trim()
+  const serverResolved =
+    serverTrim && validTeamIds.has(serverTrim) ? serverTrim : teams[0]?.id || ""
   /** Client navigation (e.g. AD portal → /dashboard?teamId=…) — URL must win over server-resolved default. */
   const urlTeamId = searchParams.get("teamId")
-  const currentTeamIdForPortal =
-    urlTeamId && validTeamIds.has(urlTeamId) ? urlTeamId : serverResolved
+  const currentTeamIdForPortal = resolveCurrentTeamIdForPortal({
+    pathname,
+    urlTeamId,
+    teams,
+    serverResolved,
+  })
 
   return (
-    <PortalTeamProvider teamIds={shellTeamIds} currentTeamId={currentTeamIdForPortal}>
+    <PortalTeamProvider teams={teams} currentTeamId={currentTeamIdForPortal}>
       <UrlResolvedTeamBootstrap teams={teams}>{children}</UrlResolvedTeamBootstrap>
     </PortalTeamProvider>
   )

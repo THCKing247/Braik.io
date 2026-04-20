@@ -44,6 +44,57 @@ export function buildDashboardTeamPath(input: DashboardTeamPathParams, nestedPat
   return `/dashboard/org/${encodeURIComponent(input.shortOrgId)}/team/${encodeURIComponent(input.shortTeamId)}${suffix}`
 }
 
+export function buildDashboardTeamBasePath(parts: DashboardTeamPathParams): string {
+  return buildDashboardTeamPath(parts)
+}
+
+/** Parse `/dashboard/org/:shortOrgId/team/:shortTeamId` from a pathname (query string ignored). */
+export function parseCanonicalDashboardTeamPath(pathname: string): DashboardTeamPathParams | null {
+  const bare = pathname.split("?")[0] ?? pathname
+  const m = bare.match(/^\/dashboard\/org\/([^/]+)\/team\/([^/]+)(?:\/|$)/)
+  if (!m) return null
+  return {
+    shortOrgId: decodeURIComponent(m[1]),
+    shortTeamId: decodeURIComponent(m[2]),
+  }
+}
+
+export function buildDashboardTeamRosterPath(parts: DashboardTeamPathParams): string {
+  return buildDashboardTeamPath(parts, "/roster")
+}
+
+export function buildDashboardTeamCalendarPath(parts: DashboardTeamPathParams): string {
+  return buildDashboardTeamPath(parts, "/calendar")
+}
+
+export function buildDashboardTeamSchedulePath(parts: DashboardTeamPathParams): string {
+  return buildDashboardTeamPath(parts, "/schedule")
+}
+
+export function buildDashboardTeamMessagesPath(parts: DashboardTeamPathParams): string {
+  return buildDashboardTeamPath(parts, "/messages")
+}
+
+export function buildDashboardTeamStatsPath(parts: DashboardTeamPathParams): string {
+  return buildDashboardTeamPath(parts, "/stats")
+}
+
+export function buildDashboardTeamSettingsPath(parts: DashboardTeamPathParams): string {
+  return buildDashboardTeamPath(parts, "/settings")
+}
+
+export function buildDashboardTeamDocumentsPath(parts: DashboardTeamPathParams): string {
+  return buildDashboardTeamPath(parts, "/documents")
+}
+
+export function buildDashboardTeamFilmPath(parts: DashboardTeamPathParams): string {
+  return buildDashboardTeamPath(parts, "/game-video")
+}
+
+export function buildDashboardTeamPlaybooksPath(parts: DashboardTeamPathParams): string {
+  return buildDashboardTeamPath(parts, "/playbooks")
+}
+
 async function fetchAllOrganizationPortals(
   supabase: SupabaseClient
 ): Promise<Array<{ id: string; created_at?: string | null }>> {

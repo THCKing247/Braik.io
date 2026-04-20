@@ -13,7 +13,11 @@ import { usePortalTeam } from "@/components/portal/portal-team-context"
 import { useAppBootstrapOptional } from "@/components/portal/app-bootstrap-context"
 import { useMessagingUnreadOptional } from "@/components/portal/messaging-unread-context"
 import { usePortalShellKind } from "@/components/portal/portal-shell-context"
-import { portalPrefixedDashboardHref, stripDashboardPortalPrefix } from "@/lib/portal/dashboard-path"
+import {
+  portalPrefixedDashboardHref,
+  stripDashboardPortalPrefix,
+  teamScopedDashboardHref,
+} from "@/lib/portal/dashboard-path"
 
 type TabSpec = {
   legacyHref: string
@@ -76,6 +80,7 @@ export function DashboardMobileTabBar() {
   const portal = usePortalTeam()
   const identity = useDashboardShellIdentity()
   const portalKind = usePortalShellKind()
+  const portalTeam = usePortalTeam()
   const bootstrap = useAppBootstrapOptional()
   const messagingUnread = useMessagingUnreadOptional()
   const shellUnread = bootstrap?.effectiveUnreadNotifications ?? 0
@@ -92,16 +97,20 @@ export function DashboardMobileTabBar() {
       if (!href.startsWith("/dashboard")) return href
       const rawRest = href.slice("/dashboard".length)
       const suffix = rawRest === "" ? "/" : rawRest.startsWith("/") ? rawRest : `/${rawRest}`
-      return portalPrefixedDashboardHref(portalKind, suffix)
+      return teamScopedDashboardHref(portalKind, suffix, portalTeam?.currentTeamRouteIds ?? null)
     },
-    [portalKind]
+    [portalKind, portalTeam?.currentTeamRouteIds]
   )
 
   const baseHome = portalPrefixedDashboardHref(portalKind, "/")
+  const coachLike =
+    identity.roleUpper === "HEAD_COACH" || identity.roleUpper === "ASSISTANT_COACH"
   const homeDashboardHref =
-    identity.roleUpper === "HEAD_COACH" && contextTeamId
-      ? `${baseHome}?teamId=${encodeURIComponent(contextTeamId)}`
-      : baseHome
+    coachLike && portalTeam?.currentTeamRouteIds
+      ? teamScopedDashboardHref(portalKind, "/", portalTeam.currentTeamRouteIds)
+      : coachLike && contextTeamId
+        ? `${baseHome}?teamId=${encodeURIComponent(contextTeamId)}`
+        : baseHome
 
   const tabs = useMemo(() => {
     if (portalKind === "recruiter") {

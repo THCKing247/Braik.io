@@ -10,12 +10,17 @@ import { prefetchPropForDashboardScheduleHref } from "@/lib/navigation/dashboard
 import { useAppBootstrapOptional } from "@/components/portal/app-bootstrap-context"
 import { cn } from "@/lib/utils"
 import { usePortalShellKind } from "@/components/portal/portal-shell-context"
-import { portalPrefixedDashboardHref, stripDashboardPortalPrefix } from "@/lib/portal/dashboard-path"
+import { usePortalTeam } from "@/components/portal/portal-team-context"
+import {
+  stripDashboardPortalPrefix,
+  teamScopedDashboardHref,
+} from "@/lib/portal/dashboard-path"
 
 export function QuickActionsSidebar() {
   const identity = useDashboardShellIdentity()
   const pathname = usePathname()
   const portalKind = usePortalShellKind()
+  const portalTeam = usePortalTeam()
   const userRole = identity.roleUpper || undefined
   const [hoveredItem, setHoveredItem] = useState<string | null>(null)
   const videoNav = useAppBootstrapOptional()?.payload?.videoClips?.navVisible
@@ -25,7 +30,7 @@ export function QuickActionsSidebar() {
       if (!href.startsWith("/dashboard")) return href
       const rawRest = href.slice("/dashboard".length)
       const suffix = rawRest === "" ? "/" : rawRest.startsWith("/") ? rawRest : `/${rawRest}`
-      return portalPrefixedDashboardHref(portalKind, suffix)
+      return teamScopedDashboardHref(portalKind, suffix, portalTeam?.currentTeamRouteIds ?? null)
     },
   })
 

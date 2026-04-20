@@ -15,7 +15,7 @@ import { useAppBootstrapOptional } from "@/components/portal/app-bootstrap-conte
 import { MobileAppCard } from "@/components/mobile/mobile-app-card"
 import { canUseCoachB, type Role } from "@/lib/auth/roles"
 import { usePortalShellKind } from "@/components/portal/portal-shell-context"
-import { portalPrefixedDashboardHref, stripDashboardPortalPrefix } from "@/lib/portal/dashboard-path"
+import { stripDashboardPortalPrefix, teamScopedDashboardHref } from "@/lib/portal/dashboard-path"
 
 interface Team {
   id: string
@@ -45,10 +45,22 @@ export function DashboardMoreBottomSheet({
   const userRole = identity.roleUpper || undefined
   const showAdminLink = identity.isPlatformOwner
   const searchParams = useSearchParams()
-  const teamFromPath = (pathname ?? "").match(/^\/dashboard\/org\/[^/]+\/team\/([^/]+)/)?.[1] ?? null
+  const teamFromPathRaw = (pathname ?? "").match(/^\/dashboard\/org\/[^/]+\/team\/([^/]+)/)?.[1] ?? null
+  let teamFromPath: string | null = teamFromPathRaw
+  if (teamFromPathRaw) {
+    try {
+      teamFromPath = decodeURIComponent(teamFromPathRaw)
+    } catch {
+      teamFromPath = teamFromPathRaw
+    }
+  }
   const currentTeamId =
     teams.find((team) => team.shortTeamId === teamFromPath)?.id || searchParams.get("teamId") || teams[0]?.id || ""
   const currentTeam = teams.find((t) => t.id === currentTeamId) || teams[0]
+  const coachRouteIds =
+    currentTeam?.shortOrgId && currentTeam?.shortTeamId
+      ? { shortOrgId: currentTeam.shortOrgId, shortTeamId: currentTeam.shortTeamId }
+      : null
   const videoNav = useAppBootstrapOptional()?.payload?.videoClips?.navVisible
   const quickActions = useMemo(
     () =>
@@ -58,10 +70,10 @@ export function DashboardMoreBottomSheet({
           if (!href.startsWith("/dashboard")) return href
           const rawRest = href.slice("/dashboard".length)
           const suffix = rawRest === "" ? "/" : rawRest.startsWith("/") ? rawRest : `/${rawRest}`
-          return portalPrefixedDashboardHref(portalKind, suffix)
+          return teamScopedDashboardHref(portalKind, suffix, coachRouteIds)
         },
       }),
-    [userRole, videoNav, portalKind]
+    [userRole, videoNav, portalKind, coachRouteIds]
   )
   const secondaryLinks = useMemo(
     () => quickActions.filter((a) => !isPrimaryMobileTabPath(a.href)),

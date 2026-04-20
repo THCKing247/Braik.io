@@ -9,11 +9,11 @@ import { usePortalShellOptional } from "@/components/portal/portal-shell-context
 import { cn } from "@/lib/utils"
 import { TeamSwitcher } from "@/components/portal/team-switcher"
 import { prefetchPropForDashboardScheduleHref } from "@/lib/navigation/dashboard-schedule-prefetch"
-import { portalPrefixedDashboardHref } from "@/lib/portal/dashboard-path"
 import {
-  buildDashboardTeamPath,
-  CANONICAL_DASHBOARD_TEAM_PATH_RE,
-} from "@/lib/navigation/organization-routes"
+  portalPrefixedDashboardHref,
+  teamScopedDashboardHref,
+} from "@/lib/portal/dashboard-path"
+import { CANONICAL_DASHBOARD_TEAM_PATH_RE } from "@/lib/navigation/organization-routes"
 
 interface Team {
   id: string
@@ -67,7 +67,12 @@ export function DashboardNav({ teams }: { teams: Team[] }) {
   const path = pathname ?? ""
   const teamFromPath = (() => {
     const match = path.match(/^\/dashboard\/org\/[^/]+\/team\/([^/]+)/)
-    return match?.[1] ?? null
+    const raw = match?.[1] ?? null
+    try {
+      return raw ? decodeURIComponent(raw) : null
+    } catch {
+      return raw
+    }
   })()
   const currentTeamId =
     teams.find((t) => t.shortTeamId === teamFromPath)?.id || searchParams.get("teamId") || teams[0]?.id || ""
@@ -90,13 +95,15 @@ export function DashboardNav({ teams }: { teams: Team[] }) {
 
   const baseHome = portalPrefixedDashboardHref(portalKind, "/")
   const currentTeam = teams.find((team) => team.id === currentTeamId) || teams[0]
+  const coachRouteIds =
+    currentTeam?.shortOrgId && currentTeam?.shortTeamId
+      ? { shortOrgId: currentTeam.shortOrgId, shortTeamId: currentTeam.shortTeamId }
+      : null
+  const coachLike = userRole === "HEAD_COACH" || userRole === "ASSISTANT_COACH"
   const dashboardHomeHref =
-    userRole === "HEAD_COACH" && currentTeam?.shortOrgId && currentTeam?.shortTeamId
-      ? buildDashboardTeamPath({
-          shortOrgId: currentTeam.shortOrgId,
-          shortTeamId: currentTeam.shortTeamId,
-        })
-      : userRole === "HEAD_COACH" && teams.length > 0 && (currentTeamId || teams[0]?.id)
+    coachLike && coachRouteIds
+      ? teamScopedDashboardHref(portalKind, "/", coachRouteIds)
+      : coachLike && teams.length > 0 && (currentTeamId || teams[0]?.id)
         ? `${baseHome}?teamId=${encodeURIComponent(currentTeamId || teams[0].id)}`
         : baseHome
 

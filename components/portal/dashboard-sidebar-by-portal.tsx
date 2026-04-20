@@ -7,6 +7,8 @@ import { usePortalShellKind } from "@/components/portal/portal-shell-context"
 interface Team {
   id: string
   name: string
+  shortOrgId?: string | null
+  shortTeamId?: string | null
   organization: { name: string }
   sport: string
   seasonName: string

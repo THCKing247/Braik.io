@@ -16,8 +16,11 @@ import { cn } from "@/lib/utils"
 import { canUseCoachB, type Role } from "@/lib/auth/roles"
 import { useCoachBRotatingCopy } from "@/lib/hooks/use-coach-b-rotating-copy"
 import { usePortalShellKind } from "@/components/portal/portal-shell-context"
-import { portalPrefixedDashboardHref, stripDashboardPortalPrefix } from "@/lib/portal/dashboard-path"
-import { buildDashboardTeamPath } from "@/lib/navigation/organization-routes"
+import {
+  portalPrefixedDashboardHref,
+  stripDashboardPortalPrefix,
+  teamScopedDashboardHref,
+} from "@/lib/portal/dashboard-path"
 import { LayoutDashboard, LogOut, MessageSquare, Sparkles } from "lucide-react"
 
 const SIDEBAR_WIDTH = 240
@@ -57,18 +60,28 @@ export function DashboardSidebar({ teams }: { teams: Team[] }) {
   const coachB = useCoachB()
   const userRole = identity.roleUpper || undefined
   const path = pathname ?? ""
-  const teamFromPath = path.match(/^\/dashboard\/org\/[^/]+\/team\/([^/]+)/)?.[1] ?? null
+  const teamFromPathRaw = path.match(/^\/dashboard\/org\/[^/]+\/team\/([^/]+)/)?.[1] ?? null
+  let teamFromPath: string | null = teamFromPathRaw
+  if (teamFromPathRaw) {
+    try {
+      teamFromPath = decodeURIComponent(teamFromPathRaw)
+    } catch {
+      teamFromPath = teamFromPathRaw
+    }
+  }
   const currentTeamId =
     teams.find((team) => team.shortTeamId === teamFromPath)?.id || searchParams.get("teamId") || teams[0]?.id
   const currentTeam = teams.find((t) => t.id === currentTeamId) || teams[0]
+  const coachRouteIds =
+    currentTeam?.shortOrgId && currentTeam?.shortTeamId
+      ? { shortOrgId: currentTeam.shortOrgId, shortTeamId: currentTeam.shortTeamId }
+      : null
   const baseHome = portalPrefixedDashboardHref(portalKind, "/")
+  const coachLike = userRole === "HEAD_COACH" || userRole === "ASSISTANT_COACH"
   const dashboardHomeHref =
-    userRole === "HEAD_COACH" && currentTeam?.shortOrgId && currentTeam?.shortTeamId
-      ? buildDashboardTeamPath({
-          shortOrgId: currentTeam.shortOrgId,
-          shortTeamId: currentTeam.shortTeamId,
-        })
-      : userRole === "HEAD_COACH" && teams.length > 0 && (currentTeamId || teams[0]?.id)
+    coachLike && coachRouteIds
+      ? teamScopedDashboardHref(portalKind, "/", coachRouteIds)
+      : coachLike && teams.length > 0 && (currentTeamId || teams[0]?.id)
         ? `${baseHome}?teamId=${encodeURIComponent(currentTeamId || teams[0].id)}`
         : baseHome
   const videoNav = shell?.payload?.videoClips?.navVisible
@@ -80,10 +93,10 @@ export function DashboardSidebar({ teams }: { teams: Team[] }) {
           if (!href.startsWith("/dashboard")) return href
           const rest = href.slice("/dashboard".length)
           const suffix = rest === "" ? "/" : rest.startsWith("/") ? rest : `/${rest}`
-          return portalPrefixedDashboardHref(portalKind, suffix)
+          return teamScopedDashboardHref(portalKind, suffix, coachRouteIds)
         },
       }),
-    [userRole, videoNav, portalKind]
+    [userRole, videoNav, portalKind, coachRouteIds]
   )
   const showCoachB =
     portalKind === "coach" && userRole && canUseCoachB(userRole as Role)

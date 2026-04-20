@@ -1,3 +1,7 @@
+import {
+  buildDashboardTeamPath,
+  type DashboardTeamPathParams,
+} from "@/lib/navigation/organization-routes"
 import type { BraikPortalKind } from "@/lib/portal/braik-portal-kind"
 
 /** First URL segment after `/dashboard` for role-specific namespaces (rewritten to legacy `/dashboard/*`). */
@@ -8,11 +12,21 @@ export const PORTAL_URL_SEGMENT: Record<BraikPortalKind, string> = {
   recruiter: "recruiter",
 }
 
+export type TeamRouteShortIds = Pick<DashboardTeamPathParams, "shortOrgId" | "shortTeamId">
+
 /**
- * Strip `/dashboard/{coach|player|parent|recruiter}` so policy checks match legacy `/dashboard/...` routes.
+ * Strip canonical org/team dashboard prefix and `/dashboard/{coach|player|parent|recruiter}` so policy
+ * checks + active-nav matching align with legacy `/dashboard/...` paths from `quickActions`.
  */
 export function stripDashboardPortalPrefix(pathname: string): string {
   let p = pathname.split("?")[0] ?? pathname
+
+  const canon = p.match(/^\/dashboard\/org\/[^/]+\/team\/[^/]+(\/.*)?$/)
+  if (canon) {
+    const tail = canon[1] ?? ""
+    return tail ? `/dashboard${tail}` : "/dashboard"
+  }
+
   // Canonical recruiter workspace URL aliases to `/dashboard/recruiting` routes.
   if (p === "/dashboard/recruiter" || p.startsWith("/dashboard/recruiter/")) {
     p = p.replace(/^\/dashboard\/recruiter/, "/dashboard/recruiting")
@@ -23,6 +37,28 @@ export function stripDashboardPortalPrefix(pathname: string): string {
     if (p.startsWith(`${prefix}/`)) return `/dashboard${p.slice(prefix.length)}`
   }
   return p
+}
+
+/**
+ * Coach team dashboard: canonical `/dashboard/org/:shortOrgId/team/:shortTeamId/...` when short IDs exist;
+ * otherwise legacy `/dashboard/coach/...`. Other portal kinds keep prefixed URLs.
+ */
+export function teamScopedDashboardHref(
+  kind: BraikPortalKind,
+  rest: string,
+  shortIds: TeamRouteShortIds | null | undefined
+): string {
+  const normalizedRest =
+    rest === "" || rest === "/" ? "/" : rest.startsWith("/") ? rest : `/${rest}`
+  const nested =
+    normalizedRest === "/" ? undefined : normalizedRest
+  if (kind === "coach" && shortIds?.shortOrgId && shortIds?.shortTeamId) {
+    return buildDashboardTeamPath(
+      { shortOrgId: shortIds.shortOrgId, shortTeamId: shortIds.shortTeamId },
+      nested
+    )
+  }
+  return portalPrefixedDashboardHref(kind, normalizedRest)
 }
 
 /**

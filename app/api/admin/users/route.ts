@@ -47,18 +47,31 @@ export async function GET(request: Request) {
           .select("role, team_id")
           .eq("id", u.id)
           .maybeSingle()
-        const teamIds = profile?.team_id ? [profile.team_id] : []
+        const profileTeamId = profile?.team_id ?? null
+        const teamIds = profileTeamId ? [profileTeamId] : []
         const teams =
           teamIds.length > 0
-            ? await supabase.from("teams").select("id, name, org").in("id", teamIds)
+            ? await supabase.from("teams").select("id, name, organization_id, org").in("id", teamIds)
             : { data: [] }
-        const memberships = profile?.team_id
+        const row = (teams.data ?? []).find((t) => t.id === profileTeamId) as
+          | { id?: string; name?: string; organization_id?: string | null; org?: string | null }
+          | undefined
+        let organizationName: string | null = null
+        const oid = row?.organization_id
+        if (oid) {
+          const { data: orgRow } = await supabase.from("organizations").select("name").eq("id", oid).maybeSingle()
+          organizationName = (orgRow?.name as string | undefined)?.trim() || null
+        }
+        if (!organizationName && row?.org && String(row.org).trim()) {
+          organizationName = String(row.org).trim()
+        }
+        const memberships = profileTeamId && profile
           ? [
               {
                 role: profile.role ?? "player",
-                teamId: profile.team_id,
-                teamName: (teams.data ?? []).find((t) => t.id === profile.team_id)?.name,
-                organizationName: (teams.data ?? []).find((t) => t.id === profile.team_id)?.org,
+                teamId: profileTeamId,
+                teamName: row?.name ?? null,
+                organizationName,
               },
             ]
           : []

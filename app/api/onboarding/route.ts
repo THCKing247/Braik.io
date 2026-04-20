@@ -14,6 +14,7 @@ function normalizeProfileRole(role: string | null | undefined): string {
 export async function POST(request: Request) {
   let programIdForRollback: string | null = null
   let adoptedTeamIdForRollback: string | null = null
+  let organizationIdForRollback: string | null = null
 
   try {
     const session = await getServerSession()
@@ -119,7 +120,7 @@ export async function POST(request: Request) {
     if (profileRow?.team_id) {
       const { data: candidate } = await supabase
         .from("teams")
-        .select("id, program_id, created_by")
+        .select("id, program_id, created_by, organization_id")
         .eq("id", profileRow.team_id)
         .maybeSingle()
       const createdBy = (candidate as { created_by?: string } | null)?.created_by
@@ -129,7 +130,38 @@ export async function POST(request: Request) {
       }
     }
 
-    // Create program (head coach standalone)
+    let resolvedOrganizationId: string | null = null
+    if (adoptTeamId) {
+      const { data: adopted } = await supabase
+        .from("teams")
+        .select("organization_id")
+        .eq("id", adoptTeamId)
+        .maybeSingle()
+      resolvedOrganizationId =
+        (adopted as { organization_id?: string | null } | null)?.organization_id ?? null
+    }
+
+    if (!resolvedOrganizationId) {
+      const { data: orgRow, error: orgErr } = await supabase
+        .from("organizations")
+        .insert({
+          name: teamName,
+          created_by_user_id: session.user.id,
+        })
+        .select("id")
+        .single()
+
+      if (orgErr || !orgRow?.id) {
+        return NextResponse.json(
+          { error: orgErr?.message ?? "Failed to create organization" },
+          { status: 500 }
+        )
+      }
+      resolvedOrganizationId = orgRow.id as string
+      organizationIdForRollback = resolvedOrganizationId
+    }
+
+    // Create program (head coach standalone), linked to owning organization
     const { data: program, error: programError } = await supabase
       .from("programs")
       .insert({
@@ -137,6 +169,7 @@ export async function POST(request: Request) {
         program_name: teamName,
         sport,
         plan_type: "head_coach",
+        organization_id: resolvedOrganizationId,
       })
       .select("id")
       .single()
@@ -168,6 +201,10 @@ export async function POST(request: Request) {
         await supa.from("teams").update({ program_id: null }).eq("id", adoptedTeamIdForRollback)
       }
       await supa.from("programs").delete().eq("id", programIdForRollback)
+      if (organizationIdForRollback) {
+        await supa.from("organizations").delete().eq("id", organizationIdForRollback)
+        organizationIdForRollback = null
+      }
     }
 
     for (const level of teamsToCreate) {
@@ -177,6 +214,7 @@ export async function POST(request: Request) {
         adoptedTeamIdForRollback = adoptTeamId
         const adoptPayload = {
           program_id: program.id,
+          organization_id: resolvedOrganizationId,
           name,
           team_level: "varsity",
           plan_type: "head_coach",
@@ -202,6 +240,7 @@ export async function POST(request: Request) {
 
       const newTeamPayload = {
         program_id: program.id,
+        organization_id: resolvedOrganizationId,
         name,
         created_by: session.user.id,
         team_level: level,
@@ -277,6 +316,7 @@ export async function POST(request: Request) {
 
     programIdForRollback = null
     adoptedTeamIdForRollback = null
+    organizationIdForRollback = null
 
     trackProductEventServer({
       eventName: BRAIK_EVENTS.onboarding.completed,
@@ -304,6 +344,9 @@ export async function POST(request: Request) {
         await supa.from("teams").update({ program_id: null }).eq("id", adoptedTeamIdForRollback)
       }
       await supa.from("programs").delete().eq("id", programIdForRollback)
+      if (organizationIdForRollback) {
+        await supa.from("organizations").delete().eq("id", organizationIdForRollback)
+      }
     }
     return NextResponse.json(
       { error: e instanceof Error ? e.message : "Onboarding failed" },

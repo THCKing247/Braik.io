@@ -108,8 +108,24 @@ export async function POST(request: Request) {
     if (role === "head_coach") {
       const inviteCode = randomInviteCode(8)
       const sportNormalized = sport.trim().toLowerCase() || "football"
+
+      const { data: owningOrg, error: orgInsertError } = await supabaseServerClient
+        .from("organizations")
+        .insert({
+          name: programName,
+          created_by_user_id: authUser.user.id,
+        })
+        .select("id")
+        .single()
+
+      if (orgInsertError || !owningOrg?.id) {
+        await supabaseServerClient.auth.admin.deleteUser(authUser.user.id)
+        return NextResponse.json({ success: false, error: "Failed to create organization for team" }, { status: 500 })
+      }
+
       const insertPayload = {
         name: programName,
+        organization_id: owningOrg.id as string,
         invite_code: inviteCode,
         created_by: authUser.user.id,
         sport: sportNormalized,
@@ -123,6 +139,7 @@ export async function POST(request: Request) {
         .single()
 
       if (teamError || !createdTeam?.id) {
+        await supabaseServerClient.from("organizations").delete().eq("id", owningOrg.id as string)
         await supabaseServerClient.auth.admin.deleteUser(authUser.user.id)
         return NextResponse.json({ success: false, error: "Failed to create team" }, { status: 500 })
       }

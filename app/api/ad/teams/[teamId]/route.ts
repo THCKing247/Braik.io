@@ -30,7 +30,7 @@ export async function PATCH(request: Request, { params }: { params: { teamId: st
     const { data: team } = await supabase
       .from("teams")
       .select(
-        "id, name, sport, roster_size, team_level, gender, school_id, athletic_department_id, program_id"
+        "id, name, sport, roster_size, team_level, gender, school_id, athletic_department_id, program_id, organization_id"
       )
       .eq("id", teamId)
       .maybeSingle()

@@ -9,7 +9,7 @@ export async function GET() {
   const supabase = getSupabaseServer()
   const { data, error } = await supabase
     .from("teams")
-    .select("id, name, org, program_id, video_clips_enabled, coach_b_plus_enabled")
+    .select("id, name, org, organization_id, program_id, video_clips_enabled, coach_b_plus_enabled")
     .order("created_at", { ascending: false })
     .limit(200)
 
@@ -45,49 +45,64 @@ export async function POST(request: Request) {
   const supabase = getSupabaseServer()
   const sport = typeof body.sport === "string" && body.sport.trim() ? body.sport.trim() : "football"
   const programName = typeof body.programName === "string" && body.programName.trim() ? body.programName.trim() : name
-  const orgId = typeof body.organizationId === "string" ? body.organizationId.trim() : ""
+  const requestedOrgId = typeof body.organizationId === "string" ? body.organizationId.trim() : ""
 
+  let resolvedOrganizationId: string | null = null
   let programId: string | null = null
   let orgDisplay = name
 
-  if (orgId) {
+  if (requestedOrgId) {
     const { data: org, error: orgErr } = await supabase
       .from("organizations")
       .select("id, name")
-      .eq("id", orgId)
+      .eq("id", requestedOrgId)
       .maybeSingle()
     if (orgErr || !org) {
       return NextResponse.json({ error: "Organization not found" }, { status: 400 })
     }
+    resolvedOrganizationId = org.id as string
     orgDisplay = org.name ?? name
-
-    const { data: prog, error: progErr } = await supabase
-      .from("programs")
-      .insert({
-        organization_id: org.id,
-        program_name: programName,
-        sport,
-        plan_type: "head_coach",
-      })
-      .select("id")
+  } else {
+    const { data: createdOrg, error: createdOrgErr } = await supabase
+      .from("organizations")
+      .insert({ name: programName })
+      .select("id, name")
       .maybeSingle()
 
-    if (progErr || !prog?.id) {
-      return NextResponse.json({ error: progErr?.message ?? "Failed to create program" }, { status: 500 })
+    if (createdOrgErr || !createdOrg?.id) {
+      return NextResponse.json({ error: createdOrgErr?.message ?? "Failed to create organization" }, { status: 500 })
     }
-    programId = prog.id
+    resolvedOrganizationId = createdOrg.id as string
+    orgDisplay = (createdOrg.name as string) ?? name
   }
+
+  const { data: prog, error: progErr } = await supabase
+    .from("programs")
+    .insert({
+      organization_id: resolvedOrganizationId,
+      program_name: programName,
+      sport,
+      plan_type: "head_coach",
+    })
+    .select("id")
+    .maybeSingle()
+
+  if (progErr || !prog?.id) {
+    return NextResponse.json({ error: progErr?.message ?? "Failed to create program" }, { status: 500 })
+  }
+  programId = prog.id
 
   const { data: team, error: teamErr } = await supabase
     .from("teams")
     .insert({
       name,
       org: orgDisplay,
+      organization_id: resolvedOrganizationId,
       program_id: programId,
       video_clips_enabled: body.video_clips_enabled === true,
       coach_b_plus_enabled: body.coach_b_plus_enabled === true,
     })
-    .select("id, name, org, program_id, video_clips_enabled, coach_b_plus_enabled")
+    .select("id, name, org, organization_id, program_id, video_clips_enabled, coach_b_plus_enabled")
     .maybeSingle()
 
   if (teamErr || !team) {

@@ -44,7 +44,7 @@ export async function loadAdTeamEditPayload(
   const { data: team } = await supabase
     .from("teams")
     .select(
-      "id, name, sport, roster_size, season, notes, school_id, athletic_department_id, program_id, team_level, gender"
+      "id, name, sport, roster_size, season, notes, school_id, athletic_department_id, program_id, organization_id, team_level, gender"
     )
     .eq("id", teamId)
     .maybeSingle()

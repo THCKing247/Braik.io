@@ -19,6 +19,7 @@ import type {
 type TeamRow = {
   id: string
   name: string | null
+  organization_id: string | null
   program_id: string | null
   athletic_department_id: string | null
   team_status: string | null
@@ -40,7 +41,7 @@ export async function buildResolvedAdTeamIndex(supabase: SupabaseClient): Promis
   const { data: teamsRaw } = await supabase
     .from("teams")
     .select(
-      "id, name, program_id, athletic_department_id, team_status, sport, team_level, video_clips_enabled"
+      "id, name, organization_id, program_id, athletic_department_id, team_status, sport, team_level, video_clips_enabled"
     )
   const { data: programsRaw } = await supabase.from("programs").select("id, organization_id")
   const { data: orgsRaw } = await supabase.from("organizations").select("id, athletic_department_id, name")
@@ -68,7 +69,11 @@ export async function buildResolvedAdTeamIndex(supabase: SupabaseClient): Promis
   for (const t of teamsRaw ?? []) {
     const tr = t as TeamRow
     let orgAd: string | null = null
-    if (tr.program_id) {
+    const directOid = tr.organization_id
+    if (directOid) {
+      orgAd = orgById.get(directOid)?.athletic_department_id ?? null
+    }
+    if (orgAd === null && tr.program_id) {
       const pr = programById.get(tr.program_id)
       const oid = pr?.organization_id
       if (oid) {
@@ -206,7 +211,7 @@ export async function loadAthleticDepartmentDetail(
       ? await supabase
           .from("teams")
           .select(
-            "id, name, sport, team_level, team_status, video_clips_enabled, coach_b_plus_enabled, program_id, athletic_department_id"
+            "id, name, sport, team_level, team_status, video_clips_enabled, coach_b_plus_enabled, organization_id, program_id, athletic_department_id"
           )
           .in("id", teamIds)
       : { data: [] }
@@ -221,39 +226,56 @@ export async function loadAthleticDepartmentDetail(
         .filter((x): x is string => typeof x === "string" && x.length > 0)
     ),
   ]
+  const directTeamOrgIds = [
+    ...new Set(
+      (teamRows ?? [])
+        .map((t) => (t as { organization_id?: string | null }).organization_id)
+        .filter((x): x is string => typeof x === "string" && x.length > 0)
+    ),
+  ]
+  const programToOrganizationId = new Map<string, string>()
   const orgVideoByProgramId = new Map<string, boolean | null>()
   const orgCoachBPlusByProgramId = new Map<string, boolean | null>()
+  let programsFromDb: { id: string; organization_id?: string | null }[] = []
+
   if (programIds.length > 0) {
     const { data: programs } = await supabase.from("programs").select("id, organization_id").in("id", programIds)
-    const orgIds = [
-      ...new Set(
-        (programs ?? [])
-          .map((p) => (p as { organization_id?: string | null }).organization_id)
-          .filter((x): x is string => typeof x === "string" && x.length > 0)
-      ),
-    ]
-    const orgVideoByOrgId = new Map<string, boolean>()
-    const orgCoachBPlusByOrgId = new Map<string, boolean>()
-    if (orgIds.length > 0) {
-      const { data: orgRows } = await supabase
-        .from("organizations")
-        .select("id, video_clips_enabled, coach_b_plus_enabled")
-        .in("id", orgIds)
-      for (const o of orgRows ?? []) {
-        const row = o as { id: string; video_clips_enabled?: boolean; coach_b_plus_enabled?: boolean }
-        orgVideoByOrgId.set(row.id, Boolean(row.video_clips_enabled))
-        orgCoachBPlusByOrgId.set(row.id, Boolean(row.coach_b_plus_enabled))
-      }
+    programsFromDb = (programs ?? []) as { id: string; organization_id?: string | null }[]
+    for (const pr of programsFromDb) {
+      if (pr.organization_id) programToOrganizationId.set(pr.id, pr.organization_id)
     }
-    for (const p of programs ?? []) {
-      const pr = p as { id: string; organization_id?: string | null }
-      const v =
-        pr.organization_id != null ? orgVideoByOrgId.get(pr.organization_id) : undefined
-      orgVideoByProgramId.set(pr.id, v === undefined ? null : v)
-      const cb =
-        pr.organization_id != null ? orgCoachBPlusByOrgId.get(pr.organization_id) : undefined
-      orgCoachBPlusByProgramId.set(pr.id, cb === undefined ? null : cb)
+  }
+
+  const organizationIdsForFlags = [
+    ...new Set([
+      ...directTeamOrgIds,
+      ...programsFromDb
+        .map((p) => p.organization_id)
+        .filter((x): x is string => typeof x === "string" && x.length > 0),
+    ]),
+  ]
+
+  const orgVideoByOrgId = new Map<string, boolean>()
+  const orgCoachBPlusByOrgId = new Map<string, boolean>()
+  if (organizationIdsForFlags.length > 0) {
+    const { data: orgRows } = await supabase
+      .from("organizations")
+      .select("id, video_clips_enabled, coach_b_plus_enabled")
+      .in("id", organizationIdsForFlags)
+    for (const o of orgRows ?? []) {
+      const row = o as { id: string; video_clips_enabled?: boolean; coach_b_plus_enabled?: boolean }
+      orgVideoByOrgId.set(row.id, Boolean(row.video_clips_enabled))
+      orgCoachBPlusByOrgId.set(row.id, Boolean(row.coach_b_plus_enabled))
     }
+  }
+
+  for (const pr of programsFromDb) {
+    const v =
+      pr.organization_id != null ? orgVideoByOrgId.get(pr.organization_id) : undefined
+    orgVideoByProgramId.set(pr.id, v === undefined ? null : v)
+    const cb =
+      pr.organization_id != null ? orgCoachBPlusByOrgId.get(pr.organization_id) : undefined
+    orgCoachBPlusByProgramId.set(pr.id, cb === undefined ? null : cb)
   }
 
   const hcNameById = new Map<string, string>()
@@ -279,10 +301,22 @@ export async function loadAthleticDepartmentDetail(
     const assistantCoachCount = staff.filter((m) => isAssistantCoachRole(m.role)).length
     const teamVid = Boolean(tr.video_clips_enabled)
     const pid = (tr as { program_id?: string | null }).program_id
-    const orgVid = pid ? orgVideoByProgramId.get(pid) ?? null : null
+    const directOid = (tr as { organization_id?: string | null }).organization_id
+    const effectiveOrgId = directOid ?? (pid ? programToOrganizationId.get(pid) : undefined) ?? null
+    const orgVid =
+      effectiveOrgId != null
+        ? orgVideoByOrgId.get(effectiveOrgId) ?? null
+        : pid
+          ? orgVideoByProgramId.get(pid) ?? null
+          : null
     const orgOk = orgVid == null ? true : orgVid
     const teamCoachB = Boolean((tr as { coach_b_plus_enabled?: boolean }).coach_b_plus_enabled)
-    const orgCoachB = pid ? orgCoachBPlusByProgramId.get(pid) ?? null : null
+    const orgCoachB =
+      effectiveOrgId != null
+        ? orgCoachBPlusByOrgId.get(effectiveOrgId) ?? null
+        : pid
+          ? orgCoachBPlusByProgramId.get(pid) ?? null
+          : null
     const orgOkCoachB = orgCoachB == null ? true : orgCoachB
     return {
       id: tr.id,

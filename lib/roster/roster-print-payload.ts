@@ -83,11 +83,21 @@ export async function buildRosterPrintPayload(
   let teamName = "Team"
   let teamOrg: string | null = null
   try {
-    const { data: display } = await supabase.from("teams").select("name, org").eq("id", teamId).maybeSingle()
+    const { data: display } = await supabase
+      .from("teams")
+      .select("name, org, organization_id")
+      .eq("id", teamId)
+      .maybeSingle()
     if (display) {
-      const d = display as { name?: string | null; org?: string | null }
+      const d = display as { name?: string | null; org?: string | null; organization_id?: string | null }
       if (d.name != null && d.name !== "") teamName = d.name
-      if (d.org != null && d.org !== "") teamOrg = d.org
+      const oid = d.organization_id?.trim()
+      if (oid) {
+        const { data: orgRow } = await supabase.from("organizations").select("name").eq("id", oid).maybeSingle()
+        const nm = (orgRow as { name?: string | null } | null)?.name?.trim()
+        if (nm) teamOrg = nm
+      }
+      if (teamOrg == null && d.org != null && d.org !== "") teamOrg = d.org
     }
   } catch {
     /* ignore */

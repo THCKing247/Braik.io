@@ -45,7 +45,7 @@ export async function loadAdminTeamsGrouped(params: {
     let rq = supabase
       .from("teams")
       .select(
-        "id, name, plan_tier, subscription_status, team_status, org, created_at, sport, team_level, program_id, school_id, athletic_department_id"
+        "id, name, plan_tier, subscription_status, team_status, org, organization_id, created_at, sport, team_level, program_id, school_id, athletic_department_id"
       )
       .order("created_at", { ascending: false })
       .limit(2000)
@@ -58,6 +58,7 @@ export async function loadAdminTeamsGrouped(params: {
     const raw = rows ?? []
     const teamIdList = raw.map((t) => t.id as string)
 
+    const directOrgIds = [...new Set(raw.map((r) => r.organization_id as string | null).filter(Boolean))] as string[]
     const programIds = [...new Set(raw.map((r) => r.program_id as string | null).filter(Boolean))] as string[]
     const schoolIdsDirect = [...new Set(raw.map((r) => r.school_id as string | null).filter(Boolean))] as string[]
     const adIds = [...new Set(raw.map((r) => r.athletic_department_id as string | null).filter(Boolean))] as string[]
@@ -85,7 +86,8 @@ export async function loadAdminTeamsGrouped(params: {
       (programs ?? []).map((p) => [p.id as string, p as ProgramRow])
     )
 
-    const orgIds = [...new Set((programs ?? []).map((p) => p.organization_id as string | null).filter(Boolean))] as string[]
+    const orgIdsFromPrograms = [...new Set((programs ?? []).map((p) => p.organization_id as string | null).filter(Boolean))] as string[]
+    const orgIds = [...new Set([...directOrgIds, ...orgIdsFromPrograms])]
     const { data: organizations } =
       orgIds.length > 0
         ? await supabase.from("organizations").select("id, name, school_id, athletic_department_id").in("id", orgIds)
@@ -150,7 +152,9 @@ export async function loadAdminTeamsGrouped(params: {
 
       const pid = t.program_id as string | null
       const prog = pid ? programById.get(pid) : undefined
-      const oid = prog?.organization_id as string | undefined
+      const directOid = t.organization_id as string | null
+      const oidFromProgram = prog?.organization_id as string | undefined
+      const oid = (directOid ?? oidFromProgram) as string | undefined
       const orgRow = oid ? orgById.get(oid) : undefined
       const orgName = (orgRow?.name as string | undefined) ?? null
       const programName = (prog?.program_name as string | undefined) ?? null

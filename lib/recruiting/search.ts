@@ -170,29 +170,95 @@ export async function searchRecruitingProfiles(
   const teamIds = [...new Set(players.map((p) => (p as { team_id: string }).team_id).filter(Boolean))]
   const { data: teams } = await supabase
     .from("teams")
-    .select("id, name, team_level, program_id, school_id")
+    .select("id, name, team_level, program_id, school_id, organization_id")
     .in("id", teamIds)
 
   const programIds = [...new Set((teams ?? []).map((t) => (t as { program_id?: string }).program_id).filter(Boolean))]
-  const { data: programs } = await supabase.from("programs").select("id, program_name, organization_id").in("id", programIds)
-  const orgIds = [...new Set((programs ?? []).map((p) => (p as { organization_id?: string }).organization_id).filter(Boolean))]
-  const { data: orgs } = await supabase.from("organizations").select("id, school_id").in("id", orgIds)
-  const schoolIds = [...new Set((orgs ?? []).map((o) => (o as { school_id?: string }).school_id).filter(Boolean))]
+  const { data: programs } =
+    programIds.length > 0
+      ? await supabase.from("programs").select("id, program_name, organization_id").in("id", programIds)
+      : { data: [] as { id: string; program_name?: string; organization_id?: string | null }[] }
+  const orgIdsFromPrograms = [
+    ...new Set((programs ?? []).map((p) => (p as { organization_id?: string }).organization_id).filter(Boolean)),
+  ]
+  const orgIdsFromTeams = [
+    ...new Set(
+      (teams ?? [])
+        .map((t) => (t as { organization_id?: string }).organization_id)
+        .filter((x): x is string => typeof x === "string" && x.length > 0)
+    ),
+  ]
+  const organizationIds = [...new Set([...orgIdsFromTeams, ...orgIdsFromPrograms])]
+  const { data: orgs } =
+    organizationIds.length > 0
+      ? await supabase.from("organizations").select("id, school_id").in("id", organizationIds)
+      : { data: [] as { id: string; school_id?: string | null }[] }
+  const schoolIdsFromOrgs = [...new Set((orgs ?? []).map((o) => (o as { school_id?: string }).school_id).filter(Boolean))]
+  const schoolIdsFromTeams = [
+    ...new Set((teams ?? []).map((t) => (t as { school_id?: string }).school_id).filter(Boolean)),
+  ]
+  const schoolIds = [...new Set([...schoolIdsFromOrgs, ...schoolIdsFromTeams])]
   const { data: schools } =
     schoolIds.length > 0 ? await supabase.from("schools").select("id, state").in("id", schoolIds) : { data: [] }
-  const stateBySchoolId = new Map((schools ?? []).map((s) => [s.id, (s as { state?: string }).state ?? null]))
-  const schoolIdByOrgId = new Map((orgs ?? []).map((o) => [o.id, (o as { school_id?: string }).school_id]))
-  const orgIdByProgramId = new Map((programs ?? []).map((p) => [p.id, (p as { organization_id?: string }).organization_id]))
-  const stateByProgramId = new Map<string, string | null>()
-  for (const [programId, orgId] of orgIdByProgramId) {
-    if (orgId) {
-      const schoolId = schoolIdByOrgId.get(orgId)
-      stateByProgramId.set(programId, schoolId ? stateBySchoolId.get(schoolId) ?? null : null)
-    }
+  const stateBySchoolId = new Map<string, string | null>(
+    (schools ?? []).map((s) => {
+      const row = s as { id: string; state?: string | null }
+      return [row.id, row.state ?? null] as [string, string | null]
+    })
+  )
+  const schoolIdByOrgId = new Map<string, string | null | undefined>(
+    (orgs ?? []).map((o) => {
+      const row = o as { id: string; school_id?: string | null }
+      return [row.id, row.school_id] as [string, string | null | undefined]
+    })
+  )
+  const orgIdByProgramId = new Map<string, string | undefined>(
+    (programs ?? []).map((p) => {
+      const row = p as { id: string; organization_id?: string | null }
+      return [row.id, row.organization_id ?? undefined] as [string, string | undefined]
+    })
+  )
+  const stateByOrganizationId = new Map<string, string | null>()
+  for (const o of orgs ?? []) {
+    const oid = (o as { id: string }).id
+    const sid = schoolIdByOrgId.get(oid)
+    stateByOrganizationId.set(oid, sid ? stateBySchoolId.get(sid) ?? null : null)
   }
 
-  const teamById = new Map((teams ?? []).map((t) => [t.id, t]))
-  const programById = new Map((programs ?? []).map((p) => [(p as { id: string }).id, p]))
+  function stateForTeam(team: {
+    program_id?: string | null
+    organization_id?: string | null
+    school_id?: string | null
+  } | undefined): string | null {
+    if (!team) return null
+    const directOid = team.organization_id
+    const effectiveOid =
+      directOid ?? (team.program_id ? orgIdByProgramId.get(team.program_id) : undefined) ?? null
+    if (effectiveOid) {
+      const st = stateByOrganizationId.get(effectiveOid)
+      if (st != null) return st
+    }
+    const tsid = team.school_id
+    return tsid ? stateBySchoolId.get(tsid) ?? null : null
+  }
+
+  const teamsList = teams ?? []
+  type TeamHit = (typeof teamsList)[number]
+  const programsList = programs ?? []
+  type ProgramHit = (typeof programsList)[number]
+
+  const teamById = new Map<string, TeamHit>(
+    teamsList.map((t) => {
+      const row = t as { id: string }
+      return [row.id, t] as [string, TeamHit]
+    })
+  )
+  const programById = new Map<string, ProgramHit>(
+    programsList.map((p) => {
+      const row = p as { id: string }
+      return [row.id, p] as [string, ProgramHit]
+    })
+  )
 
   // Playbook mastery for filter and summary (if playbookMasteryMin requested, filter in memory)
   let masteryByPlayer: Map<string, number> = new Map()
@@ -230,7 +296,7 @@ export async function searchRecruitingProfiles(
     const team = teamById.get((player as { team_id: string }).team_id)
     const programId = team ? (team as { program_id?: string }).program_id : null
     const program = programId ? programById.get(programId) : null
-    const state = programId ? stateByProgramId.get(programId) ?? null : null
+    const state = stateForTeam(team as { program_id?: string | null; organization_id?: string | null; school_id?: string | null })
     const teamLevel = team ? (team as { team_level?: string }).team_level ?? null : null
 
     if (filters.teamId != null && filters.teamId.trim() !== "") {

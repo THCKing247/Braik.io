@@ -79,13 +79,20 @@ export async function loadAdminUserProfile(userId: string): Promise<AdminUserPro
     if (teamId) {
       const { data: t } = await supabase
         .from("teams")
-        .select("id, name, org, program_id, school_id")
+        .select("id, name, org, organization_id, program_id, school_id")
         .eq("id", teamId)
         .maybeSingle()
       if (t) {
         team = { id: t.id as string, name: t.name as string }
+
+        const directOid = (t.organization_id as string | undefined)?.trim()
+        if (directOid) {
+          const { data: o } = await supabase.from("organizations").select("name").eq("id", directOid).maybeSingle()
+          organizationName = (o?.name as string) ?? null
+        }
+
         const pid = t.program_id as string | undefined
-        if (pid) {
+        if (!organizationName && pid) {
           const { data: prog } = await supabase
             .from("programs")
             .select("program_name, organization_id")

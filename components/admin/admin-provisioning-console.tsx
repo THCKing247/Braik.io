@@ -17,6 +17,7 @@ type TeamRow = {
   id: string
   name: string
   org: string | null
+  organization_id?: string | null
   program_id: string | null
   video_clips_enabled: boolean
   coach_b_plus_enabled: boolean
@@ -88,17 +89,13 @@ export function AdminProvisioningConsole() {
   async function submitTeam(e: React.FormEvent) {
     e.preventDefault()
     setTeamMsg("")
-    if (!teamOrgId) {
-      setTeamMsg("Select an organization for the program + team.")
-      return
-    }
     const res = await fetch("/api/admin/provisioning/teams", {
       method: "POST",
       credentials: "include",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         name: teamName,
-        organizationId: teamOrgId,
+        organizationId: teamOrgId.trim() || undefined,
         sport: teamSport,
         programName: teamProgramName || teamName,
         video_clips_enabled: teamVideo,

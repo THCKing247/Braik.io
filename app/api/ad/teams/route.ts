@@ -78,6 +78,41 @@ export async function POST(request: Request) {
       )
     }
 
+    let organizationId: string | null = null
+    const { data: orgCandidates } = await supabase
+      .from("organizations")
+      .select("id")
+      .eq("athletic_department_id", department.id)
+      .order("created_at", { ascending: true })
+      .limit(2)
+
+    const orgRows = orgCandidates ?? []
+    if (orgRows.length === 1) {
+      organizationId = (orgRows[0] as { id: string }).id
+    } else if (orgRows.length === 0) {
+      const { data: createdOrg, error: createdOrgErr } = await supabase
+        .from("organizations")
+        .insert({
+          name: `${teamName} (${sport})`,
+          school_id: profile.school_id,
+          athletic_department_id: department.id,
+          created_by_user_id: session.user.id,
+        })
+        .select("id")
+        .single()
+
+      if (createdOrgErr || !createdOrg?.id) {
+        return NextResponse.json(
+          { error: createdOrgErr?.message ?? "Could not resolve organization for this team." },
+          { status: 500 }
+        )
+      }
+      organizationId = createdOrg.id as string
+    } else {
+      console.warn("[ad/teams] multiple organizations for athletic_department_id; using oldest by created_at")
+      organizationId = (orgRows[0] as { id: string }).id
+    }
+
     const teamInsertPayload = {
       name: teamName,
       sport,
@@ -86,6 +121,7 @@ export async function POST(request: Request) {
       notes,
       school_id: profile.school_id,
       athletic_department_id: department.id,
+      organization_id: organizationId,
       created_by: session.user.id,
     }
     console.info("[ad/teams] teams.insert", JSON.stringify(teamInsertPayload))

@@ -18,7 +18,8 @@ export const AD_TEAMS_TABLE_QUERY_LIMIT = 500
  * - Teams at their school (school_id) or department (athletic_department_id), including AD-created teams.
  * - Teams in programs linked to their organization (programs.organization_id → org for this AD).
  *
- * Linking a head coach program only sets programs.organization_id; it does not require teams.school_id
+ * Linking a head coach program only sets programs.organization_id; it does not require teams.school_id.
+ * Teams may also set teams.organization_id directly (canonical ownership).
  * to match the AD's school, so the portal must include program_id scope.
  */
 export type AthleticDirectorScope = {
@@ -107,6 +108,9 @@ export function buildAdTeamsOrFilter(scope: AthleticDirectorScope): string | nul
   if (scope.athleticDepartmentId) {
     parts.push(`athletic_department_id.eq.${scope.athleticDepartmentId}`)
   }
+  if (scope.organizationIds.length > 0) {
+    parts.push(`organization_id.in.(${scope.organizationIds.join(",")})`)
+  }
   if (scope.linkedProgramIds.length > 0) {
     parts.push(`program_id.in.(${scope.linkedProgramIds.join(",")})`)
   }
@@ -119,9 +123,17 @@ export function teamRowVisibleToAdScope(
     school_id?: string | null
     athletic_department_id?: string | null
     program_id?: string | null
+    organization_id?: string | null
   },
   scope: AthleticDirectorScope
 ): boolean {
+  if (
+    team.organization_id &&
+    scope.organizationIds.length > 0 &&
+    scope.organizationIds.includes(team.organization_id)
+  ) {
+    return true
+  }
   if (scope.profileSchoolId && team.school_id === scope.profileSchoolId) return true
   if (scope.athleticDepartmentId && team.athletic_department_id === scope.athleticDepartmentId) return true
   if (team.program_id && scope.linkedProgramIds.includes(team.program_id)) return true
@@ -169,6 +181,7 @@ export type AdVisibleTeamRow = {
   created_at: string
   school_id: string | null
   program_id: string | null
+  organization_id: string | null
   athletic_department_id: string | null
   team_level: string | null
   created_by: string | null
@@ -195,7 +208,7 @@ export async function fetchAdVisibleTeams(
   const { data, error } = await supabase
     .from("teams")
     .select(
-      "id, name, sport, roster_size, created_at, school_id, program_id, athletic_department_id, team_level, created_by, gender"
+      "id, name, sport, roster_size, created_at, school_id, program_id, organization_id, athletic_department_id, team_level, created_by, gender"
     )
     .or(orFilter)
     .order("created_at", { ascending: false })
@@ -288,7 +301,7 @@ export async function fetchAdPortalVisibleTeams(
     const { data, error } = await supabase
       .from("teams")
       .select(
-        "id, name, sport, roster_size, created_at, program_id, team_level, created_by, gender"
+        "id, name, sport, roster_size, created_at, program_id, organization_id, team_level, created_by, gender"
       )
       .or(orFilter)
       .order("created_at", { ascending: false })
@@ -311,7 +324,7 @@ export async function fetchAdPortalVisibleTeams(
   const { data, error } = await supabase
     .from("teams")
     .select(
-      "id, name, sport, roster_size, created_at, school_id, program_id, athletic_department_id, team_level, created_by, gender"
+      "id, name, sport, roster_size, created_at, school_id, program_id, organization_id, athletic_department_id, team_level, created_by, gender"
     )
     .or(orFilter)
     .order("created_at", { ascending: false })

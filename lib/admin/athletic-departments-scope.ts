@@ -9,8 +9,8 @@ export function resolveAthleticDepartmentIdForTeam(args: {
 }
 
 /**
- * All team IDs managed under an athletic department (direct `teams.athletic_department_id`
- * or via program → organization).
+ * All team IDs managed under an athletic department (direct `teams.athletic_department_id`,
+ * `teams.organization_id` under this AD's organizations, or via program → organization).
  */
 export async function collectTeamIdsForAthleticDepartment(
   supabase: SupabaseClient,
@@ -37,12 +37,16 @@ export async function collectTeamIdsForAthleticDepartment(
 
   const { data: programs } = await supabase.from("programs").select("id").in("organization_id", orgIds)
   const programIds = (programs ?? []).map((p) => (p as { id: string }).id)
-  if (programIds.length === 0) {
-    return [...ids]
+
+  if (programIds.length > 0) {
+    const { data: viaProgram } = await supabase.from("teams").select("id").in("program_id", programIds)
+    for (const row of viaProgram ?? []) {
+      ids.add((row as { id: string }).id)
+    }
   }
 
-  const { data: viaProgram } = await supabase.from("teams").select("id").in("program_id", programIds)
-  for (const row of viaProgram ?? []) {
+  const { data: viaOrg } = await supabase.from("teams").select("id").in("organization_id", orgIds)
+  for (const row of viaOrg ?? []) {
     ids.add((row as { id: string }).id)
   }
 

@@ -79,6 +79,11 @@ export async function syncProgramTeamsMetadataFromOrganization(
         .is("athletic_department_id", null)
     : { error: null }
 
+  const { error: eTeamOrg } = await supabase
+    .from("teams")
+    .update({ organization_id: organizationId })
+    .eq("program_id", programId)
+
   let rosterUpdates = 0
   if (teamIds.length > 0) {
     const { data: playerRows } = await supabase.from("players").select("team_id").in("team_id", teamIds)
@@ -105,6 +110,7 @@ export async function syncProgramTeamsMetadataFromOrganization(
       sport: eSport?.message ?? null,
       school: eSchool?.message ?? null,
       athletic_department: eDept?.message ?? null,
+      organization_id: eTeamOrg?.message ?? null,
     },
     rosterSizeBackfills: rosterUpdates,
   }

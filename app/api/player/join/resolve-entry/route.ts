@@ -3,6 +3,7 @@ import { getSupabaseAdminClient } from "@/lib/supabase/supabase-admin"
 import {
   resolveAmbiguousJoinCode,
   resolvePlayerByAccountIdAndTeamJoin,
+  resolvePlayerByAccountIdOnly,
   resolvePlayerInviteJoinEntry,
   resolveTeamJoinEntryOnly,
   type PlayerJoinEntryErrorCode,
@@ -16,7 +17,7 @@ function jsonError(code: PlayerJoinEntryErrorCode | "server_error", message: str
 
 /**
  * POST /api/player/join/resolve-entry
- * Validates either a team join code (teams.player_code) or a player invite code (roster invite),
+ * Validates team join code, roster Account ID (alone or with team code), player invite code,
  * or resolves an ambiguous `code` (team first, then player).
  */
 export async function POST(request: Request) {
@@ -66,17 +67,15 @@ export async function POST(request: Request) {
       return NextResponse.json(result)
     }
 
-    if (accountIdRaw) {
-      if (!teamRaw) {
-        return jsonError("missing_code", "Enter your team code together with your account ID.", 400)
-      }
-      if (playerRaw) {
-        return jsonError(
-          "both_provided",
-          "Use account ID + team code, or a player invite code — not both.",
-          400
-        )
-      }
+    if (accountIdRaw && playerRaw) {
+      return jsonError(
+        "both_provided",
+        "Use team join code and/or Account ID, or a player invite code — not Account ID mixed with invite code in one request.",
+        400
+      )
+    }
+
+    if (accountIdRaw && teamRaw) {
       const pairResult = await resolvePlayerByAccountIdAndTeamJoin(supabase, accountIdRaw, teamRaw)
       if (!pairResult.ok) {
         const status =
@@ -90,6 +89,24 @@ export async function POST(request: Request) {
         return NextResponse.json({ ok: false, code: pairResult.code, error: pairResult.message }, { status })
       }
       return NextResponse.json(pairResult)
+    }
+
+    if (accountIdRaw) {
+      const soloResult = await resolvePlayerByAccountIdOnly(supabase, accountIdRaw)
+      if (!soloResult.ok) {
+        const status =
+          soloResult.code === "invalid_team_code"
+            ? 404
+            : soloResult.code === "account_id_ambiguous"
+              ? 400
+              : soloResult.code === "player_already_claimed" ||
+                  soloResult.code === "expired_player_invite" ||
+                  soloResult.code === "invite_max_uses"
+                ? 400
+                : 400
+        return NextResponse.json({ ok: false, code: soloResult.code, error: soloResult.message }, { status })
+      }
+      return NextResponse.json(soloResult)
     }
 
     if (teamRaw && playerRaw) {
@@ -129,7 +146,7 @@ export async function POST(request: Request) {
       return NextResponse.json(result)
     }
 
-    return jsonError("missing_code", "Enter a team join code or a player invite code.", 400)
+    return jsonError("missing_code", "Enter a team join code, Account ID, or player invite code.", 400)
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Unknown error"
     console.error("[POST /api/player/join/resolve-entry]", msg)

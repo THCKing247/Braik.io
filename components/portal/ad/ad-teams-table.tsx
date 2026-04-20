@@ -2,9 +2,12 @@
 
 import Link from "next/link"
 import { AdTeamStatusBadge } from "./ad-team-status-badge"
+import { buildDashboardTeamPath } from "@/lib/navigation/organization-routes"
 
 export type TeamRow = {
   id: string
+  organizationPortalUuid?: string | null
+  shortTeamId?: string | null
   name: string
   /** For filters only — not shown as its own column. */
   sport: string | null
@@ -34,6 +37,18 @@ export function AdTeamsTable({ teams }: AdTeamsTableProps) {
   if (teams.length === 0) {
     return null
   }
+
+  const teamPortalHref = (team: TeamRow): string =>
+    team.organizationPortalUuid && team.shortTeamId
+      ? buildDashboardTeamPath({
+          organizationPortalUuid: team.organizationPortalUuid,
+          shortTeamId: team.shortTeamId,
+        })
+      : `/dashboard?teamId=${encodeURIComponent(team.id)}`
+  const teamEditHref = (team: TeamRow): string =>
+    team.organizationPortalUuid
+      ? `/org/${encodeURIComponent(team.organizationPortalUuid)}/teams/${encodeURIComponent(team.id)}`
+      : `/dashboard/ad/teams/${team.id}`
 
   return (
     <div className="rounded-xl border border-[#E5E7EB] bg-white shadow-sm overflow-hidden">
@@ -97,7 +112,7 @@ export function AdTeamsTable({ teams }: AdTeamsTableProps) {
                   <td className="px-4 py-3 text-right text-sm">
                     <div className="flex flex-wrap justify-end gap-3">
                       <Link
-                        href={`/dashboard?teamId=${encodeURIComponent(team.id)}`}
+                        href={teamPortalHref(team)}
                         // Heavy team-scoped dashboard route: disable Link prefetch so hover does not fetch RSC/bootstrap.
                         prefetch={false}
                         className="text-[#3B82F6] hover:underline font-medium"
@@ -105,7 +120,7 @@ export function AdTeamsTable({ teams }: AdTeamsTableProps) {
                         Portal access
                       </Link>
                       <Link
-                        href={`/dashboard/ad/teams/${team.id}`}
+                        href={teamEditHref(team)}
                         className="text-[#3B82F6] hover:underline font-medium"
                       >
                         Edit

@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { useRouter } from "next/navigation"
+import { useParams, useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
 import { AdTeamEditForm } from "@/components/portal/ad/ad-team-edit-form"
 
@@ -22,6 +22,8 @@ type OkPayload = {
 
 export function AdTeamEditPageClient({ teamId }: { teamId: string }) {
   const router = useRouter()
+  const params = useParams<{ organizationPortalUuid?: string }>()
+  const orgBase = params?.organizationPortalUuid ? `/org/${params.organizationPortalUuid}` : null
   const [data, setData] = useState<OkPayload | null>(null)
   const [phase, setPhase] = useState<"loading" | "ready" | "error">("loading")
 
@@ -34,7 +36,9 @@ export function AdTeamEditPageClient({ teamId }: { teamId: string }) {
           { credentials: "include", cache: "no-store" }
         )
         if (res.status === 401) {
-          router.replace(`/login?callbackUrl=${encodeURIComponent(`/dashboard/ad/teams/${teamId}`)}`)
+          router.replace(
+            `/login?callbackUrl=${encodeURIComponent(orgBase ? `${orgBase}/teams/${teamId}` : `/dashboard/ad/teams/${teamId}`)}`
+          )
           return
         }
         if (!res.ok) throw new Error(String(res.status))
@@ -57,7 +61,7 @@ export function AdTeamEditPageClient({ teamId }: { teamId: string }) {
     return () => {
       cancelled = true
     }
-  }, [router, teamId])
+  }, [router, teamId, orgBase])
 
   if (phase === "error") {
     return <p className="text-[#212529]">Could not load team.</p>
@@ -75,7 +79,7 @@ export function AdTeamEditPageClient({ teamId }: { teamId: string }) {
     <div className="space-y-8">
       <div>
         <Link
-          href="/dashboard/ad/teams"
+          href={orgBase ? `${orgBase}/teams` : "/dashboard/ad/teams"}
           className="text-sm font-medium text-[#3B82F6] hover:underline mb-2 inline-block"
         >
           ← Back to teams

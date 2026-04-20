@@ -20,6 +20,8 @@ import { portalPrefixedDashboardHref, stripDashboardPortalPrefix } from "@/lib/p
 interface Team {
   id: string
   name: string
+  organizationPortalUuid?: string | null
+  shortTeamId?: string | null
   organization: { name: string }
   sport: string
   seasonName: string
@@ -43,7 +45,9 @@ export function DashboardMoreBottomSheet({
   const userRole = identity.roleUpper || undefined
   const showAdminLink = identity.isPlatformOwner
   const searchParams = useSearchParams()
-  const currentTeamId = searchParams.get("teamId") || teams[0]?.id || ""
+  const teamFromPath = (pathname ?? "").match(/^\/dashboard\/org\/[^/]+\/team\/([^/]+)/)?.[1] ?? null
+  const currentTeamId =
+    teams.find((team) => team.shortTeamId === teamFromPath)?.id || searchParams.get("teamId") || teams[0]?.id || ""
   const currentTeam = teams.find((t) => t.id === currentTeamId) || teams[0]
   const videoNav = useAppBootstrapOptional()?.payload?.videoClips?.navVisible
   const quickActions = useMemo(

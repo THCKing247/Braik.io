@@ -8,6 +8,10 @@ import {
 import { getCachedAdPortalAccessForUser } from "@/lib/ad-portal-access-cache"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { shouldLogRoutePerf, routePerf, logRoutePerf, type RoutePerfSink } from "@/lib/debug/route-perf"
+import {
+  buildOrganizationPortalPath,
+  resolveDefaultOrganizationPortalUuidForUser,
+} from "@/lib/navigation/organization-routes"
 
 export const runtime = "nodejs"
 
@@ -35,6 +39,14 @@ export async function GET() {
     const canEnter = access.mode !== "none"
     const restricted = access.mode === "restricted_football"
     const showOverviewAndSettings = adPortalShowsOverviewAndSettings(access)
+    const organizationPortalUuid = await routePerf(sink, "org_portal", () =>
+      resolveDefaultOrganizationPortalUuidForUser(getSupabaseServer(), userId)
+    )
+    const defaultOrgPath = organizationPortalUuid
+      ? buildOrganizationPortalPath(organizationPortalUuid, restricted ? "/teams" : "")
+      : restricted
+        ? "/dashboard/ad/teams"
+        : "/dashboard/ad"
 
     if (sink) {
       sink.push({ label: "total", ms: Math.round(performance.now() - started) })
@@ -50,8 +62,9 @@ export async function GET() {
       mode: access.mode,
       restrictedFootball: restricted,
       showOverviewAndSettings,
+      organizationPortalUuid,
       /** First stop in athletic department shell after login (varsity HC with football scope). */
-      defaultPath: restricted ? "/dashboard/ad/teams" : "/dashboard/ad",
+      defaultPath: defaultOrgPath,
     })
     if (sessionResult.refreshedSession) {
       applyRefreshedSessionCookies(res, sessionResult.refreshedSession)

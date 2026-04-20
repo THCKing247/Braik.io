@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server"
 import { getServerSession } from "@/lib/auth/server-auth"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
+import {
+  resolveCanonicalTeamRouteByTeamId,
+  resolveDefaultOrganizationPortalUuidForUser,
+} from "@/lib/navigation/organization-routes"
 
 export const runtime = "nodejs"
 
@@ -177,6 +181,17 @@ export async function GET() {
           a.name.localeCompare(b.name)
       )
 
+    const teamShortIds: Record<string, string> = {}
+    await Promise.all(
+      teams.map(async (team) => {
+        const canonical = await resolveCanonicalTeamRouteByTeamId(supabase, team.id)
+        if (canonical?.shortTeamId) {
+          teamShortIds[team.id] = canonical.shortTeamId
+        }
+      })
+    )
+    const organizationPortalUuid = await resolveDefaultOrganizationPortalUuidForUser(supabase, userId)
+
     const teamIds = teams.map((t) => t.id)
 
     const { data: assignRows } = await supabase
@@ -267,6 +282,8 @@ export async function GET() {
       programRole,
       programName: program?.program_name ?? null,
       sport: program?.sport ?? null,
+      organizationPortalUuid,
+      teamShortIds,
       teams,
       coachAssignments,
       staff,

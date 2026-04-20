@@ -113,7 +113,7 @@ export function AdPortalShellGate({
   if (q.isError && !authRedirectError) {
     return (
       <div className="min-h-screen p-8" style={{ backgroundColor: "rgb(var(--snow))" }}>
-        <p className="text-[#212529]">Could not load the Athletic Director portal. Please refresh or try again later.</p>
+        <p className="text-[#212529]">Could not load the organization portal. Please refresh or try again later.</p>
       </div>
     )
   }

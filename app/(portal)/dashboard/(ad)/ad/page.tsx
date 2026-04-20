@@ -1,5 +1,7 @@
-import { AdOverviewPageClient } from "@/components/portal/ad/ad-overview-page-client"
+import { redirect } from "next/navigation"
+import { resolveCurrentUserOrganizationPortalPath } from "@/lib/navigation/organization-portal-redirect"
 
-export default function AthleticDirectorOverviewPage() {
-  return <AdOverviewPageClient />
+export default async function AthleticDirectorOverviewPage() {
+  const destination = await resolveCurrentUserOrganizationPortalPath()
+  redirect(destination ?? "/dashboard")
 }

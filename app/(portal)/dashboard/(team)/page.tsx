@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect } from "react"
 import { useSession } from "@/lib/auth/client-auth"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import {
   DashboardPageShell,
   DashboardPageShellSkeleton,
@@ -19,6 +19,7 @@ import { authTimingClient } from "@/lib/auth/login-flow-timing"
 
 export default function DashboardPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { data: session, status } = useSession()
   const role = session?.user?.role
   const identity = useDashboardShellIdentity()
@@ -30,9 +31,29 @@ export default function DashboardPage() {
   useEffect(() => {
     if (status === "authenticated" && role === "ATHLETIC_DIRECTOR") {
       authTimingClient("dashboard_home_ad_redirect")
-      router.replace("/dashboard/ad")
+      fetch("/api/routing/organization-default", { credentials: "same-origin" })
+        .then((res) => (res.ok ? res.json() : null))
+        .then((payload: { path?: string } | null) => {
+          router.replace(payload?.path || "/dashboard/ad")
+        })
+        .catch(() => {
+          router.replace("/dashboard/ad")
+        })
     }
   }, [status, role, router])
+
+  useEffect(() => {
+    const teamId = searchParams.get("teamId")?.trim()
+    if (!teamId) return
+    fetch(`/api/routing/team-canonical?teamId=${encodeURIComponent(teamId)}`, { credentials: "same-origin" })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((payload: { path?: string } | null) => {
+        if (payload?.path) router.replace(payload.path)
+      })
+      .catch(() => {
+        // Keep legacy URL working if canonical lookup fails.
+      })
+  }, [searchParams, router])
 
   /**
    * Must match `DashboardPageShellContent` session gate: if shell/bootstrap already has user id, render

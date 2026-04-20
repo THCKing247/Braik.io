@@ -4,6 +4,7 @@ import Link from "next/link"
 import { prefetchPropForDashboardScheduleHref } from "@/lib/navigation/dashboard-schedule-prefetch"
 import Image from "next/image"
 import { signOut } from "@/lib/auth/client-auth"
+import { usePathname } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { useAdAppBootstrapOptional } from "@/components/portal/ad-app-bootstrap-context"
 import type { AdPortalTabVisibility } from "@/lib/enforcement/football-ad-access"
@@ -14,10 +15,10 @@ const fullOwnerNav: {
   label: string
   key: "showOverview" | "showTeams" | "showCoaches" | "showSettings"
 }[] = [
-  { href: "/dashboard/ad", label: "Overview", key: "showOverview" },
-  { href: "/dashboard/ad/teams", label: "Teams", key: "showTeams" },
-  { href: "/dashboard/ad/coaches", label: "Coaches", key: "showCoaches" },
-  { href: "/dashboard/ad/settings", label: "Settings", key: "showSettings" },
+  { href: "", label: "Overview", key: "showOverview" },
+  { href: "/teams", label: "Teams", key: "showTeams" },
+  { href: "/coaches", label: "Coaches", key: "showCoaches" },
+  { href: "/settings", label: "Settings", key: "showSettings" },
 ]
 
 const defaultTabVisibility: AdPortalTabVisibility = {
@@ -25,7 +26,7 @@ const defaultTabVisibility: AdPortalTabVisibility = {
   showTeams: true,
   showCoaches: true,
   showSettings: true,
-  homeHref: "/dashboard/ad",
+  homeHref: "/dashboard",
 }
 
 /** Top bar placeholder while AD bootstrap is in flight (shell no longer blocks page mount). */
@@ -54,11 +55,18 @@ export function AdNav({
   tabVisibility?: AdPortalTabVisibility
 }) {
   const ad = useAdAppBootstrapOptional()
+  const pathname = usePathname()
+  const orgBase = (() => {
+    const match = (pathname ?? "").match(/^\/org\/([^/]+)/)
+    return match ? `/org/${match[1]}` : null
+  })()
   const tabVisibility =
     ad?.payload?.flags.tabVisibility ?? tabVisibilityProp ?? defaultTabVisibility
   const userEmail = ad?.payload?.user.email ?? userEmailProp
-  const navItems = fullOwnerNav.filter((item) => Boolean(tabVisibility[item.key]))
-  const homeHref = tabVisibility.homeHref
+  const navItems = fullOwnerNav
+    .filter((item) => Boolean(tabVisibility[item.key]))
+    .map((item) => ({ ...item, href: orgBase ? `${orgBase}${item.href}` : item.href || "/dashboard/ad" }))
+  const homeHref = orgBase ? orgBase : tabVisibility.homeHref
 
   return (
     <nav
@@ -81,7 +89,7 @@ export function AdNav({
                 className="h-[4.5rem] w-auto object-contain"
                 sizes="180px"
               />
-              <span className="text-sm font-semibold text-[#6B7280] hidden sm:inline">Athletic Director</span>
+              <span className="text-sm font-semibold text-[#6B7280] hidden sm:inline">Organization portal</span>
             </Link>
             <div className="hidden md:flex gap-1">
               {navItems.map((item) => (

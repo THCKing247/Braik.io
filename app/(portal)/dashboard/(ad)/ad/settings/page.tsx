@@ -1,5 +1,7 @@
-import { AdSettingsPageClient } from "@/components/portal/ad/ad-settings-page-client"
+import { redirect } from "next/navigation"
+import { resolveCurrentUserOrganizationPortalPath } from "@/lib/navigation/organization-portal-redirect"
 
-export default function AdSettingsPage() {
-  return <AdSettingsPageClient />
+export default async function AdSettingsPage() {
+  const destination = await resolveCurrentUserOrganizationPortalPath("/settings")
+  redirect(destination ?? "/dashboard")
 }

@@ -17,6 +17,7 @@ import { canUseCoachB, type Role } from "@/lib/auth/roles"
 import { useCoachBRotatingCopy } from "@/lib/hooks/use-coach-b-rotating-copy"
 import { usePortalShellKind } from "@/components/portal/portal-shell-context"
 import { portalPrefixedDashboardHref, stripDashboardPortalPrefix } from "@/lib/portal/dashboard-path"
+import { buildDashboardTeamPath } from "@/lib/navigation/organization-routes"
 import { LayoutDashboard, LogOut, MessageSquare, Sparkles } from "lucide-react"
 
 const SIDEBAR_WIDTH = 240
@@ -24,6 +25,8 @@ const SIDEBAR_WIDTH = 240
 interface Team {
   id: string
   name: string
+  organizationPortalUuid?: string | null
+  shortTeamId?: string | null
   organization: { name: string }
   sport: string
   seasonName: string
@@ -53,13 +56,21 @@ export function DashboardSidebar({ teams }: { teams: Team[] }) {
   const searchParams = useSearchParams()
   const coachB = useCoachB()
   const userRole = identity.roleUpper || undefined
-  const currentTeamId = searchParams.get("teamId") || teams[0]?.id
+  const path = pathname ?? ""
+  const teamFromPath = path.match(/^\/dashboard\/org\/[^/]+\/team\/([^/]+)/)?.[1] ?? null
+  const currentTeamId =
+    teams.find((team) => team.shortTeamId === teamFromPath)?.id || searchParams.get("teamId") || teams[0]?.id
   const currentTeam = teams.find((t) => t.id === currentTeamId) || teams[0]
   const baseHome = portalPrefixedDashboardHref(portalKind, "/")
   const dashboardHomeHref =
-    userRole === "HEAD_COACH" && teams.length > 0 && (currentTeamId || teams[0]?.id)
-      ? `${baseHome}?teamId=${encodeURIComponent(currentTeamId || teams[0].id)}`
-      : baseHome
+    userRole === "HEAD_COACH" && currentTeam?.organizationPortalUuid && currentTeam?.shortTeamId
+      ? buildDashboardTeamPath({
+          organizationPortalUuid: currentTeam.organizationPortalUuid,
+          shortTeamId: currentTeam.shortTeamId,
+        })
+      : userRole === "HEAD_COACH" && teams.length > 0 && (currentTeamId || teams[0]?.id)
+        ? `${baseHome}?teamId=${encodeURIComponent(currentTeamId || teams[0].id)}`
+        : baseHome
   const videoNav = shell?.payload?.videoClips?.navVisible
   const quickActions = useMemo(
     () =>

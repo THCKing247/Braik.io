@@ -1,12 +1,13 @@
 "use client"
 
 import { useEffect, useState, useCallback } from "react"
-import { useRouter } from "next/navigation"
+import { useParams, useRouter } from "next/navigation"
 import Link from "next/link"
 import { devDashboardHandoffLog } from "@/lib/debug/dashboard-handoff-dev"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { LoadingState } from "@/components/ui/loading-state"
+import { buildDashboardTeamPath } from "@/lib/navigation/organization-routes"
 
 type HubTeam = { id: string; name: string; teamLevel: string }
 type StaffRow = {
@@ -28,6 +29,8 @@ type HubPayload = {
   teams: HubTeam[]
   coachAssignments: AssignmentRow[]
   staff: StaffRow[]
+  organizationPortalUuid: string | null
+  teamShortIds: Record<string, string> | null
 }
 
 const LEVEL_LABEL: Record<string, string> = {
@@ -41,9 +44,11 @@ function defaultVarsityTeamId(teams: HubTeam[]): string | null {
   return (varsity ?? teams[0])?.id ?? null
 }
 
-/** Football program controls inside the Athletic Director portal (not a separate director shell). */
+/** Football program controls inside the organization portal. */
 export function AdFootballProgramHub() {
   const router = useRouter()
+  const params = useParams<{ organizationPortalUuid?: string }>()
+  const orgBase = params?.organizationPortalUuid ? `/org/${params.organizationPortalUuid}` : null
   const [data, setData] = useState<HubPayload | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState<string | null>(null)
@@ -53,12 +58,12 @@ export function AdFootballProgramHub() {
     const res = await fetch("/api/me/director-hub")
     const json = (await res.json()) as HubPayload
     if (!json.eligible) {
-      router.replace("/dashboard/ad/coaches")
+      router.replace(orgBase ? `${orgBase}/coaches` : "/dashboard/ad/coaches")
       return
     }
     setData(json)
     setLoading(false)
-  }, [router])
+  }, [router, orgBase])
 
   useEffect(() => {
     void load()
@@ -74,11 +79,19 @@ export function AdFootballProgramHub() {
 
   useEffect(() => {
     if (!selectedTeamId) return
+    const selectedShortId = data?.teamShortIds?.[selectedTeamId]
+    const canonicalPath =
+      selectedShortId && data?.organizationPortalUuid
+        ? buildDashboardTeamPath({
+            organizationPortalUuid: data.organizationPortalUuid,
+            shortTeamId: selectedShortId,
+          })
+        : `/dashboard?teamId=${encodeURIComponent(selectedTeamId)}`
     devDashboardHandoffLog("AdFootballProgramHub", {
       selectedTeamId,
-      portalHref: `/dashboard?teamId=${encodeURIComponent(selectedTeamId)}`,
+      portalHref: canonicalPath,
     })
-  }, [selectedTeamId])
+  }, [selectedTeamId, data?.teamShortIds, data?.organizationPortalUuid])
 
   const assignStaffTeam = async (userId: string, teamId: string) => {
     if (!data?.programId) return
@@ -127,12 +140,22 @@ export function AdFootballProgramHub() {
   const frHeadId = data.coachAssignments.find((a) => a.assignmentType === "freshman_head")?.userId ?? ""
   const selectedTeam = data.teams.find((t) => t.id === selectedTeamId) ?? null
   const selectedLevelLabel = selectedTeam ? LEVEL_LABEL[selectedTeam.teamLevel] || selectedTeam.teamLevel : ""
+  const selectedTeamShortId = selectedTeamId ? data.teamShortIds?.[selectedTeamId] : null
+  const selectedTeamPortalHref =
+    selectedTeamId && selectedTeamShortId && data.organizationPortalUuid
+      ? buildDashboardTeamPath({
+          organizationPortalUuid: data.organizationPortalUuid,
+          shortTeamId: selectedTeamShortId,
+        })
+      : selectedTeamId
+        ? `/dashboard?teamId=${encodeURIComponent(selectedTeamId)}`
+        : "/dashboard"
 
   return (
     <div className="mx-auto max-w-4xl space-y-6 p-4 md:p-6">
       <div>
         <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-          Football program (athletic department)
+          Football program (organization portal)
         </p>
         <h1 className="mt-1 text-2xl font-bold text-foreground">
           {data.programName || "Your program"}
@@ -176,7 +199,7 @@ export function AdFootballProgramHub() {
             <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
               <Button className="w-full sm:w-auto" asChild>
                 <Link
-                  href={`/dashboard?teamId=${encodeURIComponent(selectedTeamId)}`}
+                  href={selectedTeamPortalHref}
                   // Same as AD teams table: no hover prefetch for heavy `/dashboard?teamId=` navigation.
                   prefetch={false}
                 >
@@ -184,8 +207,8 @@ export function AdFootballProgramHub() {
                 </Link>
               </Button>
               <p className="text-xs text-muted-foreground sm:max-w-md">
-                Use header <span className="font-medium text-foreground">Department</span> to return to this athletic
-                department area from a team portal.
+                Use header <span className="font-medium text-foreground">Organization</span> to return to this
+                organization portal area from a team dashboard.
               </p>
             </div>
           )}

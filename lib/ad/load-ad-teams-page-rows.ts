@@ -13,6 +13,7 @@ import {
   resolveFootballAdAccessState,
   type FootballAdAccessContext,
 } from "@/lib/enforcement/football-ad-access"
+import { resolveCanonicalTeamRouteByTeamId } from "@/lib/navigation/organization-routes"
 
 /**
  * AD teams table architecture:
@@ -278,6 +279,13 @@ export async function loadAdTeamsTableData(
   })
 
   const tBuildRows = performance.now()
+  const canonicalByTeamId = new Map<string, { organizationPortalUuid: string; shortTeamId: string }>()
+  await Promise.all(
+    teamsData.map(async (team) => {
+      const resolved = await resolveCanonicalTeamRouteByTeamId(supabase, team.id)
+      if (resolved) canonicalByTeamId.set(team.id, resolved)
+    })
+  )
   for (const t of teamsData) {
     const row = t as AdVisibleTeamRow
     const headCoachName = headCoachByTeam.get(t.id) ?? null
@@ -286,6 +294,8 @@ export async function loadAdTeamsTableData(
     const genderRaw = row.gender
     teams.push({
       id: t.id,
+      organizationPortalUuid: canonicalByTeamId.get(t.id)?.organizationPortalUuid ?? null,
+      shortTeamId: canonicalByTeamId.get(t.id)?.shortTeamId ?? null,
       name: t.name ?? "",
       sport: t.sport ?? null,
       genderLabel: genderRaw?.trim() ? String(genderRaw) : "—",

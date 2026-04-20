@@ -3,6 +3,8 @@ import { getSupabaseServer } from "@/src/lib/supabaseServer"
 export type DashboardShellTeam = {
   id: string
   name: string
+  organizationPortalUuid?: string | null
+  shortTeamId?: string | null
   organization: { name: string }
   sport: string
   seasonName: string
@@ -70,11 +72,58 @@ export async function loadDashboardShellTeamsUncached(
 
   if (teamIds.length === 0) return []
 
-  const { data: teamsData } = await supabase.from("teams").select("id, name").in("id", teamIds)
+  const { data: teamsData } = await supabase
+    .from("teams")
+    .select("id, name, created_at, athletic_department_id, program_id")
+    .in("id", teamIds)
+
+  const programIds = [...new Set((teamsData ?? []).map((t) => t.program_id).filter(Boolean))]
+  const { data: programs } = programIds.length
+    ? await supabase.from("programs").select("id, organization_id").in("id", programIds)
+    : { data: [] as { id: string; organization_id: string | null }[] }
+  const organizationIds = [...new Set((programs ?? []).map((p) => p.organization_id).filter(Boolean))]
+  const { data: organizations } = organizationIds.length
+    ? await supabase.from("organizations").select("id, athletic_department_id").in("id", organizationIds)
+    : { data: [] as { id: string; athletic_department_id: string | null }[] }
+
+  const programToOrg = new Map((programs ?? []).map((p) => [p.id, p.organization_id ?? null]))
+  const orgToPortal = new Map((organizations ?? []).map((o) => [o.id, o.athletic_department_id ?? null]))
+  const teamToPortal = new Map<string, string | null>()
+  for (const team of teamsData ?? []) {
+    const direct = team.athletic_department_id ?? null
+    if (direct) {
+      teamToPortal.set(team.id, direct)
+      continue
+    }
+    const orgId = team.program_id ? programToOrg.get(team.program_id) ?? null : null
+    teamToPortal.set(team.id, orgId ? orgToPortal.get(orgId) ?? null : null)
+  }
+
+  const byPortal = new Map<string, { id: string; createdAtMs: number }[]>()
+  for (const team of teamsData ?? []) {
+    const portal = teamToPortal.get(team.id)
+    if (!portal) continue
+    const list = byPortal.get(portal) ?? []
+    list.push({
+      id: team.id,
+      createdAtMs: team.created_at ? Date.parse(team.created_at) : 0,
+    })
+    byPortal.set(portal, list)
+  }
+  const shortByTeamId = new Map<string, string>()
+  for (const list of byPortal.values()) {
+    list
+      .sort((a, b) => (a.createdAtMs === b.createdAtMs ? a.id.localeCompare(b.id) : a.createdAtMs - b.createdAtMs))
+      .forEach((team, index) => {
+        shortByTeamId.set(team.id, String(index + 1).padStart(3, "0"))
+      })
+  }
 
   return (teamsData ?? []).map((t) => ({
     id: t.id,
     name: t.name,
+    organizationPortalUuid: teamToPortal.get(t.id) ?? null,
+    shortTeamId: shortByTeamId.get(t.id) ?? null,
     organization: { name: t.name ?? "" },
     sport: "football",
     seasonName: "",

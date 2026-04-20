@@ -1,12 +1,14 @@
 "use client"
 
-import { useRouter, usePathname } from "next/navigation"
+import { useRouter } from "next/navigation"
 import { useState, useEffect } from "react"
-import { Button } from "@/components/ui/button"
+import { buildDashboardTeamPath } from "@/lib/navigation/organization-routes"
 
 interface Team {
   id: string
   name: string
+  organizationPortalUuid?: string | null
+  shortTeamId?: string | null
   organization: {
     name: string
   }
@@ -16,8 +18,17 @@ interface Team {
 
 export function TeamSwitcher({ teams, currentTeamId }: { teams: Team[]; currentTeamId: string }) {
   const router = useRouter()
-  const pathname = usePathname()
   const [selectedTeamId, setSelectedTeamId] = useState(currentTeamId)
+
+  const canonicalTeamHref = (team: Team): string => {
+    if (team.organizationPortalUuid && team.shortTeamId) {
+      return buildDashboardTeamPath({
+        organizationPortalUuid: team.organizationPortalUuid,
+        shortTeamId: team.shortTeamId,
+      })
+    }
+    return `/dashboard?teamId=${encodeURIComponent(team.id)}`
+  }
 
   useEffect(() => {
     setSelectedTeamId(currentTeamId)
@@ -25,11 +36,9 @@ export function TeamSwitcher({ teams, currentTeamId }: { teams: Team[]; currentT
 
   const handleTeamChange = (teamId: string) => {
     setSelectedTeamId(teamId)
-    // Update URL with teamId query param
-    const params = new URLSearchParams(window.location.search)
-    params.set("teamId", teamId)
-    const newUrl = params.toString() ? `${pathname}?${params.toString()}` : pathname
-    router.push(newUrl)
+    const nextTeam = teams.find((team) => team.id === teamId)
+    if (!nextTeam) return
+    router.push(canonicalTeamHref(nextTeam))
     router.refresh()
   }
 

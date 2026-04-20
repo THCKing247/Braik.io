@@ -11,6 +11,10 @@ import {
   logAdTeamVisibility,
 } from "@/lib/ad-team-scope"
 import { resolveFootballAdAccessState } from "@/lib/enforcement/football-ad-access"
+import {
+  buildOrganizationPortalPath,
+  resolveDefaultOrganizationPortalUuidForUser,
+} from "@/lib/navigation/organization-routes"
 
 export const runtime = "nodejs"
 
@@ -42,7 +46,9 @@ export async function GET() {
     }
 
     if (!shell.flags.tabVisibility.showOverview) {
-      const res = NextResponse.json({ redirectTo: "/dashboard/ad/teams" as const })
+      const orgPortalUuid = await resolveDefaultOrganizationPortalUuidForUser(supabase, u.id)
+      const redirectTo = orgPortalUuid ? buildOrganizationPortalPath(orgPortalUuid, "/teams") : "/dashboard/ad/teams"
+      const res = NextResponse.json({ redirectTo })
       if (sessionResult.refreshedSession) applyRefreshedSessionCookies(res, sessionResult.refreshedSession)
       return res
     }

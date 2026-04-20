@@ -1,6 +1,6 @@
 "use client"
 
-import { useRouter } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
 
 type School = {
@@ -14,6 +14,11 @@ type School = {
 
 export function AdSettingsPageClient() {
   const router = useRouter()
+  const pathname = usePathname()
+  const orgBase = (() => {
+    const match = (pathname ?? "").match(/^\/org\/([^/]+)/)
+    return match ? `/org/${match[1]}` : null
+  })()
   const [phase, setPhase] = useState<"loading" | "error" | "ready">("loading")
   const [school, setSchool] = useState<School>(null)
 
@@ -23,7 +28,7 @@ export function AdSettingsPageClient() {
       try {
         const res = await fetch("/api/ad/pages/settings", { credentials: "include" })
         if (res.status === 401) {
-          router.replace("/login?callbackUrl=/dashboard/ad/settings")
+          router.replace(`/login?callbackUrl=${encodeURIComponent(orgBase ? `${orgBase}/settings` : "/dashboard/ad/settings")}`)
           return
         }
         if (res.status === 403) {
@@ -46,7 +51,7 @@ export function AdSettingsPageClient() {
     return () => {
       cancelled = true
     }
-  }, [router])
+  }, [router, orgBase])
 
   if (phase === "error") {
     return <p className="text-[#212529]">Could not load settings.</p>

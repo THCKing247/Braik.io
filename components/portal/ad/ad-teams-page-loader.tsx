@@ -1,6 +1,6 @@
 "use client"
 
-import { useRouter } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import { useEffect, useRef } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { AdTeamsPageClient } from "@/components/portal/ad/ad-teams-page-client"
@@ -19,6 +19,11 @@ import type { TeamRow } from "@/components/portal/ad/ad-teams-table"
  */
 export function AdTeamsPageLoader({ initialTeams }: { initialTeams: TeamRow[] }) {
   const router = useRouter()
+  const pathname = usePathname()
+  const orgBase = (() => {
+    const match = (pathname ?? "").match(/^\/org\/([^/]+)/)
+    return match ? `/org/${match[1]}` : null
+  })()
   const mountT0 = useRef(typeof performance !== "undefined" ? performance.now() : 0)
   const loggedPaint = useRef(false)
   const loggedDataReady = useRef(false)
@@ -69,13 +74,13 @@ export function AdTeamsPageLoader({ initialTeams }: { initialTeams: TeamRow[] })
     if (!isError || !queryError) return
     const status = (queryError as Error & { status?: number })?.status
     if (status === 401) {
-      router.replace("/login?callbackUrl=/dashboard/ad/teams")
+      router.replace(`/login?callbackUrl=${encodeURIComponent(orgBase ? `${orgBase}/teams` : "/dashboard/ad/teams")}`)
       return
     }
     if (status === 403) {
       router.replace("/dashboard")
     }
-  }, [isError, queryError, router])
+  }, [isError, queryError, router, orgBase])
 
   if (isError && teamsData === undefined) {
     const status = (queryError as Error & { status?: number })?.status

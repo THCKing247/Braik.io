@@ -16,7 +16,7 @@ export function getDefaultAppPathForRole(role?: string | null) {
     case "admin":
       return "/admin/overview"
     case "athletic_director":
-      return "/dashboard/ad"
+      return "/dashboard"
     case "head_coach":
     case "assistant_coach":
     case "player":

@@ -10,10 +10,13 @@ import { cn } from "@/lib/utils"
 import { TeamSwitcher } from "@/components/portal/team-switcher"
 import { prefetchPropForDashboardScheduleHref } from "@/lib/navigation/dashboard-schedule-prefetch"
 import { portalPrefixedDashboardHref } from "@/lib/portal/dashboard-path"
+import { buildDashboardTeamPath } from "@/lib/navigation/organization-routes"
 
 interface Team {
   id: string
   name: string
+  organizationPortalUuid?: string | null
+  shortTeamId?: string | null
   organization: {
     name: string
   }
@@ -58,11 +61,16 @@ export function DashboardNav({ teams }: { teams: Team[] }) {
   const { departmentHref: adDepartmentHref } = useAdPortalDepartmentLink()
   const pathname = usePathname()
   const searchParams = useSearchParams()
-  const currentTeamId = searchParams.get("teamId") || teams[0]?.id || ""
+  const path = pathname ?? ""
+  const teamFromPath = (() => {
+    const match = path.match(/^\/dashboard\/org\/[^/]+\/team\/([^/]+)/)
+    return match?.[1] ?? null
+  })()
+  const currentTeamId =
+    teams.find((t) => t.shortTeamId === teamFromPath)?.id || searchParams.get("teamId") || teams[0]?.id || ""
   const showAdminLink = identity.isPlatformOwner
   const userRole = identity.roleUpper
 
-  const path = pathname ?? ""
   const onAdPortalShell = path.startsWith("/dashboard/ad")
   const inTeamPortal =
     Boolean(searchParams.get("teamId")) ||
@@ -77,10 +85,16 @@ export function DashboardNav({ teams }: { teams: Team[] }) {
     inTeamPortal
 
   const baseHome = portalPrefixedDashboardHref(portalKind, "/")
+  const currentTeam = teams.find((team) => team.id === currentTeamId) || teams[0]
   const dashboardHomeHref =
-    userRole === "HEAD_COACH" && teams.length > 0 && (currentTeamId || teams[0]?.id)
-      ? `${baseHome}?teamId=${encodeURIComponent(currentTeamId || teams[0].id)}`
-      : baseHome
+    userRole === "HEAD_COACH" && currentTeam?.organizationPortalUuid && currentTeam?.shortTeamId
+      ? buildDashboardTeamPath({
+          organizationPortalUuid: currentTeam.organizationPortalUuid,
+          shortTeamId: currentTeam.shortTeamId,
+        })
+      : userRole === "HEAD_COACH" && teams.length > 0 && (currentTeamId || teams[0]?.id)
+        ? `${baseHome}?teamId=${encodeURIComponent(currentTeamId || teams[0].id)}`
+        : baseHome
 
   const initials = userInitials(identity.displayName, identity.email)
 
@@ -134,10 +148,10 @@ export function DashboardNav({ teams }: { teams: Team[] }) {
                 href={adDepartmentHref}
                 prefetch={false}
                 className={cn(departmentNavLinkClass, "px-2 text-xs font-semibold sm:text-sm")}
-                title="Return to Athletic Department portal"
-                aria-label="Return to Athletic Department portal"
+                title="Return to organization portal"
+                aria-label="Return to organization portal"
               >
-                Department
+                Organization
               </Link>
             )}
           </div>
@@ -184,10 +198,10 @@ export function DashboardNav({ teams }: { teams: Team[] }) {
                   href={adDepartmentHref}
                   prefetch={false}
                   className={departmentNavLinkClass}
-                  title="Return to Athletic Department portal"
-                  aria-label="Return to Athletic Department portal"
+                  title="Return to organization portal"
+                  aria-label="Return to organization portal"
                 >
-                  Department
+                  Organization
                 </Link>
               )}
               {showAdminLink && (

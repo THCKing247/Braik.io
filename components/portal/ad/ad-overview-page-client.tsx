@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { useRouter } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import { useQuery } from "@tanstack/react-query"
 import { AdOverviewCards } from "@/components/portal/ad/ad-overview-cards"
 import { AdLinkCodeGenerator } from "@/components/portal/ad/ad-link-code-generator"
@@ -21,12 +21,17 @@ const AD_OVERVIEW_QUERY_KEY = ["ad-overview-page"] as const
 
 export function AdOverviewPageClient() {
   const router = useRouter()
+  const pathname = usePathname()
+  const orgBase = (() => {
+    const match = (pathname ?? "").match(/^\/org\/([^/]+)/)
+    return match ? `/org/${match[1]}` : null
+  })()
   const q = useQuery({
     queryKey: AD_OVERVIEW_QUERY_KEY,
     queryFn: async () => {
       const res = await fetch("/api/ad/pages/overview", { credentials: "include" })
       if (res.status === 401) {
-        router.replace("/login?callbackUrl=/dashboard/ad")
+        router.replace(`/login?callbackUrl=${encodeURIComponent(orgBase ?? "/dashboard/ad")}`)
         throw new Error("Unauthorized")
       }
       if (res.status === 403) {
@@ -97,7 +102,7 @@ export function AdOverviewPageClient() {
             department. Use Coaches for staffing once teams appear; contact support if nothing shows up.
           </p>
           <Link
-            href="/dashboard/ad/teams"
+            href={orgBase ? `${orgBase}/teams` : "/dashboard/ad/teams"}
             className="mt-4 inline-flex items-center justify-center rounded-lg bg-[#3B82F6] px-4 py-2 text-sm font-medium text-white hover:bg-[#2563EB]"
           >
             View teams

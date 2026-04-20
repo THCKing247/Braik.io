@@ -2,9 +2,13 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 import { canAccessAdPortalRoutes, resolveFootballAdAccessState } from "@/lib/enforcement/football-ad-access"
 import { resolveBraikPortalKind } from "@/lib/portal/resolve-portal-kind"
 import { defaultDashboardEntryForPortal } from "@/lib/portal/dashboard-path"
+import {
+  buildOrganizationPortalPath,
+  resolveDefaultOrganizationPortalUuidForUser,
+} from "@/lib/navigation/organization-routes"
 
 const ADMIN_DASHBOARD = "/admin/overview"
-const AD_PORTAL = "/dashboard/ad"
+const ORGANIZATION_PORTAL_FALLBACK = "/dashboard/ad"
 
 function profileDbRoleToUpper(profileRoleFromDb: string | null | undefined): string {
   const raw = (profileRoleFromDb ?? "player").trim()
@@ -25,7 +29,16 @@ export async function resolvePortalEntryPathWithProfileRole(
 
   const access = await resolveFootballAdAccessState(supabase, userId)
   if (canAccessAdPortalRoutes(access)) {
-    return access.state === "restricted_football_ad" ? `${AD_PORTAL}/teams` : AD_PORTAL
+    const organizationPortalUuid = await resolveDefaultOrganizationPortalUuidForUser(supabase, userId)
+    if (organizationPortalUuid) {
+      return buildOrganizationPortalPath(
+        organizationPortalUuid,
+        access.state === "restricted_football_ad" ? "/teams" : ""
+      )
+    }
+    return access.state === "restricted_football_ad"
+      ? `${ORGANIZATION_PORTAL_FALLBACK}/teams`
+      : ORGANIZATION_PORTAL_FALLBACK
   }
 
   const portalKind = await resolveBraikPortalKind({
@@ -52,5 +65,5 @@ export async function resolvePortalEntryPath(supabase: SupabaseClient, userId: s
 
 export const PORTAL_ENTRY_PATHS = {
   ADMIN_DASHBOARD,
-  AD_PORTAL,
+  AD_PORTAL: ORGANIZATION_PORTAL_FALLBACK,
 } as const

@@ -116,7 +116,7 @@ export async function loadDashboardShellTeamsUncached(
     list
       .sort((a, b) => (a.createdAtMs === b.createdAtMs ? a.id.localeCompare(b.id) : a.createdAtMs - b.createdAtMs))
       .forEach((team, index) => {
-        shortByTeamId.set(team.id, String(index + 1).padStart(3, "0"))
+        shortByTeamId.set(team.id, String(index + 1))
       })
   }
   const shortOrgByPortal = new Map<string, string | null>()

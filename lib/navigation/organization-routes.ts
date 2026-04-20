@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
+import { normalizeIncomingShortIdSegment } from "@/lib/navigation/canonical-short-id-paths"
 import { resolvePlayerUuidForTeamRosterSegment } from "@/lib/roster/resolve-roster-player-segment"
 
 type TeamIdentityRow = {
@@ -27,12 +28,6 @@ export const CANONICAL_DASHBOARD_TEAM_PATH_RE = /^\/dashboard\/org\/[^/]+\/team\
 function toCanonicalPathSuffix(pathSuffix?: string): string {
   if (!pathSuffix || pathSuffix === "/") return ""
   return pathSuffix.startsWith("/") ? pathSuffix : `/${pathSuffix}`
-}
-
-function normalizeShortTeamId(value: string): string {
-  const trimmed = value.trim()
-  if (/^\d+$/.test(trimmed)) return trimmed.padStart(3, "0")
-  return trimmed
 }
 
 export function buildOrganizationPortalPath(shortOrgId: string, pagePath?: string): string {
@@ -142,16 +137,16 @@ export async function resolveShortOrgIdForOrganizationPortalUuid(
   const rows = sortByCreationThenId(await fetchAllOrganizationPortals(supabase))
   const index = rows.findIndex((r) => r.id === organizationPortalUuid)
   if (index < 0) return null
-  return String(index + 1).padStart(3, "0")
+  return String(index + 1)
 }
 
 export async function resolveOrganizationPortalUuidFromShortOrgId(
   supabase: SupabaseClient,
   shortOrgId: string
 ): Promise<string | null> {
-  const normalized = normalizeShortTeamId(shortOrgId)
-  if (!/^\d{3,}$/.test(normalized)) return null
-  const ordinal = Number.parseInt(normalized, 10)
+  const key = normalizeIncomingShortIdSegment(shortOrgId)
+  if (!/^\d+$/.test(key)) return null
+  const ordinal = Number.parseInt(key, 10)
   if (!Number.isFinite(ordinal) || ordinal <= 0) return null
   const rows = sortByCreationThenId(await fetchAllOrganizationPortals(supabase))
   return rows[ordinal - 1]?.id ?? null
@@ -264,7 +259,7 @@ export async function resolveCanonicalTeamRouteByTeamId(
   return {
     shortOrgId,
     organizationPortalUuid,
-    shortTeamId: String(index + 1).padStart(3, "0"),
+    shortTeamId: String(index + 1),
   }
 }
 
@@ -275,9 +270,9 @@ export async function resolveTeamIdFromShortOrgTeamIds(
 ): Promise<string | null> {
   const organizationPortalUuid = await resolveOrganizationPortalUuidFromShortOrgId(supabase, shortOrgId)
   if (!organizationPortalUuid) return null
-  const normalized = normalizeShortTeamId(shortTeamId)
-  if (!/^\d{3,}$/.test(normalized)) return null
-  const ordinal = Number.parseInt(normalized, 10)
+  const key = normalizeIncomingShortIdSegment(shortTeamId)
+  if (!/^\d+$/.test(key)) return null
+  const ordinal = Number.parseInt(key, 10)
   if (!Number.isFinite(ordinal) || ordinal <= 0) return null
   const allTeams = sortTeamsForShortId(await fetchOrganizationTeams(supabase, organizationPortalUuid))
   return allTeams[ordinal - 1]?.id ?? null

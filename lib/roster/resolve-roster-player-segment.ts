@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
+import { normalizeIncomingShortIdSegment } from "@/lib/navigation/canonical-short-id-paths"
 
 /** Same shape as middleware UUID check — roster URL segment that is a player UUID (legacy). */
 export const ROSTER_PLAYER_UUID_RE =
@@ -8,11 +9,9 @@ export function rosterPlayerSegmentLooksLikeUuid(segment: string): boolean {
   return ROSTER_PLAYER_UUID_RE.test(segment.trim())
 }
 
-/** Normalize numeric short ids so `1245` matches stored `001245`. */
+/** Normalize numeric `player_account_id` segments (strip leading zeros; matches DB unpadded values). */
 export function normalizePlayerAccountIdSegment(segment: string): string {
-  const t = segment.trim()
-  if (/^\d+$/.test(t)) return t.padStart(6, "0")
-  return t
+  return normalizeIncomingShortIdSegment(segment)
 }
 
 /**

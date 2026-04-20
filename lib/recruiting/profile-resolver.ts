@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
+import { normalizeIncomingShortIdSegment } from "@/lib/navigation/canonical-short-id-paths"
 import {
   loadRecruitingFilmPayload,
   type RecruitingFilmPayload,
@@ -99,7 +100,7 @@ export async function getRecruitingProfileByPlayerIdOrSlug(
     profileRow = slugHit as PlayerRecruitingProfileRow | null
 
     if (!profileRow && /^\d+$/.test(trimmed)) {
-      const normalizedAcct = trimmed.padStart(6, "0")
+      const normalizedAcct = normalizeIncomingShortIdSegment(trimmed)
       const { data: byAcct } = await supabase
         .from("players")
         .select("id")

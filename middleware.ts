@@ -7,6 +7,10 @@ import {
   BRAIK_PUBLIC_PLAYER_SIGNUP_HEADER,
   BRAIK_PUBLIC_PLAYER_SIGNUP_HEADER_VALUE,
 } from "@/lib/auth/public-player-signup-header"
+import {
+  canonicalDashboardOrgTeamPathFromLegacyPadded,
+  canonicalOrgPortalPathFromLegacyPadded,
+} from "@/lib/navigation/canonical-short-id-paths"
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
@@ -113,10 +117,23 @@ export async function middleware(request: NextRequest) {
         // Fall through — app may render 404.
       }
     }
+    const canonOrgPath = canonicalOrgPortalPathFromLegacyPadded(pathname)
+    if (canonOrgPath) {
+      const u = request.nextUrl.clone()
+      u.pathname = canonOrgPath
+      return finish(NextResponse.redirect(u))
+    }
     return finish(NextResponse.next())
   }
 
   if (pathname.startsWith("/dashboard")) {
+    const canonDashShortIds = canonicalDashboardOrgTeamPathFromLegacyPadded(pathname)
+    if (canonDashShortIds) {
+      const u = request.nextUrl.clone()
+      u.pathname = canonDashShortIds
+      return finish(NextResponse.redirect(u))
+    }
+
     if (pathname === "/dashboard" || pathname === "/dashboard/") {
       const legacyTeamId = request.nextUrl.searchParams.get("teamId")?.trim()
       if (legacyTeamId && UUID_RE.test(legacyTeamId)) {

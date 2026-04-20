@@ -4,7 +4,7 @@ import {
   resolvePlayerUuidFromPublicRosterSegment,
 } from "@/lib/roster/resolve-roster-player-segment"
 
-/** Resolve `[playerId]` dynamic segment from roster API routes (UUID legacy or player_account_id). */
+/** Resolve dynamic segment from `/api/roster/:playerAccountId/...` (internal player UUID or public `player_account_id`). */
 export async function resolveRosterApiPlayerUuid(
   teamId: string | null | undefined,
   segment: string | null | undefined

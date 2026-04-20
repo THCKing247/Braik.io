@@ -8,6 +8,7 @@ import Link from "next/link"
 import { prefetchPropForDashboardScheduleHref } from "@/lib/navigation/dashboard-schedule-prefetch"
 import { useRouter } from "next/navigation"
 import { DashboardPageShell } from "@/components/portal/dashboard-page-shell"
+import { PortalPageHeaderSurface } from "@/components/portal/portal-page-header"
 import { PortalUnderlineTabs } from "@/components/portal/portal-underline-tabs"
 import { ScheduleGameListSkeleton } from "@/components/portal/dashboard-route-skeletons"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -191,7 +192,7 @@ function TeamScheduleContent({ teamId, canEdit }: { teamId: string; canEdit: boo
 
   return (
     <div className="mx-auto w-full max-w-5xl space-y-4 px-4 pb-10 pt-2 md:px-6 lg:px-0">
-      <div>
+      <PortalPageHeaderSurface>
         <h1 className="text-xl font-semibold tracking-tight md:text-2xl" style={{ color: "rgb(var(--text))" }}>
           Schedule
         </h1>
@@ -211,7 +212,7 @@ function TeamScheduleContent({ teamId, canEdit }: { teamId: string; canEdit: boo
             Game Schedule lists every game in order. Game Results is a filtered view of finished games and scores.
           </p>
         )}
-      </div>
+      </PortalPageHeaderSurface>
 
       <PortalUnderlineTabs
         className="max-w-lg"

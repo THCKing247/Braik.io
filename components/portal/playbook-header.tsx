@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Plus, ChevronDown } from "lucide-react"
 import type { SideOfBall } from "@/types/playbook"
+import { PortalPageHeaderSurface } from "@/components/portal/portal-page-header"
 
 const SIDES: { value: SideOfBall; label: string }[] = [
   { value: "offense", label: "Offense" },
@@ -51,8 +52,8 @@ export function PlaybookHeader({
   }
 
   return (
-    <header className="flex-shrink-0 border-b border-slate-200 bg-white">
-      <div className="px-5 py-4 sm:px-6 sm:py-5">
+    <PortalPageHeaderSurface className="flex-shrink-0" contentClassName="px-5 py-4 sm:px-6 sm:py-5">
+      <header>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
           <div className="min-w-0">
             <p className="text-xs font-medium uppercase tracking-wider text-slate-500">
@@ -107,7 +108,7 @@ export function PlaybookHeader({
             </div>
           )}
         </div>
-      </div>
-    </header>
+      </header>
+    </PortalPageHeaderSurface>
   )
 }

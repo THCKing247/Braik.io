@@ -73,6 +73,7 @@ import { devDashboardHandoffLog } from "@/lib/debug/dashboard-handoff-dev"
 import { DashboardHomeDeferredBootstrapTrigger } from "@/components/portal/dashboard-home-deferred-bootstrap-trigger"
 import { RosterClaimReviewDashboardBanner } from "@/components/portal/roster-claim-review-dashboard-banner"
 import { useBraikPerfDashboardBootstrapReady, useBraikPerfMount } from "@/lib/perf/braik-perf-client"
+import { PortalPageHeaderSurface } from "@/components/portal/portal-page-header"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -193,11 +194,9 @@ function TeamBanner({
   const logoUrl = logoBroken ? null : (teamSummary?.logoUrl ?? null)
 
   return (
-    <div
-      className="relative overflow-hidden border-b border-white/10"
-      style={{
-        background: "linear-gradient(135deg, #1e3a5f 0%, #0B2A5B 60%, #162d4a 100%)",
-      }}
+    <PortalPageHeaderSurface
+      className="relative border-0"
+      contentClassName="relative px-4 py-4 sm:px-5 sm:py-5 md:px-6 md:py-6"
     >
       {/* Background texture stripes */}
       <div className="pointer-events-none absolute inset-0 opacity-[0.04]"
@@ -206,8 +205,14 @@ function TeamBanner({
           backgroundSize: "24px 24px",
         }}
       />
+      <div
+        className="pointer-events-none absolute inset-0"
+        style={{
+          background: "linear-gradient(145deg, #17385F 0%, #123563 54%, #0F315C 100%)",
+        }}
+      />
 
-      <div className="relative flex min-w-0 flex-col gap-3 px-4 py-4 sm:gap-4 sm:px-5 sm:py-5 md:flex-row md:items-center md:justify-between md:gap-4 md:px-6 md:py-6">
+      <div className="relative flex min-w-0 flex-col gap-3 sm:gap-4 md:flex-row md:items-center md:justify-between md:gap-4">
         {/* Left: Logo + name */}
         <div className="flex min-w-0 items-center gap-3 sm:gap-4">
           {/* Team logo or placeholder */}
@@ -286,7 +291,7 @@ function TeamBanner({
         </div>
         )}
       </div>
-    </div>
+    </PortalPageHeaderSurface>
   )
 }
 

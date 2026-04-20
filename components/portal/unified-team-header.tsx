@@ -1,5 +1,7 @@
 "use client"
 
+import { PortalPageHeaderSurface } from "@/components/portal/portal-page-header"
+
 interface UnifiedHeaderData {
   teamName: string
   slogan: string
@@ -38,7 +40,7 @@ export function UnifiedTeamHeader({ data }: UnifiedTeamHeaderProps) {
   const hasLogo = data.logoUrl && data.logoUrl.trim().length > 0
 
   return (
-    <div className="rounded-xl p-8 shadow-sm border border-border bg-card mb-6">
+    <PortalPageHeaderSurface className="mb-6" contentClassName="px-5 py-5 sm:px-6 sm:py-6 md:px-8 md:py-8">
       <div className="flex items-center justify-between flex-wrap gap-6">
         {/* LEFT: Team Name and Slogan */}
         <div className="flex-1 min-w-[250px]">
@@ -142,6 +144,6 @@ export function UnifiedTeamHeader({ data }: UnifiedTeamHeaderProps) {
           )}
         </div>
       </div>
-    </div>
+    </PortalPageHeaderSurface>
   )
 }

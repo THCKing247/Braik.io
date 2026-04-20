@@ -12,6 +12,7 @@ import { Copy, Pencil, Plus, Share2, Trash2 } from "lucide-react"
 import { QrCodeImage } from "@/components/ui/qr-code-image"
 import { DatePicker, dateToYmd, ymdToDate } from "@/components/portal/date-time-picker"
 import { DueCollectionsTab, type DueCollectionRow } from "@/components/portal/due-collections-tab"
+import { PortalPageHeaderSurface } from "@/components/portal/portal-page-header"
 
 function formatMoney(n: number): string {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n)
@@ -151,14 +152,14 @@ export function FundraisingView({ teamId }: { teamId: string }) {
   if (data?.access === "payment_refs_only") {
     return (
       <div className="min-w-0 space-y-4">
-        <div>
+        <PortalPageHeaderSurface>
           <h1 className="text-xl font-semibold tracking-tight" style={{ color: "rgb(var(--text))" }}>
             Finances
           </h1>
           <p className="mt-1 text-sm" style={{ color: "rgb(var(--muted))" }}>
             Payment references only — for sharing with families. Braik does not process payments.
           </p>
-        </div>
+        </PortalPageHeaderSurface>
         <PaymentRefsSection
           teamId={teamId}
           refs={data.paymentRefs}
@@ -266,29 +267,31 @@ function FundraisingShell({
 
   return (
     <div className="min-w-0 space-y-4">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h1 className="text-xl font-semibold tracking-tight" style={{ color: "rgb(var(--text))" }}>
-            Finances
-          </h1>
-          <p className="mt-1 text-sm" style={{ color: "rgb(var(--muted))" }}>
-            Ledger and reference links — Braik does not process payments.
-          </p>
+      <PortalPageHeaderSurface contentClassName="px-4 py-4 sm:px-5 sm:py-5 md:px-6 md:py-5">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h1 className="text-xl font-semibold tracking-tight" style={{ color: "rgb(var(--text))" }}>
+              Finances
+            </h1>
+            <p className="mt-1 text-sm" style={{ color: "rgb(var(--muted))" }}>
+              Ledger and reference links — Braik does not process payments.
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-9 shrink-0"
+              onClick={() => setSeasonModalOpen(true)}
+              aria-haspopup="dialog"
+              aria-expanded={seasonModalOpen}
+            >
+              Season: {seasonLabel(seasonYear)}
+            </Button>
+          </div>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="h-9 shrink-0"
-            onClick={() => setSeasonModalOpen(true)}
-            aria-haspopup="dialog"
-            aria-expanded={seasonModalOpen}
-          >
-            Season: {seasonLabel(seasonYear)}
-          </Button>
-        </div>
-      </div>
+      </PortalPageHeaderSurface>
 
       <SeasonPickerModal
         open={seasonModalOpen}

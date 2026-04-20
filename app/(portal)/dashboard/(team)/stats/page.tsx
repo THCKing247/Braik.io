@@ -4,6 +4,7 @@ import dynamic from "next/dynamic"
 import { useEffect, useState, useMemo, useRef } from "react"
 import { useSearchParams } from "next/navigation"
 import { DashboardPageShell } from "@/components/portal/dashboard-page-shell"
+import { PortalPageHeaderSurface } from "@/components/portal/portal-page-header"
 import { PortalUnderlineTabs } from "@/components/portal/portal-underline-tabs"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -535,14 +536,14 @@ function StatsPageContent({ teamId, canEdit }: { teamId: string; canEdit: boolea
   if (error) {
     return (
       <div className="space-y-6">
-        <div>
+        <PortalPageHeaderSurface>
           <h1 className="text-3xl font-bold mb-2" style={{ color: "rgb(var(--text))" }}>
             All Stats
           </h1>
           <p style={{ color: "rgb(var(--muted))" }}>
             Team statistics aggregated from player profiles
           </p>
-        </div>
+        </PortalPageHeaderSurface>
         <Card className="border" style={{ backgroundColor: "#FFFFFF", borderColor: "rgb(var(--border))" }}>
           <CardHeader>
             <CardTitle style={{ color: "rgb(var(--text))" }}>Unable to load stats</CardTitle>
@@ -560,7 +561,8 @@ function StatsPageContent({ teamId, canEdit }: { teamId: string; canEdit: boolea
 
   return (
     <div className="mobile-section">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <PortalPageHeaderSurface contentClassName="px-4 py-4 sm:px-5 sm:py-5 md:px-6 md:py-5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0 flex-1">
           <h1 className="text-3xl font-bold mb-2" style={{ color: "rgb(var(--text))" }}>
             Stats
@@ -640,7 +642,8 @@ function StatsPageContent({ teamId, canEdit }: { teamId: string; canEdit: boolea
             </Button>
           )}
         </div>
-      </div>
+        </div>
+      </PortalPageHeaderSurface>
 
       <AddWeeklyStatsDialog
         open={addWeeklyOpen}

@@ -1,6 +1,6 @@
 "use client"
 
-import { Card, CardContent } from "@/components/ui/card"
+import { PortalPageHeaderSurface } from "@/components/portal/portal-page-header"
 
 interface HeaderSummaryData {
   slogan: string
@@ -41,8 +41,7 @@ export function HeaderSummaryStrip({ data }: HeaderSummaryStripProps) {
     : "0.0"
 
   return (
-    <Card className="border-2 border-[#CBD5E1] bg-[#FFFFFF] mb-6">
-      <CardContent className="p-4">
+    <PortalPageHeaderSurface className="mb-6" contentClassName="p-4">
         <div className="flex items-center justify-between flex-wrap gap-6">
           {/* LEFT: Team Slogan */}
           <div className="flex-1 min-w-[200px]">
@@ -116,7 +115,6 @@ export function HeaderSummaryStrip({ data }: HeaderSummaryStripProps) {
             </div>
           )}
         </div>
-      </CardContent>
-    </Card>
+    </PortalPageHeaderSurface>
   )
 }

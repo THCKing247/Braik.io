@@ -140,6 +140,49 @@ export function isFullUuid(text: string): boolean {
   return UUID_FULL.test(text.trim())
 }
 
+/** Quick search typed as email — not a UUID, contains @ */
+export function looksLikeEmailQuery(q: string): boolean {
+  const t = q.trim()
+  if (!t.includes("@")) return false
+  if (UUID_FULL.test(t)) return false
+  return true
+}
+
+export async function fetchUsersByEmailSearch(params: {
+  supabase: SupabaseClient
+  pattern: string
+  offset: number
+  limit: number
+}) {
+  const { supabase, pattern, offset, limit } = params
+  const p = pattern.trim()
+  if (!p) return { hits: [] as { source_table: string; matched_column: string; record_id: string; label: string; created_at: string | null; summary: Record<string, unknown> }[], total: 0 }
+
+  let q = supabase
+    .from("users")
+    .select("id, email, name, role, status, created_at", { count: "exact" })
+    .ilike("email", `%${p}%`)
+    .order("created_at", { ascending: false })
+
+  const { data: rows, error, count } = await q.range(offset, offset + limit - 1)
+  if (error) throw error
+
+  const hits = (rows ?? []).map((u) => {
+    const row = u as Record<string, unknown>
+    const id = String(row.id ?? "")
+    return {
+      source_table: "users",
+      matched_column: "email",
+      record_id: id,
+      label: String(row.email ?? id),
+      created_at: typeof row.created_at === "string" ? row.created_at : null,
+      summary: row as Record<string, unknown>,
+    }
+  })
+
+  return { hits, total: count ?? hits.length }
+}
+
 function pickAuditRow(raw: Record<string, unknown>) {
   const actionType =
     (typeof raw.action_type === "string" && raw.action_type) ||

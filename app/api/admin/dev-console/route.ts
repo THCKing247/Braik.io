@@ -1,4 +1,9 @@
 import { NextResponse } from "next/server"
+import { z } from "zod"
+import {
+  runStructuredDevConsoleQuery,
+  type FilterGroupNode,
+} from "@/lib/admin/dev-console-structured-query"
 import { requireAdminRoleForApi } from "@/lib/permissions/platform-permissions"
 import {
   fetchAgentActionsForPartialEntities,
@@ -13,7 +18,9 @@ import {
   fetchEntitySummary,
   fetchPartialUuidRpc,
   fetchRecentCreations,
+  fetchUsersByEmailSearch,
   isFullUuid,
+  looksLikeEmailQuery,
   normalizeLimit,
   normalizeOffset,
   parseGlobalQuery,
@@ -107,6 +114,36 @@ export async function GET(request: Request) {
         auditLogs: audit,
         agentActions: actions,
         warnings: entities.errors?.length ? entities.errors.map((e) => String(e)) : undefined,
+      })
+    }
+
+    if (q.trim() && looksLikeEmailQuery(q.trim()) && allow(tables, "users")) {
+      const { hits, total } = await fetchUsersByEmailSearch({
+        supabase,
+        pattern: q.trim(),
+        offset,
+        limit,
+      })
+
+      const entityHits = hits.map((h) => ({
+        source_table: h.source_table,
+        matched_column: h.matched_column,
+        record_id: h.record_id,
+        label: h.label,
+        created_at: h.created_at,
+        summary: h.summary,
+      }))
+
+      return NextResponse.json({
+        ok: true as const,
+        mode: "email_search" as const,
+        browseWindowApplied: false,
+        parsed: { kind: "email_search" as const },
+        entityHits,
+        auditLogs: { rows: [] as AuditRow[], total: 0 },
+        agentActions: { rows: [], total: 0 },
+        creations: undefined,
+        entityTotal: total,
       })
     }
 
@@ -332,4 +369,70 @@ function auditRowMatchesFilters(
   if (endIso != null && t > new Date(endIso).getTime()) return false
   if (actionTypeFilter?.trim() && row.action_type !== actionTypeFilter.trim()) return false
   return true
+}
+
+const filterConditionSchema = z.object({
+  kind: z.literal("condition"),
+  id: z.string(),
+  field: z.string(),
+  operator: z.enum(["eq", "contains", "starts_with", "gte", "lte"]),
+  value: z.string().max(4000),
+})
+
+const filterGroupSchema: z.ZodType<FilterGroupNode> = z.lazy(() =>
+  z.object({
+    kind: z.literal("group"),
+    id: z.string(),
+    op: z.enum(["and", "or"]),
+    children: z.array(z.union([filterConditionSchema, filterGroupSchema])).max(48),
+  })
+)
+
+const structuredBodySchema = z.object({
+  model: z.enum(["users", "teams", "subscriptions", "audit_logs", "agent_actions"]),
+  limit: z.number().int().min(1).max(100),
+  offset: z.number().int().min(0),
+  dateStart: z.string().nullable().optional(),
+  dateEnd: z.string().nullable().optional(),
+  root: filterGroupSchema,
+})
+
+export async function POST(request: Request) {
+  const gate = await requireAdminRoleForApi()
+  if (!gate.ok) {
+    return gate.response
+  }
+
+  let body: unknown
+  try {
+    body = await request.json()
+  } catch {
+    return NextResponse.json({ ok: false, error: "Invalid JSON body" }, { status: 400 })
+  }
+
+  const parsed = structuredBodySchema.safeParse(body)
+  if (!parsed.success) {
+    return NextResponse.json(
+      { ok: false, error: "Validation failed", details: parsed.error.flatten() },
+      { status: 400 }
+    )
+  }
+
+  const supabase = getSupabaseServer()
+
+  try {
+    const result = await runStructuredDevConsoleQuery(supabase, parsed.data)
+    return NextResponse.json({
+      ok: true as const,
+      mode: "structured" as const,
+      model: parsed.data.model,
+      columns: result.columns,
+      rows: result.rows,
+      total: result.total,
+      humanSummary: result.humanSummary,
+    })
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Structured query failed"
+    return NextResponse.json({ ok: false as const, error: message }, { status: 400 })
+  }
 }

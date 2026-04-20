@@ -4,7 +4,7 @@ import type { ReactNode } from "react"
 import { cn } from "@/lib/utils"
 
 export const portalPageHeaderSurfaceClassName =
-  "overflow-hidden rounded-2xl border border-[rgb(var(--border))] bg-white shadow-[0_2px_16px_rgba(0,0,0,0.06)] ring-1 ring-black/[0.05] md:rounded-lg md:shadow-sm md:ring-0"
+  "overflow-visible rounded-none border-0 bg-transparent shadow-none ring-0"
 
 interface PortalPageHeaderSurfaceProps {
   children: ReactNode

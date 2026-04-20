@@ -85,7 +85,13 @@ function PlayerJoinSignupInner() {
   const [confirmMinorConsent, setConfirmMinorConsent] = useState(false)
 
   useEffect(() => {
-    if (!tokenFromQuery && !codeFromQuery && !playerCodeFromQuery) {
+    if (
+      !tokenFromQuery &&
+      !codeFromQuery &&
+      !playerCodeFromQuery &&
+      !teamPrefillFromQuery &&
+      !accountPrefillFromQuery
+    ) {
       setInviteToken(null)
       setInitializing(false)
       return
@@ -128,10 +134,10 @@ function PlayerJoinSignupInner() {
             const code = data.code
             setError(
               code === "expired"
-                ? "This invite has expired. Ask your coach for a new link, or enter your team or player code below."
+                ? "This invite has expired. Ask your coach for a new link, or enter your team join code and Account ID below."
                 : code === "already_claimed"
-                  ? "This invite is no longer valid. If you already have an account, sign in to link your roster. Otherwise enter your team or player code below."
-                  : "This invite link is invalid or no longer works. Enter your team or player invite code below, or ask your coach for a new link."
+                  ? "This invite is no longer valid. If you already have an account, sign in to link your roster. Otherwise enter your team join code and Account ID below."
+                  : "This invite link is invalid or no longer works. Enter your team join code and Account ID below, or ask your coach for a new link."
             )
             setStep("code")
             setInitializing(false)
@@ -140,9 +146,6 @@ function PlayerJoinSignupInner() {
 
           setInviteToken(tokenFromQuery)
           setJoinKind(null)
-          if (data.inviteCode) {
-            setPlayerInviteCode(normalizePlayerInviteCode(data.inviteCode))
-          }
           if (data.teamJoinCode) setTeamJoinCode(normalizePlayerJoinCode(data.teamJoinCode))
           setTeamName(data.teamName ?? null)
           if (data.playerFirstName) setFirstName(data.playerFirstName)
@@ -190,7 +193,7 @@ function PlayerJoinSignupInner() {
           return
         }
 
-        // Deep link: ?team= prefills team code; ?team=&account= validates Account ID + team together (QR flow).
+        // Deep link: ?team= prefills team code; pair or account-only resolves roster row.
         if (teamPrefillFromQuery || accountPrefillFromQuery) {
           setTeamJoinCode(teamPrefillFromQuery)
           setPlayerAccountId(accountPrefillFromQuery)
@@ -207,6 +210,7 @@ function PlayerJoinSignupInner() {
               ok?: boolean
               kind?: string
               resolvedPlayerId?: string
+              resolvedTeamJoinCode?: string | null
               teamName?: string | null
               playerFirstName?: string | null
               playerLastName?: string | null
@@ -220,6 +224,8 @@ function PlayerJoinSignupInner() {
               setJoinKind("account_team")
               setResolvedAccountTeamPlayerId(pairData.resolvedPlayerId)
               setTeamName(pairData.teamName ?? null)
+              if (pairData.resolvedTeamJoinCode)
+                setTeamJoinCode(normalizePlayerJoinCode(pairData.resolvedTeamJoinCode))
               if (pairData.playerFirstName) setFirstName(pairData.playerFirstName)
               if (pairData.playerLastName) setLastName(pairData.playerLastName)
               if (pairData.jerseyNumber != null) setJerseyNumber(String(pairData.jerseyNumber))
@@ -234,7 +240,42 @@ function PlayerJoinSignupInner() {
           }
           if (cancelled) return
           if (accountPrefillFromQuery && !teamPrefillFromQuery) {
-            setError("Enter your team code together with your account ID (open the full link from your coach or QR).")
+            const soloRes = await fetch("/api/player/join/resolve-entry", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ playerAccountId: accountPrefillFromQuery }),
+            })
+            const soloData = (await soloRes.json().catch(() => ({}))) as {
+              ok?: boolean
+              kind?: string
+              resolvedPlayerId?: string
+              resolvedTeamJoinCode?: string | null
+              teamName?: string | null
+              playerFirstName?: string | null
+              playerLastName?: string | null
+              jerseyNumber?: number | null
+              graduationYear?: number | null
+              error?: string
+            }
+            if (cancelled) return
+            if (soloRes.ok && soloData.ok && soloData.kind === "account_team" && soloData.resolvedPlayerId) {
+              setInviteToken(null)
+              setJoinKind("account_team")
+              setResolvedAccountTeamPlayerId(soloData.resolvedPlayerId)
+              setTeamName(soloData.teamName ?? null)
+              if (soloData.resolvedTeamJoinCode)
+                setTeamJoinCode(normalizePlayerJoinCode(soloData.resolvedTeamJoinCode))
+              if (soloData.playerFirstName) setFirstName(soloData.playerFirstName)
+              if (soloData.playerLastName) setLastName(soloData.playerLastName)
+              if (soloData.jerseyNumber != null) setJerseyNumber(String(soloData.jerseyNumber))
+              if (soloData.graduationYear != null) setGraduationYear(String(soloData.graduationYear))
+              setStep("info")
+            } else {
+              setError(soloData.error ?? "Could not resolve that account ID.")
+              setStep("code")
+            }
+            setInitializing(false)
+            return
           }
           setInitializing(false)
           setStep("code")
@@ -274,10 +315,7 @@ function PlayerJoinSignupInner() {
           if (data.graduationYear != null) setGraduationYear(String(data.graduationYear))
           setStep("info")
         } else {
-          setError(
-            data.error ??
-              "That code is not valid. Check with your coach, or make sure you use team join code vs player invite code in the right fields."
-          )
+          setError(data.error ?? "That code is not valid. Check with your coach.")
           setStep("code")
           setTeamJoinCode(codeFromQuery)
         }
@@ -315,22 +353,9 @@ function PlayerJoinSignupInner() {
   const handleResolveCode = async () => {
     setError("")
     const teamNorm = normalizePlayerJoinCode(teamJoinCode)
-    const playerNorm = normalizePlayerInviteCode(playerInviteCode)
     const accountTrim = playerAccountId.trim()
-    if (accountTrim && playerNorm) {
-      setError("Use either a parent-style player invite code or Account ID + team code — not both.")
-      return
-    }
-    if (accountTrim && !teamNorm) {
-      setError("Enter your team join code together with your Account ID.")
-      return
-    }
-    if (!teamNorm && !playerNorm) {
-      setError("Enter your team join code and/or Account ID, or your player invite code from your coach.")
-      return
-    }
-    if (teamNorm && playerNorm) {
-      setError("Enter only one: either your team join code or your player invite code — not both.")
+    if (!teamNorm && !accountTrim) {
+      setError("Enter your team join code and/or Account ID from your coach.")
       return
     }
     setLoading(true)
@@ -340,7 +365,7 @@ function PlayerJoinSignupInner() {
           ? { teamJoinCode: teamNorm, playerAccountId: accountTrim }
           : teamNorm
             ? { teamJoinCode: teamNorm }
-            : { playerInviteCode: playerNorm }
+            : { playerAccountId: accountTrim }
       const res = await fetch("/api/player/join/resolve-entry", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -350,6 +375,7 @@ function PlayerJoinSignupInner() {
         ok?: boolean
         kind?: string
         resolvedPlayerId?: string
+        resolvedTeamJoinCode?: string | null
         teamName?: string | null
         playerFirstName?: string | null
         playerLastName?: string | null
@@ -362,9 +388,9 @@ function PlayerJoinSignupInner() {
           data.error ??
             (teamNorm && !accountTrim
               ? "That team join code is not valid."
-              : accountTrim
-                ? "That Account ID does not match this team."
-                : "That player invite code is not valid.")
+              : accountTrim && !teamNorm
+                ? "That Account ID could not be matched."
+                : "That Account ID does not match this team.")
         )
         setLoading(false)
         return
@@ -375,6 +401,8 @@ function PlayerJoinSignupInner() {
       if (data.kind === "account_team" && data.resolvedPlayerId) {
         setJoinKind("account_team")
         setResolvedAccountTeamPlayerId(data.resolvedPlayerId)
+        if (data.resolvedTeamJoinCode)
+          setTeamJoinCode(normalizePlayerJoinCode(data.resolvedTeamJoinCode))
         if (data.playerFirstName) setFirstName(data.playerFirstName)
         if (data.playerLastName) setLastName(data.playerLastName)
         if (data.jerseyNumber != null) setJerseyNumber(String(data.jerseyNumber))
@@ -436,9 +464,7 @@ function PlayerJoinSignupInner() {
         return
       }
       if (data.outcome === "invalid_code") {
-        setError(
-          "That team join code is not valid. Double-check the code, or use your player invite code in the Player code field."
-        )
+        setError("That team join code is not valid. Double-check the code from your coach.")
         setLoading(false)
         return
       }
@@ -648,8 +674,8 @@ function PlayerJoinSignupInner() {
                   <>You&apos;re invited — confirm your details and create your Braik account.</>
                 ) : (
                   <>
-                    Enter your team code and the Account ID your coach gave you, or use a personal player invite code. Your
-                    roster stays private until you&apos;re linked.
+                    Enter your team join code and/or Account ID from your coach — both is best when you have them; one can be
+                    enough. Your roster stays private until you&apos;re linked.
                   </>
                 )}
               </p>
@@ -673,8 +699,8 @@ function PlayerJoinSignupInner() {
             {step === "code" && (
               <div className="space-y-4">
                 <p className="text-sm text-[#6B7280] text-center">
-                  Use your personal player invite alone, or use team code with optional Account ID from your coach. Ask your
-                  coach if you are unsure which applies.
+                  Use both fields when your coach gave you both. If you only have one, enter team join code or Account ID
+                  alone.
                 </p>
                 <div className="space-y-2">
                   <Label htmlFor="teamJoinCode">Team join code</Label>
@@ -683,47 +709,30 @@ function PlayerJoinSignupInner() {
                     value={teamJoinCode}
                     onChange={(e) => {
                       setTeamJoinCode(normalizePlayerJoinCode(e.target.value))
-                      setPlayerInviteCode("")
                       setResolvedAccountTeamPlayerId(null)
                     }}
                     className="font-mono text-lg tracking-wider"
-                    placeholder="Shared team code (e.g. from QR)"
+                    placeholder="From coach or QR (optional if you use Account ID only)"
                     autoComplete="off"
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="playerAccountId">Account ID (from coach)</Label>
+                  <Label htmlFor="playerAccountId">Account ID</Label>
                   <Input
                     id="playerAccountId"
                     value={playerAccountId}
                     onChange={(e) => {
                       setPlayerAccountId(e.target.value)
-                      setPlayerInviteCode("")
-                    }}
-                    className="font-mono text-lg tracking-wider"
-                    placeholder="Required with team code when your coach assigned one"
-                    autoComplete="off"
-                  />
-                  <p className="text-xs text-[#6B7280]">
-                    Enter together with your team code when your coach set you up manually. Leave blank if you only have a
-                    personal player invite code below.
-                  </p>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="playerInviteCode">Player invite code</Label>
-                  <Input
-                    id="playerInviteCode"
-                    value={playerInviteCode}
-                    onChange={(e) => {
-                      setPlayerInviteCode(normalizePlayerInviteCode(e.target.value))
-                      setTeamJoinCode("")
-                      setPlayerAccountId("")
                       setResolvedAccountTeamPlayerId(null)
                     }}
                     className="font-mono text-lg tracking-wider"
-                    placeholder="Personal code from roster invite"
+                    placeholder="From coach (optional if you use team code only)"
                     autoComplete="off"
                   />
+                  <p className="text-xs text-[#6B7280]">
+                    Your coach may call this your roster or Account ID. Entering team code and Account ID together is the most
+                    reliable match.
+                  </p>
                 </div>
                 <Button
                   type="button"
@@ -732,10 +741,7 @@ function PlayerJoinSignupInner() {
                   onClick={handleResolveCode}
                   disabled={
                     loading ||
-                    (Boolean(playerAccountId.trim()) && !normalizePlayerJoinCode(teamJoinCode)) ||
-                    (!normalizePlayerJoinCode(teamJoinCode) &&
-                      !normalizePlayerInviteCode(playerInviteCode) &&
-                      !playerAccountId.trim())
+                    (!normalizePlayerJoinCode(teamJoinCode) && !playerAccountId.trim())
                   }
                 >
                   {loading ? "Checking…" : "Continue"}

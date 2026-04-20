@@ -32,6 +32,11 @@ export async function loadAdminTeamsGrouped(params: {
   const filterUserId = params.filterUserId?.trim() || null
 
   return safeAdminDbQuery(async () => {
+    console.info("[admin] loadAdminTeamsGrouped:start", {
+      query: q.length > 0 ? "(set)" : "",
+      filterUserId,
+      source: "lib/admin/load-admin-teams-grouped.ts · loadAdminTeamsGrouped",
+    })
     const supabase = getSupabaseServer()
     let teamIds: string[] | null = null
     if (filterUserId) {
@@ -45,14 +50,20 @@ export async function loadAdminTeamsGrouped(params: {
     let rq = supabase
       .from("teams")
       .select(
-        "id, name, plan_tier, subscription_status, team_status, org, organization_id, created_at, sport, team_level, program_id, school_id, athletic_department_id"
+        "id, name, plan_tier, subscription_status, team_status, organization_id, created_at, sport, team_level, program_id, school_id, athletic_department_id"
       )
       .order("created_at", { ascending: false })
       .limit(2000)
 
     if (teamIds) rq = rq.in("id", teamIds)
     if (q) {
-      rq = rq.or(`name.ilike.%${q}%,org.ilike.%${q}%`)
+      const { data: matchingOrgs } = await supabase.from("organizations").select("id").ilike("name", `%${q}%`).limit(150)
+      const matchingOrgIds = [...new Set((matchingOrgs ?? []).map((o) => (o as { id: string }).id))]
+      if (matchingOrgIds.length > 0) {
+        rq = rq.or(`name.ilike.%${q}%,organization_id.in.(${matchingOrgIds.join(",")})`)
+      } else {
+        rq = rq.ilike("name", `%${q}%`)
+      }
     }
     const { data: rows } = await rq
     const raw = rows ?? []
@@ -200,11 +211,6 @@ export async function loadAdminTeamsGrouped(params: {
         const sn = adsid ? (schoolById.get(adsid)?.name as string | undefined) : null
         groupTitle = sn ? `${sn} (athletic department)` : "Athletic department"
         groupHint = null
-      } else if (String(t.org || "").trim()) {
-        const legacy = String(t.org).trim()
-        groupKey = `legacy:${legacy}`
-        groupTitle = legacy
-        groupHint = "Legacy org field"
       } else {
         groupKey = "unassigned"
         groupTitle = "Unassigned / legacy"
@@ -217,7 +223,7 @@ export async function loadAdminTeamsGrouped(params: {
         planTier: (t.plan_tier as string | undefined) ?? null,
         subscriptionStatus: (t.subscription_status as string | undefined) ?? "active",
         teamStatus: (t.team_status as string | undefined) ?? "active",
-        organization: { name: orgName ?? legacyOrg(t) },
+        organization: { name: orgName ?? "—" },
         sport: (t.sport as string | null) ?? (prog?.sport as string | null) ?? null,
         teamLevel: (t.team_level as string | null) ?? null,
         createdAt:
@@ -252,9 +258,4 @@ export async function loadAdminTeamsGrouped(params: {
 
     return { groups, filterUserId }
   }, { groups: [] as AdminTeamGroup[], filterUserId })
-}
-
-function legacyOrg(t: Record<string, unknown>): string {
-  const o = t.org
-  return typeof o === "string" && o.trim() ? o.trim() : "—"
 }

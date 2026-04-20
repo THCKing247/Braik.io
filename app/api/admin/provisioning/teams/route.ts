@@ -6,17 +6,40 @@ export async function GET() {
   const access = await getAdminAccessForApi()
   if (!access.ok) return access.response
 
+  console.info("[admin] GET /api/admin/provisioning/teams: listing teams (no teams.org)")
   const supabase = getSupabaseServer()
   const { data, error } = await supabase
     .from("teams")
-    .select("id, name, org, organization_id, program_id, video_clips_enabled, coach_b_plus_enabled")
+    .select("id, name, organization_id, program_id, video_clips_enabled, coach_b_plus_enabled")
     .order("created_at", { ascending: false })
     .limit(200)
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
-  return NextResponse.json({ teams: data ?? [] })
+  const rows = data ?? []
+  const orgIds = [...new Set(rows.map((t) => (t as { organization_id?: string | null }).organization_id).filter(Boolean))]
+  let orgNameById = new Map<string, string>()
+  if (orgIds.length > 0) {
+    const { data: orgRows } = await supabase.from("organizations").select("id, name").in("id", orgIds)
+    orgNameById = new Map((orgRows ?? []).map((o) => [(o as { id: string }).id, String((o as { name?: string }).name ?? "")]))
+  }
+  const teams = rows.map((t) => {
+    const row = t as {
+      id: string
+      name?: string | null
+      organization_id?: string | null
+      program_id?: string | null
+      video_clips_enabled?: boolean | null
+      coach_b_plus_enabled?: boolean | null
+    }
+    const oid = row.organization_id
+    return {
+      ...row,
+      organization_name: oid ? orgNameById.get(oid) ?? null : null,
+    }
+  })
+  return NextResponse.json({ teams })
 }
 
 export async function POST(request: Request) {
@@ -96,20 +119,22 @@ export async function POST(request: Request) {
     .from("teams")
     .insert({
       name,
-      org: orgDisplay,
       organization_id: resolvedOrganizationId,
       program_id: programId,
       video_clips_enabled: body.video_clips_enabled === true,
       coach_b_plus_enabled: body.coach_b_plus_enabled === true,
     })
-    .select("id, name, org, organization_id, program_id, video_clips_enabled, coach_b_plus_enabled")
+    .select("id, name, organization_id, program_id, video_clips_enabled, coach_b_plus_enabled")
     .maybeSingle()
 
   if (teamErr || !team) {
     return NextResponse.json({ error: teamErr?.message ?? "Failed to create team" }, { status: 500 })
   }
 
-  return NextResponse.json(team)
+  return NextResponse.json({
+    ...team,
+    organization_name: orgDisplay,
+  })
 }
 
 export const runtime = "nodejs"

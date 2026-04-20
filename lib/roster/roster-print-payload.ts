@@ -85,11 +85,11 @@ export async function buildRosterPrintPayload(
   try {
     const { data: display } = await supabase
       .from("teams")
-      .select("name, org, organization_id")
+      .select("name, organization_id")
       .eq("id", teamId)
       .maybeSingle()
     if (display) {
-      const d = display as { name?: string | null; org?: string | null; organization_id?: string | null }
+      const d = display as { name?: string | null; organization_id?: string | null }
       if (d.name != null && d.name !== "") teamName = d.name
       const oid = d.organization_id?.trim()
       if (oid) {
@@ -97,7 +97,6 @@ export async function buildRosterPrintPayload(
         const nm = (orgRow as { name?: string | null } | null)?.name?.trim()
         if (nm) teamOrg = nm
       }
-      if (teamOrg == null && d.org != null && d.org !== "") teamOrg = d.org
     }
   } catch {
     /* ignore */

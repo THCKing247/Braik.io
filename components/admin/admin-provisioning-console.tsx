@@ -16,8 +16,8 @@ type OrgRow = {
 type TeamRow = {
   id: string
   name: string
-  org: string | null
   organization_id?: string | null
+  organization_name?: string | null
   program_id: string | null
   video_clips_enabled: boolean
   coach_b_plus_enabled: boolean
@@ -109,7 +109,7 @@ export function AdminProvisioningConsole() {
     }
     setTeamMsg(`Created team ${data.name}`)
     setTeamName("")
-    setTeams((prev) => [{ ...data, org: data.org ?? null }, ...prev])
+    setTeams((prev) => [{ ...data, organization_name: data.organization_name ?? null }, ...prev])
   }
 
   async function submitInvite(e: React.FormEvent) {
@@ -189,8 +189,8 @@ export function AdminProvisioningConsole() {
         <form className="mt-3 grid gap-3 md:grid-cols-2" onSubmit={submitTeam}>
           <div className="md:col-span-2">
             <label className={adminUi.label}>Organization</label>
-            <select className={adminUi.select} value={teamOrgId} onChange={(e) => setTeamOrgId(e.target.value)} required>
-              <option value="">Select…</option>
+            <select className={adminUi.select} value={teamOrgId} onChange={(e) => setTeamOrgId(e.target.value)}>
+              <option value="">Create new organization from program name…</option>
               {orgs.map((o) => (
                 <option key={o.id} value={o.id}>
                   {o.name}

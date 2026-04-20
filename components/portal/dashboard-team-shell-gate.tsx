@@ -124,7 +124,7 @@ export function DashboardTeamShellGate({ children }: { children: React.ReactNode
                 <CoachPageDebug session={{ user }} teamIds={teams.map((t) => t.id)} accessAllowed={true} />
               ) : null}
               {impersonation ? <ImpersonationBanner /> : null}
-              <SuspensionBanner teamStatus={currentTeamStatus ?? currentTeam?.teamStatus} role={user.role} />
+              <SuspensionBanner teamStatus={currentTeamStatus ?? currentTeam?.teamStatus} />
               <SubscriptionGuard subscriptionPaid={subscriptionPaid} remainingBalance={remainingBalance}>
                 {children}
               </SubscriptionGuard>

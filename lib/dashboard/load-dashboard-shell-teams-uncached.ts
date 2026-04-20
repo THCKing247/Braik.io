@@ -75,7 +75,7 @@ export async function loadDashboardShellTeamsUncached(
 
   const { data: teamsData } = await supabase
     .from("teams")
-    .select("id, name, created_at, athletic_department_id, program_id")
+    .select("id, name, created_at, athletic_department_id, program_id, team_status")
     .in("id", teamIds)
 
   const programIds = [...new Set((teamsData ?? []).map((t) => t.program_id).filter(Boolean))]
@@ -140,7 +140,7 @@ export async function loadDashboardShellTeamsUncached(
     seasonName: "",
     primaryColor: "#1e3a5f",
     secondaryColor: "#FFFFFF",
-    teamStatus: "active",
+    teamStatus: (t.team_status as string | undefined) ?? "active",
     subscriptionPaid: false,
     amountPaid: 0,
     players: [],

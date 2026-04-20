@@ -78,6 +78,7 @@ export function PlayerPortalShellGate({
 
   const currentTeam =
     payload.teams.find((t) => t.id === payload.currentTeamId) ?? payload.teams[0] ?? null
+  const teamStatus = payload.currentTeamStatus ?? currentTeam?.teamStatus
   const teamName = currentTeam?.name ?? "Team"
   const sport = currentTeam?.sport ?? ""
 
@@ -96,7 +97,7 @@ export function PlayerPortalShellGate({
         userName={userName}
         userEmail={userEmail}
       >
-        <PlayerPortalChrome>{children}</PlayerPortalChrome>
+        <PlayerPortalChrome teamStatus={teamStatus}>{children}</PlayerPortalChrome>
       </PlayerPortalProvider>
     </FreePortalRouteEnforcer>
   )

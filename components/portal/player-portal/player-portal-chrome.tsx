@@ -10,6 +10,7 @@ import {
   UserRound,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { SuspensionBanner } from "@/components/marketing/suspension-banner"
 import { usePlayerPortal } from "@/components/portal/player-portal/player-portal-context"
 
 function navLinkClass(active: boolean) {
@@ -21,7 +22,13 @@ function navLinkClass(active: boolean) {
   )
 }
 
-export function PlayerPortalChrome({ children }: { children: React.ReactNode }) {
+export function PlayerPortalChrome({
+  children,
+  teamStatus,
+}: {
+  children: React.ReactNode
+  teamStatus?: string | null
+}) {
   const { accountSegment } = usePlayerPortal()
   const base = `/player/${encodeURIComponent(accountSegment)}`
   const pathname = usePathname() ?? ""
@@ -42,7 +49,10 @@ export function PlayerPortalChrome({ children }: { children: React.ReactNode }) 
         <PlayerPortalHeaderInner />
       </header>
 
-      <main className="relative z-10 flex min-h-0 flex-1 flex-col overflow-y-auto px-4 pb-24 pt-4">{children}</main>
+      <main className="relative z-10 flex min-h-0 flex-1 flex-col overflow-y-auto px-4 pb-24 pt-4">
+        <SuspensionBanner teamStatus={teamStatus} />
+        {children}
+      </main>
 
       <nav
         className="fixed bottom-0 left-0 right-0 z-30 border-t border-white/10 bg-indigo-950/95 px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 backdrop-blur-lg"

@@ -76,6 +76,10 @@ export function ParentPortalShellGate({
   const segment = payload.parentPortalSegment ?? urlLinkSegment
   const baseHref = `/parent/${encodeURIComponent(segment)}`
 
+  const currentTeam =
+    payload.teams.find((t) => t.id === payload.currentTeamId) ?? payload.teams[0] ?? null
+  const teamStatus = payload.currentTeamStatus ?? currentTeam?.teamStatus
+
   const su = payload.user
   const userName = su.name?.trim() || null
   const userEmail = su.email ?? null
@@ -87,7 +91,7 @@ export function ParentPortalShellGate({
         shellParentDisplayName={userName}
         shellParentEmail={userEmail}
       >
-        <ParentPortalChrome>{children}</ParentPortalChrome>
+        <ParentPortalChrome teamStatus={teamStatus}>{children}</ParentPortalChrome>
       </ParentPortalProvider>
     </FreePortalRouteEnforcer>
   )

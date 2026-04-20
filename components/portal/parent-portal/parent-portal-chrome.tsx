@@ -4,6 +4,7 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { Calendar, Home, Megaphone, MessageSquare, UserRound } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { SuspensionBanner } from "@/components/marketing/suspension-banner"
 import { useParentPortal } from "@/components/portal/parent-portal/parent-portal-context"
 
 function navLinkClass(active: boolean) {
@@ -15,7 +16,13 @@ function navLinkClass(active: boolean) {
   )
 }
 
-export function ParentPortalChrome({ children }: { children: React.ReactNode }) {
+export function ParentPortalChrome({
+  children,
+  teamStatus,
+}: {
+  children: React.ReactNode
+  teamStatus?: string | null
+}) {
   const { linkCodeSegment } = useParentPortal()
   const base = `/parent/${encodeURIComponent(linkCodeSegment)}`
   const pathname = usePathname() ?? ""
@@ -54,7 +61,10 @@ export function ParentPortalChrome({ children }: { children: React.ReactNode }) 
         <ParentPortalHeaderInner />
       </header>
 
-      <main className="relative z-10 flex min-h-0 flex-1 flex-col overflow-y-auto px-4 pb-24 pt-4">{children}</main>
+      <main className="relative z-10 flex min-h-0 flex-1 flex-col overflow-y-auto px-4 pb-24 pt-4">
+        <SuspensionBanner teamStatus={teamStatus} />
+        {children}
+      </main>
 
       <nav
         className="fixed bottom-0 left-0 right-0 z-30 border-t border-slate-200 bg-white/95 px-1 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 backdrop-blur-md"

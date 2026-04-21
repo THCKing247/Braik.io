@@ -64,8 +64,6 @@ export default function CompleteSignupPage() {
           password: signupData.password,
           role: signupData.role,
           teamId: signupData.teamId,
-          playerAge: signupData.playerAge,
-          parentEmail: signupData.parentEmail,
           compliance: signupData.compliance,
         }),
       })

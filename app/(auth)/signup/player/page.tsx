@@ -77,12 +77,9 @@ function PlayerJoinSignupInner() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
-  const [playerAge, setPlayerAge] = useState("")
-  const [parentEmail, setParentEmail] = useState("")
   const [phone, setPhone] = useState("")
   const [smsOptIn, setSmsOptIn] = useState(false)
   const [acceptLegalBundle, setAcceptLegalBundle] = useState(false)
-  const [confirmMinorConsent, setConfirmMinorConsent] = useState(false)
 
   useEffect(() => {
     if (
@@ -431,6 +428,10 @@ function PlayerJoinSignupInner() {
       setError("First and last name are required.")
       return
     }
+    if (!dateOfBirth.trim()) {
+      setError("Date of birth is required.")
+      return
+    }
     if (inviteToken) {
       setStep("account")
       return
@@ -509,13 +510,8 @@ function PlayerJoinSignupInner() {
       setError("Please accept the legal policies to continue.")
       return
     }
-    const isMinorPlayer = Number(playerAge) > 0 && Number(playerAge) < 18
-    if (!playerAge) {
-      setError("Player age is required.")
-      return
-    }
-    if (isMinorPlayer && (!confirmMinorConsent || !parentEmail.trim())) {
-      setError("Minor players require parent email and consent confirmation.")
+    if (!dateOfBirth.trim()) {
+      setError("Date of birth is required. Go back to the previous step or enter it in your details.")
       return
     }
     const phoneTrim = phone.trim()
@@ -558,14 +554,6 @@ function PlayerJoinSignupInner() {
         privacy: { version: LEGAL_POLICY_VERSIONS.privacy, acceptedAt: new Date().toISOString() },
         acceptableUse: { version: LEGAL_POLICY_VERSIONS.acceptableUse, acceptedAt: new Date().toISOString() },
         aiAcknowledgement: { version: LEGAL_POLICY_VERSIONS.aiAcknowledgement, acceptedAt: new Date().toISOString() },
-        minorParentalConsent: isMinorPlayer
-          ? {
-              version: LEGAL_POLICY_VERSIONS.privacy,
-              acceptedAt: new Date().toISOString(),
-              parentEmail: parentEmail.trim(),
-              playerAge: Number(playerAge),
-            }
-          : null,
       }
 
       const signupBody: Record<string, unknown> = {
@@ -578,8 +566,6 @@ function PlayerJoinSignupInner() {
         graduationYear: graduationYear.trim() ? Number(graduationYear) : undefined,
         jerseyNumber: jerseyNumber.trim() ? Number(jerseyNumber) : undefined,
         dateOfBirth: dateOfBirth.trim() || undefined,
-        playerAge,
-        parentEmail: parentEmail.trim() || undefined,
         phone: phoneTrim || undefined,
         smsOptIn: phoneTrim ? smsOptIn : false,
         compliance,
@@ -771,16 +757,16 @@ function PlayerJoinSignupInner() {
                     <Input id="gy" inputMode="numeric" value={graduationYear} onChange={(e) => setGraduationYear(e.target.value)} />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="dob">Date of birth</Label>
-                    <Input id="dob" type="date" value={dateOfBirth} onChange={(e) => setDateOfBirth(e.target.value)} />
+                    <Label htmlFor="dob">Date of birth *</Label>
+                    <Input id="dob" type="date" value={dateOfBirth} onChange={(e) => setDateOfBirth(e.target.value)} required />
                   </div>
                 </div>
                 <p className="text-xs text-[#6B7280]">
                   {inviteToken
-                    ? "Review your details from the roster. You can adjust them if something looks wrong before creating your account."
+                    ? "Review your details from the roster. Date of birth is required — add or fix it here before creating your account."
                     : joinKind === "player"
-                      ? "Confirm your details for this roster spot. Your coach entered these when they sent your invite."
-                      : "Jersey, graduation year, and DOB help match you to a coach-created roster spot without exposing the roster."}
+                      ? "Confirm your details for this roster spot. Your coach entered these when they sent your invite. Date of birth is required for matching."
+                      : "Jersey, graduation year, and date of birth help match you to a coach-created roster spot without exposing the roster."}
                 </p>
                 <div className="flex gap-3">
                   <Button
@@ -871,29 +857,6 @@ function PlayerJoinSignupInner() {
                   <Input id="ph" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} />
                   {phone.trim() ? <SmsConsentCheckbox id="player-join-sms" checked={smsOptIn} onChange={setSmsOptIn} /> : null}
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="pa">Player age *</Label>
-                  <Input id="pa" type="number" min={1} max={99} value={playerAge} onChange={(e) => setPlayerAge(e.target.value)} />
-                </div>
-                {Number(playerAge) > 0 && Number(playerAge) < 18 && (
-                  <>
-                    <div className="space-y-2">
-                      <Label htmlFor="pe">Parent / guardian email *</Label>
-                      <Input id="pe" type="email" value={parentEmail} onChange={(e) => setParentEmail(e.target.value)} />
-                    </div>
-                    <label className="flex items-start gap-3 py-2.5 px-3 rounded-lg bg-[#FFFBEB] border border-[#FDE68A] cursor-pointer">
-                      <input
-                        type="checkbox"
-                        className="mt-1 shrink-0"
-                        checked={confirmMinorConsent}
-                        onChange={(e) => setConfirmMinorConsent(e.target.checked)}
-                      />
-                      <span className="text-sm text-[#92400E] leading-snug">
-                        I confirm parental or legal guardian consent for this minor.
-                      </span>
-                    </label>
-                  </>
-                )}
                 <div className="space-y-2">
                   <Label htmlFor="pw">Password *</Label>
                   <Input id="pw" type="password" value={password} onChange={(e) => setPassword(e.target.value)} />

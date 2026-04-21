@@ -202,9 +202,35 @@ export async function upsertStaffTeamMember(
     staff_status: staffStatus,
   }
 
-  const { error } = await supabase.from("team_members").upsert(payload, {
-    onConflict: "team_id,user_id",
-  })
+  const updateFields = {
+    role,
+    active,
+    is_primary: false,
+    staff_status: staffStatus,
+  }
+
+  const { data: existing } = await supabase
+    .from("team_members")
+    .select("user_id")
+    .eq("team_id", teamId)
+    .eq("user_id", userId)
+    .maybeSingle()
+
+  let error = existing
+    ? (await supabase.from("team_members").update(updateFields).eq("team_id", teamId).eq("user_id", userId)).error
+    : (await supabase.from("team_members").insert(payload)).error
+
+  if (error && !existing) {
+    const msg = error.message?.toLowerCase() ?? ""
+    const isDup =
+      msg.includes("duplicate") ||
+      msg.includes("unique") ||
+      (error as { code?: string }).code === "23505"
+    if (isDup) {
+      error = (await supabase.from("team_members").update(updateFields).eq("team_id", teamId).eq("user_id", userId)).error
+    }
+  }
+
   if (!error && !opts?.skipStructuredLog) {
     logTeamMembershipWrite({
       event: "upsert_staff_or_roster",

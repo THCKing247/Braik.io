@@ -25,13 +25,11 @@ export default function SignupPage() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
-  const [playerAge, setPlayerAge] = useState("")
-  const [parentEmail, setParentEmail] = useState("")
+  const [dateOfBirth, setDateOfBirth] = useState("")
   const [phone, setPhone] = useState("")
   const [smsOptIn, setSmsOptIn] = useState(false)
 
   const [acceptLegalBundle, setAcceptLegalBundle] = useState(false)
-  const [confirmMinorConsent, setConfirmMinorConsent] = useState(false)
 
   const withErrorCode = (code: string, message: string) => `[${code}] ${message}`
 
@@ -56,8 +54,7 @@ export default function SignupPage() {
       setFirstName(data.firstName || "")
       setLastName(data.lastName || "")
       setEmail(data.email || "")
-      setPlayerAge(data.playerAge || "")
-      setParentEmail(data.parentEmail || "")
+      setDateOfBirth(data.dateOfBirth || "")
       setPhone(data.phone || "")
       setSmsOptIn(Boolean(data.smsOptIn))
       const c = data?.compliance
@@ -67,7 +64,6 @@ export default function SignupPage() {
           Boolean(c?.acceptableUse?.acceptedAt) &&
           Boolean(c?.aiAcknowledgement?.acceptedAt)
       )
-      setConfirmMinorConsent(Boolean(c?.minorParentalConsent?.acceptedAt))
     } else {
       router.push("/signup/role")
     }
@@ -140,17 +136,8 @@ export default function SignupPage() {
       return
     }
 
-    const isMinorPlayer = role === "player" && Number(playerAge) > 0 && Number(playerAge) < 18
-    if (role === "player" && !playerAge) {
-      setError(withErrorCode("SIGNUP-COMPLIANCE-005", "Player age is required for youth protection compliance."))
-      return
-    }
-    if (isMinorPlayer && !confirmMinorConsent) {
-      setError(withErrorCode("SIGNUP-COMPLIANCE-006", "Parental/guardian consent confirmation is required for minor players."))
-      return
-    }
-    if (isMinorPlayer && !parentEmail.trim()) {
-      setError(withErrorCode("SIGNUP-COMPLIANCE-007", "Parent/guardian email is required for minor verification."))
+    if (role === "player" && !dateOfBirth.trim()) {
+      setError(withErrorCode("SIGNUP-COMPLIANCE-005", "Date of birth is required."))
       return
     }
 
@@ -173,8 +160,7 @@ export default function SignupPage() {
     signupData.email = email
     signupData.password = password
     signupData.role = role
-    signupData.playerAge = playerAge
-    signupData.parentEmail = parentEmail
+    signupData.dateOfBirth = dateOfBirth.trim()
     signupData.phone = phoneTrim || undefined
     signupData.smsOptIn = phoneTrim ? smsOptIn : false
     signupData.compliance = {
@@ -194,14 +180,6 @@ export default function SignupPage() {
         version: LEGAL_POLICY_VERSIONS.aiAcknowledgement,
         acceptedAt: new Date().toISOString(),
       },
-      minorParentalConsent: isMinorPlayer
-        ? {
-            version: LEGAL_POLICY_VERSIONS.privacy,
-            acceptedAt: new Date().toISOString(),
-            parentEmail: parentEmail.trim(),
-            playerAge: Number(playerAge),
-          }
-        : null,
     }
     if (teamId) {
       signupData.teamId = teamId
@@ -406,31 +384,15 @@ export default function SignupPage() {
 
                   {role === "player" && (
                     <div className="space-y-2">
-                      <Label htmlFor="playerAge" className="text-sm font-medium text-foreground">Player Age *</Label>
+                      <Label htmlFor="dateOfBirth" className="text-sm font-medium text-foreground">
+                        Date of birth *
+                      </Label>
                       <Input
-                        id="playerAge"
-                        type="number"
-                        min={1}
-                        max={99}
-                        value={playerAge}
-                        onChange={(e) => setPlayerAge(e.target.value)}
+                        id="dateOfBirth"
+                        type="date"
+                        value={dateOfBirth}
+                        onChange={(e) => setDateOfBirth(e.target.value)}
                         className="bg-background text-foreground placeholder:text-muted-foreground"
-                        placeholder="Enter player age"
-                        required
-                      />
-                    </div>
-                  )}
-
-                  {role === "player" && Number(playerAge) > 0 && Number(playerAge) < 18 && (
-                    <div className="space-y-2">
-                      <Label htmlFor="parentEmail" className="text-sm font-medium text-foreground">Parent/Guardian Email *</Label>
-                      <Input
-                        id="parentEmail"
-                        type="email"
-                        value={parentEmail}
-                        onChange={(e) => setParentEmail(e.target.value)}
-                        className="bg-background text-foreground placeholder:text-muted-foreground"
-                        placeholder="parent.guardian@example.com"
                         required
                       />
                     </div>
@@ -522,19 +484,6 @@ export default function SignupPage() {
                     Links open in a new tab so you can review policies without losing your place on this form.
                   </p>
 
-                  {role === "player" && Number(playerAge) > 0 && Number(playerAge) < 18 && (
-                    <label className="flex items-start gap-3 py-2.5 px-3 rounded-lg bg-[#FFFBEB] border border-[#FDE68A] cursor-pointer">
-                      <input
-                        type="checkbox"
-                        className="mt-1 shrink-0"
-                        checked={confirmMinorConsent}
-                        onChange={(e) => setConfirmMinorConsent(e.target.checked)}
-                      />
-                      <span className="text-sm text-[#92400E] leading-snug">
-                        I confirm that parental or legal guardian consent has been obtained for this minor&apos;s participation.
-                      </span>
-                    </label>
-                  )}
                 </div>
 
                 {/* Social Login — Coming Soon */}

@@ -635,16 +635,22 @@ export async function POST(request: Request) {
       try {
         const typedCode = await findInviteCode(supabase, programCode, ["team_player_join", "player_claim_invite"])
         if (typedCode) {
-          if (typedCode.invite_type === "team_player_join" && typedCode.team_id) {
-            const maxUses = typedCode.max_uses ?? Number.MAX_SAFE_INTEGER
-            if (typedCode.uses >= maxUses) {
-              throw new SignupRouteError(400, "This invite code has reached its maximum number of uses.")
+          if (typedCode.invite_type === "team_player_join") {
+            if (!typedCode.team_id) {
+              console.warn("[signup-secure] team_player_join invite missing team_id; falling through to other resolvers", {
+                codeId: typedCode.id,
+              })
+            } else {
+              const maxUses = typedCode.max_uses ?? Number.MAX_SAFE_INTEGER
+              if (typedCode.uses >= maxUses) {
+                throw new SignupRouteError(400, "This invite code has reached its maximum number of uses.")
+              }
+              const consume = await consumeInviteCode(supabase, typedCode.id, createdAuthUserId)
+              if (consume.error) {
+                throw new SignupRouteError(400, consume.error)
+              }
+              teamId = typedCode.team_id
             }
-            const consume = await consumeInviteCode(supabase, typedCode.id, createdAuthUserId)
-            if (consume.error) {
-              throw new SignupRouteError(400, consume.error)
-            }
-            teamId = typedCode.team_id
           } else if (typedCode.invite_type === "player_claim_invite" && typedCode.target_player_id) {
             const { data: pl } = await supabase
               .from("players")
@@ -849,6 +855,34 @@ export async function POST(request: Request) {
       }
     }
     // else: no code provided — user signs up without a team and will connect later.
+
+    // team_members.team_id → teams(id) and user_id → public.users(id): validate before profile/membership writes
+    if (teamId) {
+      const { data: teamRow, error: teamLookupErr } = await supabase
+        .from("teams")
+        .select("id")
+        .eq("id", teamId)
+        .maybeSingle()
+      if (teamLookupErr || !teamRow) {
+        throw new SignupRouteError(
+          400,
+          "That invite or join code could not be matched to an active team. Ask your coach for a new player invite link or double-check your team join code.",
+          teamLookupErr?.message ?? "team_not_found"
+        )
+      }
+      const { data: appUserRow, error: appUserErr } = await supabase
+        .from("users")
+        .select("id")
+        .eq("id", createdAuthUserId)
+        .maybeSingle()
+      if (appUserErr || !appUserRow) {
+        throw new SignupRouteError(
+          500,
+          "We couldn't finish linking your account to the team. Please try again in a moment.",
+          appUserErr?.message ?? "public_users_row_missing_before_team_members"
+        )
+      }
+    }
 
     const smsConsent = Boolean(phone) && smsOptIn
     const consentIp = getRequestClientIp(request)

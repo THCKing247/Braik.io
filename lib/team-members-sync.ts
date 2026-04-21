@@ -209,25 +209,65 @@ export async function upsertStaffTeamMember(
     staff_status: staffStatus,
   }
 
-  const { data: existing } = await supabase
-    .from("team_members")
-    .select("user_id")
-    .eq("team_id", teamId)
-    .eq("user_id", userId)
-    .maybeSingle()
+  const minimalInsert: Record<string, unknown> = {
+    team_id: teamId,
+    user_id: userId,
+    role,
+    active,
+  }
 
-  let error = existing
-    ? (await supabase.from("team_members").update(updateFields).eq("team_id", teamId).eq("user_id", userId)).error
-    : (await supabase.from("team_members").insert(payload)).error
+  // Prefer PostgREST upsert (handles insert-or-update on PK). Fall back if client/DB rejects.
+  let { error } = await supabase.from("team_members").upsert(payload, {
+    onConflict: "team_id,user_id",
+  })
 
-  if (error && !existing) {
-    const msg = error.message?.toLowerCase() ?? ""
-    const isDup =
-      msg.includes("duplicate") ||
-      msg.includes("unique") ||
-      (error as { code?: string }).code === "23505"
-    if (isDup) {
+  if (error) {
+    const errCode = String((error as { code?: string }).code ?? "")
+    const msg = (error.message ?? "").toLowerCase()
+    const maybeMissingOptionalCol =
+      errCode === "42703" || (msg.includes("column") && msg.includes("does not exist"))
+
+    if (maybeMissingOptionalCol) {
+      const res = await supabase.from("team_members").upsert(
+        { ...minimalInsert, is_primary: false },
+        { onConflict: "team_id,user_id" }
+      )
+      error = res.error
+    }
+  }
+
+  if (error) {
+    const { data: existing } = await supabase
+      .from("team_members")
+      .select("user_id")
+      .eq("team_id", teamId)
+      .eq("user_id", userId)
+      .maybeSingle()
+
+    if (existing) {
       error = (await supabase.from("team_members").update(updateFields).eq("team_id", teamId).eq("user_id", userId)).error
+    } else {
+      let ins = await supabase.from("team_members").insert(payload)
+      error = ins.error
+      if (error) {
+        const msg = (error.message ?? "").toLowerCase()
+        const code = String((error as { code?: string }).code ?? "")
+        if (code === "42703" || (msg.includes("column") && msg.includes("does not exist"))) {
+          ins = await supabase.from("team_members").insert(minimalInsert)
+          error = ins.error
+        }
+      }
+      if (error) {
+        const msg = (error.message ?? "").toLowerCase()
+        const isDup =
+          msg.includes("duplicate") ||
+          msg.includes("unique") ||
+          (error as { code?: string }).code === "23505"
+        if (isDup) {
+          error = (await supabase.from("team_members").update(updateFields).eq("team_id", teamId).eq("user_id", userId))
+            .error
+        }
+      }
     }
   }
 

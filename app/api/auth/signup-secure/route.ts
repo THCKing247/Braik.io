@@ -8,7 +8,12 @@ import { findInviteCode, consumeInviteCode } from "@/lib/invites/invite-codes"
 import { trackProductEventServer } from "@/lib/analytics/track-server"
 import { BRAIK_EVENTS } from "@/lib/analytics/event-names"
 import { headCoachSignupTeamLevels } from "@/lib/onboarding/head-coach-team-levels"
-import { logTeamMembersAudit, setPrimaryHeadCoach, upsertStaffTeamMember } from "@/lib/team-members-sync"
+import {
+  logTeamMembersAudit,
+  profileRoleToTeamMemberRole,
+  setPrimaryHeadCoach,
+  upsertStaffTeamMember,
+} from "@/lib/team-members-sync"
 import { getRequestClientIp } from "@/lib/http/request-client-ip"
 import { claimPlayerInviteForUser } from "@/lib/player-invite-claim"
 import { isPublicSignupAllowed } from "@/lib/config/public-signup"
@@ -173,8 +178,7 @@ function mapCreateUserError(errorMessage: string): SignupRouteError {
     return new SignupRouteError(400, "Invalid email address.", errorMessage)
   }
 
-  // Surface the raw Supabase error as `details` so the frontend can display it
-  return new SignupRouteError(500, "Failed to create auth user", errorMessage)
+  return new SignupRouteError(500, "Failed to create auth user")
 }
 
 export async function POST(request: Request) {
@@ -908,12 +912,7 @@ export async function POST(request: Request) {
     }
 
     if (teamId && role !== "head_coach") {
-      const tmRole =
-        role === "assistant_coach"
-          ? "assistant_coach"
-          : role === "parent"
-            ? "parent"
-            : "player"
+      const tmRole = profileRoleToTeamMemberRole(role)
       const { error: tmErr } = await upsertStaffTeamMember(supabase, teamId, createdAuthUserId, tmRole, {
         source: "signup_secure",
         staffStatus: role === "assistant_coach" ? "pending_assignment" : "active",
@@ -922,16 +921,17 @@ export async function POST(request: Request) {
         console.error(
           "[signup-secure] team_members upsert failed",
           JSON.stringify({
+            handler: "signup-secure.POST",
             teamId,
             userId: createdAuthUserId,
-            role: tmRole,
-            message: tmErr.message,
+            profileRole: role,
+            tmRole,
+            dbMessage: tmErr.message,
             membershipAttempted: true,
             committed: false,
           })
         )
         throw new SignupRouteError(500, "We couldn't finish linking your account to the team. Please try again in a moment.", {
-          details: tmErr.message,
           code: SIGNUP_ERROR_CODES.DATABASE_FAILURE,
         })
       }
@@ -940,7 +940,7 @@ export async function POST(request: Request) {
         JSON.stringify({
           teamId,
           userId: createdAuthUserId,
-          role: tmRole,
+          tmRole,
           committed: true,
         })
       )

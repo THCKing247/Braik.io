@@ -602,11 +602,7 @@ function PlayerJoinSignupInner() {
       }
 
       if (!response.ok) {
-        const hint =
-          typeof data.details === "string" && data.details.trim()
-            ? ` (${data.details.trim()})`
-            : ""
-        setError(`${data.error ?? "Signup failed."}${hint}`)
+        setError(data.error ?? "Signup failed.")
         setLoading(false)
         return
       }

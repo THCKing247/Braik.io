@@ -14,6 +14,40 @@ export type TeamMemberStaffRole = (typeof TEAM_MEMBER_STAFF_ROLES)[number]
 /** Roster / org roles still stored in team_members for messaging and membership repair. */
 export const TEAM_MEMBER_OTHER_ROLES = ["player", "parent", "school_admin"] as const
 
+/**
+ * Every value allowed in `public.team_members.role` (DB check: team_members_role_check).
+ * Keep in sync with supabase/migrations/*team_members_role_check*.sql
+ */
+export const TEAM_MEMBERS_DB_ROLES = [
+  "head_coach",
+  "assistant_coach",
+  "director_of_football",
+  "athletic_director",
+  "team_admin",
+  "trainer",
+  "manager",
+  "player",
+  "parent",
+  "school_admin",
+] as const
+
+export type TeamMembersDbRole = (typeof TEAM_MEMBERS_DB_ROLES)[number]
+
+const TEAM_MEMBERS_DB_ROLE_SET = new Set<string>(TEAM_MEMBERS_DB_ROLES as readonly string[])
+
+/** Normalize casing/spacing before insert; returns null if the token cannot map to a DB role. */
+export function normalizeRoleTokenForTeamMembers(raw: string | null | undefined): string | null {
+  if (raw == null || typeof raw !== "string") return null
+  const t = raw.trim().toLowerCase().replace(/-/g, "_").replace(/\s+/g, "_")
+  return t.length > 0 ? t : null
+}
+
+/** True when `role` is allowed on `team_members` (matches team_members_role_check). */
+export function isTeamMembersDbRole(role: string | null | undefined): role is TeamMembersDbRole {
+  const n = normalizeRoleTokenForTeamMembers(role)
+  return n != null && TEAM_MEMBERS_DB_ROLE_SET.has(n)
+}
+
 export function logTeamMembersAudit(
   event: string,
   payload: Record<string, unknown>
@@ -177,7 +211,7 @@ export async function upsertStaffTeamMember(
   supabase: SupabaseClient,
   teamId: string,
   userId: string,
-  role: TeamMemberStaffRole | "player" | "parent",
+  role: TeamMemberStaffRole | "player" | "parent" | "school_admin" | string,
   opts?: {
     active?: boolean
     source?: string
@@ -187,8 +221,31 @@ export async function upsertStaffTeamMember(
   }
 ): Promise<{ error: { message: string } | null }> {
   const active = opts?.active ?? true
-  if (role === "head_coach") {
-    return { error: { message: "Use setPrimaryHeadCoach for head_coach" } }
+  const roleToken = normalizeRoleTokenForTeamMembers(String(role))
+  if (!roleToken || roleToken === "head_coach") {
+    if (roleToken === "head_coach") {
+      return { error: { message: "Use setPrimaryHeadCoach for head_coach" } }
+    }
+    console.error("[upsertStaffTeamMember] invalid role token", {
+      handler: "upsertStaffTeamMember",
+      roleInput: role,
+      teamId,
+      userId,
+      source: opts?.source,
+    })
+    return { error: { message: "Invalid team member role" } }
+  }
+
+  if (!isTeamMembersDbRole(roleToken)) {
+    console.error("[upsertStaffTeamMember] role not allowed by team_members_role_check", {
+      handler: "upsertStaffTeamMember",
+      roleNormalized: roleToken,
+      teamId,
+      userId,
+      source: opts?.source,
+      allowed: TEAM_MEMBERS_DB_ROLES,
+    })
+    return { error: { message: "Invalid team member role" } }
   }
 
   const staffStatus = opts?.staffStatus ?? "active"
@@ -196,14 +253,14 @@ export async function upsertStaffTeamMember(
   const payload: Record<string, unknown> = {
     team_id: teamId,
     user_id: userId,
-    role,
+    role: roleToken,
     active,
     is_primary: false,
     staff_status: staffStatus,
   }
 
   const updateFields = {
-    role,
+    role: roleToken,
     active,
     is_primary: false,
     staff_status: staffStatus,
@@ -212,7 +269,7 @@ export async function upsertStaffTeamMember(
   const minimalInsert: Record<string, unknown> = {
     team_id: teamId,
     user_id: userId,
-    role,
+    role: roleToken,
     active,
   }
 
@@ -276,7 +333,7 @@ export async function upsertStaffTeamMember(
       event: "upsert_staff_or_roster",
       team_id: teamId,
       user_id: userId,
-      role,
+      role: roleToken,
       is_primary: false,
       head_coach_user_id_synced: false,
       source: opts?.source,
@@ -285,17 +342,29 @@ export async function upsertStaffTeamMember(
   return { error: error ?? null }
 }
 
-/** Map profile / invite role string to team_members.role */
+/**
+ * Map profile / signup role string to a `team_members.role` value (snake_case, check-constraint safe).
+ * Stale / legacy tokens (athlete, member, guardian) map to roster-safe roles.
+ */
 export function profileRoleToTeamMemberRole(
   profileRole: string | null | undefined
-): "head_coach" | "assistant_coach" | "player" | "parent" | "team_admin" {
+): TeamMembersDbRole {
   const r = (profileRole ?? "")
     .trim()
     .toLowerCase()
     .replace(/-/g, "_")
+    .replace(/\s+/g, "_")
   if (r === "head_coach") return "head_coach"
   if (r === "assistant_coach") return "assistant_coach"
+  if (r === "director_of_football") return "director_of_football"
+  if (r === "athletic_director") return "athletic_director"
+  if (r === "team_admin") return "team_admin"
+  if (r === "trainer") return "trainer"
+  if (r === "manager") return "manager"
   if (r === "parent") return "parent"
-  if (r === "school_admin" || r === "admin") return "team_admin"
+  if (r === "admin") return "team_admin"
+  if (r === "school_admin") return "school_admin"
+  if (r === "athlete" || r === "member") return "player"
+  if (r === "guardian") return "parent"
   return "player"
 }

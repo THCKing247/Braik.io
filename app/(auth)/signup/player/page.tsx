@@ -9,6 +9,7 @@ import { SiteHeader } from "@/components/marketing/site-header"
 import { LEGAL_POLICY_VERSIONS } from "@/lib/audit/compliance-config"
 import Link from "next/link"
 import { applyServerAuthSessionPayload, signIn, type SessionResponse } from "@/lib/auth/client-auth"
+import { resolveClientPostAuthDestination } from "@/lib/auth/resolve-client-post-auth-destination"
 import type { PlayerJoinAnalyzeResponse, PlayerJoinMatchCandidate } from "@/lib/players/claim-types"
 import { SmsConsentCheckbox } from "@/components/compliance/sms-consent-checkbox"
 import { normalizePlayerJoinCode } from "@/lib/players/join-code-normalize"
@@ -596,6 +597,7 @@ function PlayerJoinSignupInner() {
       const data = (await response.json()) as {
         error?: string
         details?: string
+        redirectTo?: string
         supabaseSession?: { access_token: string; refresh_token: string; expires_at?: number }
         user?: SessionResponse["user"]
         sessionEstablishFailed?: boolean
@@ -625,7 +627,8 @@ function PlayerJoinSignupInner() {
         }
       }
 
-      router.push("/dashboard")
+      const dest = await resolveClientPostAuthDestination(data, { profileRole: "player" })
+      router.push(dest)
       router.refresh()
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Unknown error"

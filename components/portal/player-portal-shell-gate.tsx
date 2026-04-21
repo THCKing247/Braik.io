@@ -36,7 +36,10 @@ export function PlayerPortalShellGate({
     const payload = q.data as DashboardShellPayload | undefined
     if (!payload || payload.shellMode !== "full") return
     if (payload.portalKind !== "player") {
-      router.replace(payload.user.defaultAppPath || "/dashboard")
+      const d = payload.user.defaultAppPath
+      router.replace(
+        d && d.startsWith("/") && !d.startsWith("//") ? d : "/login"
+      )
     }
   }, [q.data, router])
 

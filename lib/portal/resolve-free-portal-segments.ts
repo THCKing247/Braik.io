@@ -11,13 +11,17 @@ export async function getPlayerAccountSegmentForUser(
   if (!userId) return null
   const { data, error } = await supabase
     .from("players")
-    .select("player_account_id")
+    .select("player_account_id, id")
     .eq("user_id", userId)
     .maybeSingle()
   if (error || !data) return null
-  const raw = (data as { player_account_id?: string | null }).player_account_id
-  if (raw == null || String(raw).trim() === "") return null
-  return normalizePlayerAccountIdSegment(String(raw))
+  const row = data as { player_account_id?: string | null; id?: string | null }
+  const raw = row.player_account_id
+  if (raw != null && String(raw).trim() !== "") {
+    return normalizePlayerAccountIdSegment(String(raw))
+  }
+  /** Public numeric id may be unset until backfill; `players.id` is accepted by `/player/:segment` resolvers. */
+  return row.id && String(row.id).trim() !== "" ? String(row.id).trim() : null
 }
 
 /**
@@ -42,11 +46,14 @@ export async function getParentPortalSegmentForUser(
 
   const { data: player, error: pErr } = await supabase
     .from("players")
-    .select("player_account_id")
+    .select("player_account_id, id")
     .eq("id", playerId)
     .maybeSingle()
   if (pErr || !player) return null
-  const raw = (player as { player_account_id?: string | null }).player_account_id
-  if (raw == null || String(raw).trim() === "") return null
-  return normalizePlayerAccountIdSegment(String(raw))
+  const row = player as { player_account_id?: string | null; id?: string | null }
+  const raw = row.player_account_id
+  if (raw != null && String(raw).trim() !== "") {
+    return normalizePlayerAccountIdSegment(String(raw))
+  }
+  return row.id && String(row.id).trim() !== "" ? String(row.id).trim() : null
 }

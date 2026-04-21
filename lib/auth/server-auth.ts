@@ -8,6 +8,7 @@ import { jwtDecode } from "jwt-decode"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { getSupabaseAnonKey, getSupabaseProjectUrl, isSupabaseServerConfigured } from "@/src/lib/supabase-project-env"
 import { readPersistLongSessionFromCookies } from "@/lib/auth/persist-session-cookie"
+import { getDefaultAppPathForRole } from "@/lib/auth/default-app-path-for-role"
 import { resolvePortalEntryPath } from "@/lib/auth/portal-entry-path"
 import { adTeamsFlowPerfLog, shouldLogAdTeamsFlowPerf } from "@/lib/ad/ad-teams-table-perf"
 import { perfLogAuthVerbose } from "@/lib/perf/braik-perf-server"
@@ -153,7 +154,7 @@ async function buildSessionUser(
   try {
     defaultAppPath = await resolvePortalEntryPath(supabase, userId)
   } catch {
-    defaultAppPath = "/dashboard"
+    defaultAppPath = getDefaultAppPathForRole(rawRole)
   }
   return {
     id: userId,

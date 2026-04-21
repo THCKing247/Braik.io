@@ -12,9 +12,12 @@ import { isDashboardPathForbiddenForPortal } from "@/lib/permissions/dashboard-r
  */
 export function PortalRouteEnforcer({
   portalKind,
+  /** Server-resolved home (e.g. `/player/:id`); required for player/parent so redirects never stay under `/dashboard`. */
+  portalHomeHref,
   children,
 }: {
   portalKind: BraikPortalKind
+  portalHomeHref?: string | null
   children: React.ReactNode
 }) {
   const pathname = usePathname()
@@ -23,8 +26,12 @@ export function PortalRouteEnforcer({
   useEffect(() => {
     if (!pathname) return
     if (!isDashboardPathForbiddenForPortal(portalKind, pathname)) return
-    router.replace(defaultDashboardEntryForPortal(portalKind))
-  }, [pathname, portalKind, router])
+    const dest =
+      portalHomeHref && portalHomeHref.startsWith("/") && !portalHomeHref.startsWith("//")
+        ? portalHomeHref
+        : defaultDashboardEntryForPortal(portalKind)
+    router.replace(dest)
+  }, [pathname, portalKind, portalHomeHref, router])
 
   return <>{children}</>
 }

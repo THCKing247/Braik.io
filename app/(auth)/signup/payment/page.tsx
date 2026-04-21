@@ -10,6 +10,7 @@ import {
   signIn,
   type SessionResponse,
 } from "@/lib/auth/client-auth"
+import { resolveClientPostAuthDestination } from "@/lib/auth/resolve-client-post-auth-destination"
 
 type SignupApiError = {
   error?: string
@@ -93,6 +94,7 @@ export default function PaymentPage() {
       })
 
       const data = (await response.json()) as SignupApiError & {
+        redirectTo?: string
         supabaseSession?: { access_token: string; refresh_token: string; expires_at?: number }
         user?: SessionResponse["user"]
         sessionEstablishFailed?: boolean
@@ -136,10 +138,12 @@ export default function PaymentPage() {
       if (signupData.role === "head-coach" && "inviteCode" in data && typeof data.inviteCode === "string") {
         setTeamCode(data.inviteCode)
       } else {
-        // Non-head-coach: go straight to dashboard
         setRedirecting(true)
         localStorage.removeItem("signupData")
-        router.push("/dashboard")
+        const role =
+          typeof signupData.role === "string" ? signupData.role.replace(/-/g, "_") : null
+        const dest = await resolveClientPostAuthDestination(data, { profileRole: role })
+        router.push(dest)
         router.refresh()
       }
     } catch (err: unknown) {

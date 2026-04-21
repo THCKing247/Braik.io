@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation"
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { applyServerAuthSessionPayload, signIn, type SessionResponse } from "@/lib/auth/client-auth"
+import { resolveClientPostAuthDestination } from "@/lib/auth/resolve-client-post-auth-destination"
 import { SiteHeader } from "@/components/marketing/site-header"
 
 type SignupApiError = {
@@ -81,6 +82,7 @@ export default function CompleteSignupPage() {
       })
 
       const data = (await response.json()) as SignupApiError & {
+        redirectTo?: string
         supabaseSession?: { access_token: string; refresh_token: string; expires_at?: number }
         user?: SessionResponse["user"]
         sessionEstablishFailed?: boolean
@@ -125,8 +127,9 @@ export default function CompleteSignupPage() {
         sessionStorage.removeItem("braik_parent_player_code")
       }
 
-      // Redirect to dashboard
-      router.push("/dashboard")
+      const role = signupData?.role?.replace(/-/g, "_") ?? null
+      const dest = await resolveClientPostAuthDestination(data, { profileRole: role })
+      router.push(dest)
       router.refresh()
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Unknown client exception"

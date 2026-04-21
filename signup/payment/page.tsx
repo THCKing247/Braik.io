@@ -98,8 +98,10 @@ export default function PaymentPage() {
         redirect: false,
       })
 
-      if (result?.error) {
-        setError(`[SIGNUP-AUTH-${result.error}] Account was created, but auto-login failed. Please sign in manually on the login page.`)
+      if (!result?.ok || result.error) {
+        setError(
+          `[SIGNUP-AUTH-${result?.error ?? "CredentialsSignin"}] Account was created, but auto-login failed. Please sign in manually on the login page.`
+        )
         setLoading(false)
         return
       }
@@ -107,8 +109,7 @@ export default function PaymentPage() {
       // Clear localStorage
       localStorage.removeItem("signupData")
 
-      // Redirect to dashboard
-      router.push("/dashboard")
+      router.push(result.url ?? "/")
       router.refresh()
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Unknown client exception"

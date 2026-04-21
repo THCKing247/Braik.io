@@ -83,6 +83,15 @@ export function isFreePortalPathForbiddenForPortal(kind: BraikPortalKind, pathna
 
 /** Returns true when the pathname should be blocked for this portal kind (404-style redirect to home). */
 export function isDashboardPathForbiddenForPortal(kind: BraikPortalKind, pathname: string): boolean {
+  const bare = (pathname.split("?")[0] ?? pathname).replace(/\/+$/, "") || "/"
+
+  if (kind === "coach") return false
+
+  /** Player/parent portals are not part of the coach org/team dashboard tree — block the entire `/dashboard` space. */
+  if (kind === "player" || kind === "parent") {
+    return bare === "/dashboard" || bare.startsWith("/dashboard/")
+  }
+
   const normalized = stripDashboardPortalPrefix(pathname.split("?")[0] ?? pathname)
   const rest = restPath(normalized)
   return isPortalRestForbiddenForNonCoach(kind, rest)

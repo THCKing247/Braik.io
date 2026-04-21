@@ -17,11 +17,13 @@ export function getDefaultAppPathForRole(role?: string | null) {
       return "/admin/overview"
     case "athletic_director":
       return "/dashboard"
-    case "head_coach":
-    case "assistant_coach":
     case "player":
     case "parent":
     case "athlete":
+      /** Sync-only shape: real home is `/player/:segment` or `/parent/:segment` from the server session / shell. */
+      return "/"
+    case "head_coach":
+    case "assistant_coach":
       return defaultDashboardEntryForPortal(portalKindFromSessionRole(role))
     default:
       return defaultDashboardEntryForPortal(portalKindFromSessionRole(role))

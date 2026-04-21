@@ -36,7 +36,10 @@ export function ParentPortalShellGate({
     const payload = q.data as DashboardShellPayload | undefined
     if (!payload || payload.shellMode !== "full") return
     if (payload.portalKind !== "parent") {
-      router.replace(payload.user.defaultAppPath || "/dashboard")
+      const d = payload.user.defaultAppPath
+      router.replace(
+        d && d.startsWith("/") && !d.startsWith("//") ? d : "/login"
+      )
     }
   }, [q.data, router])
 

@@ -109,7 +109,7 @@ export function DashboardTeamShellGate({ children }: { children: React.ReactNode
 
   return (
     <PortalShellProvider portalKind={portalKind}>
-      <PortalRouteEnforcer portalKind={portalKind}>
+      <PortalRouteEnforcer portalKind={portalKind} portalHomeHref={user.defaultAppPath}>
         <DashboardShellWithMobileNav teams={teams} currentTeamId={currentTeamId}>
           <div className="app-shell dashboard-app-shell flex min-h-screen flex-col bg-background">
             <header className="shrink-0">

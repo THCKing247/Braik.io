@@ -18,10 +18,11 @@ export function getDefaultAppPathForRole(role?: string | null) {
     case "athletic_director":
       return "/dashboard"
     case "player":
-    case "parent":
     case "athlete":
-      /** Sync-only shape: real home is `/player/:segment` or `/parent/:segment` from the server session / shell. */
-      return "/"
+      /** Until `/api/auth/session` resolves `/player/:segment`, prefer legacy dashboard entry over marketing `/`. */
+      return defaultDashboardEntryForPortal("player")
+    case "parent":
+      return defaultDashboardEntryForPortal("parent")
     case "head_coach":
     case "assistant_coach":
       return defaultDashboardEntryForPortal(portalKindFromSessionRole(role))

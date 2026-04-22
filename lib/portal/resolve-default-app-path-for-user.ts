@@ -26,14 +26,10 @@ export async function resolvePortalHomeForUser(
   ])
 
   let defaultPath = defaultDashboardEntryForPortal(portalKind)
-  if (portalKind === "player") {
-    defaultPath = playerAccountSegment
-      ? `/player/${encodeURIComponent(playerAccountSegment)}`
-      : "/"
-  } else if (portalKind === "parent") {
-    defaultPath = parentPortalSegment
-      ? `/parent/${encodeURIComponent(parentPortalSegment)}`
-      : "/"
+  if (portalKind === "player" && playerAccountSegment) {
+    defaultPath = `/player/${encodeURIComponent(playerAccountSegment)}`
+  } else if (portalKind === "parent" && parentPortalSegment) {
+    defaultPath = `/parent/${encodeURIComponent(parentPortalSegment)}`
   }
 
   return {

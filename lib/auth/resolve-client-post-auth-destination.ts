@@ -1,7 +1,8 @@
 import { getDefaultAppPathForRole } from "@/lib/auth/default-app-path-for-role"
 
 function isSafeInternalPath(p: string | null | undefined): p is string {
-  return Boolean(p && p.startsWith("/") && !p.startsWith("//"))
+  /** Bare `/` is the marketing hero — never treat it as a post-auth app destination. */
+  return Boolean(p && p !== "/" && p.startsWith("/") && !p.startsWith("//"))
 }
 
 /**

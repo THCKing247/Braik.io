@@ -43,6 +43,8 @@ export default function LoginPage() {
     () => normalizeCallbackUrl(searchParams.get("callbackUrl")),
     [searchParams]
   )
+  /** Only bounce back to the app when middleware sent the user here to sign in before a protected route. */
+  const hasAuthRedirectTarget = Boolean(callbackUrl)
   const isLgUp = useMinWidthLg()
   const [nativeClient, setNativeClient] = useState(false)
   const hasRedirected = useRef(false)
@@ -80,7 +82,7 @@ export default function LoginPage() {
         const serverUser = json?.user ?? null
         console.log("[login] server session present:", Boolean(serverUser?.id))
 
-        if (serverUser?.id) {
+        if (serverUser?.id && hasAuthRedirectTarget) {
           if (hasRedirected.current) return
           hasRedirected.current = true
           const destination =
@@ -113,7 +115,7 @@ export default function LoginPage() {
     return () => {
       cancelled = true
     }
-  }, [status, data?.user?.id, callbackUrl])
+  }, [status, data?.user?.id, callbackUrl, hasAuthRedirectTarget])
 
   const useNativeLoginChrome = nativeClient
   const useMobileWebLoginChrome = !nativeClient && !isLgUp
@@ -122,7 +124,7 @@ export default function LoginPage() {
     <>
       {(useNativeLoginChrome || useMobileWebLoginChrome) && (
         <div className={useNativeLoginChrome ? "min-h-screen" : "lg:hidden"}>
-          {status === "unauthenticated" ? (
+          {!hasAuthRedirectTarget || status === "unauthenticated" ? (
             <MobileAppLoginScreen />
           ) : (
             <MobileAppEntryLoading

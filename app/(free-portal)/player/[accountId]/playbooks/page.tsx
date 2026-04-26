@@ -1,10 +1,6 @@
-import { PlayerPortalPlaybooks } from "@/components/portal/player-portal/player-portal-playbooks"
+import { redirect } from "next/navigation"
 
-export default function PlayerPortalPlaybooksPage() {
-  return (
-    <>
-      <h1 className="sr-only">Playbooks</h1>
-      <PlayerPortalPlaybooks />
-    </>
-  )
+/** Legacy URL — canonical Playbooks live under the unified Film hub. */
+export default function PlayerPortalPlaybooksPage({ params }: { params: { accountId: string } }) {
+  redirect(`/player/${encodeURIComponent(params.accountId)}/prep/film/playbooks`)
 }

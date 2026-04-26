@@ -15,6 +15,7 @@ const eventTypeMap: Record<string, string> = {
   practice: "PRACTICE",
   game: "GAME",
   meeting: "MEETING",
+  film: "FILM",
   follow_up: "CUSTOM",
   other: "CUSTOM",
 }

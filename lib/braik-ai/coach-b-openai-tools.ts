@@ -14,7 +14,7 @@ export const COACH_B_TOOLS: ChatCompletionTool[] = [
         type: "object",
         properties: {
           title: { type: "string" },
-          event_type: { type: "string", enum: ["practice", "game", "meeting", "other"] },
+          event_type: { type: "string", enum: ["practice", "game", "film", "meeting", "other"] },
           relativeDateText: {
             type: "string",
             description:

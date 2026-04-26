@@ -1,10 +1,6 @@
-import { PlayerPortalFilmRoom } from "@/components/portal/player-portal/player-portal-film-room"
+import { redirect } from "next/navigation"
 
-export default function PlayerPortalFilmRoomPage() {
-  return (
-    <>
-      <h1 className="sr-only">Film room</h1>
-      <PlayerPortalFilmRoom />
-    </>
-  )
+/** Legacy URL — canonical prep hub lives under `/prep/film`. */
+export default function PlayerPortalFilmRoomPage({ params }: { params: { accountId: string } }) {
+  redirect(`/player/${encodeURIComponent(params.accountId)}/prep/film`)
 }

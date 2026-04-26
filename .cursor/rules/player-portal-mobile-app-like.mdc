@@ -1,0 +1,31 @@
+---
+description: Player portal mobile — keep UI simple, app-like, thumb-friendly
+alwaysApply: true
+---
+
+# Player portal: mobile simple & app-like
+
+Applies to **`components/portal/player-portal/**`** and **`app/(free-portal)/player/**`** work.
+
+Canonical Film hub URLs and the **study → quiz (inside Study) → film → playbooks** loop (plus **Messages** for coach feedback) are documented in [`lib/player-portal/player-development-routes.ts`](mdc:lib/player-portal/player-development-routes.ts).
+
+## Do not reuse desktop layouts on mobile
+
+Never **miniaturize** desktop shells (sidebars beside content, wide tables, dense grids) onto the phone player UI. Use **mobile-native** stacks, tabs, and sheets; add desktop-only columns with **`lg:`**, not squeezed copies. See [`mobile-no-desktop-layout-clones.mdc`](mdc:.cursor/rules/mobile-no-desktop-layout-clones.mdc).
+
+## Principles
+
+- **Fewer surfaces, clearer hierarchy** — Primary tasks live in bottom nav (Home, Film hub, Calendar, Messages, Profile). Avoid duplicating those entry points elsewhere unless product explicitly requires it.
+- **Thumb-scale interaction** — Prefer **≥ 44px** vertical tap targets on tappable controls; use **segmented controls**, **full-width buttons**, or **large list rows** instead of dense inline text links on phone.
+- **Motion** — Light **`active:scale-[0.98]`** (or similar) on nav chips; avoid hover-only affordances as the only cue (many phones don’t hover).
+- **Safe area** — Respect **`env(safe-area-inset-*)`** on fixed bottom/top UI (already used on player chrome).
+
+## Constraints (with viewport rule)
+
+- Do **not** refactor shared mobile/tablet layouts for desktop-only experiments; **`lg:`/`xl:`** may add density or extras on large screens without changing small-screen DOM structure ([`viewport-desktop-mobile-tablet.mdc`](mdc:.cursor/rules/viewport-desktop-mobile-tablet.mdc)).
+- Prefer **additive** polish (tokens, spacing, segmented nav) over new parallel mobile routes.
+
+## Anti-patterns on mobile player UI
+
+- Tiny text links as the only navigation within a hub.
+- Extra nested sidebars or multi-column chrome on **`max-lg`** for the player shell.

@@ -64,9 +64,11 @@ function mapApiEventsToRows(
         ? "#EF4444"
         : e.type === "PRACTICE"
           ? "#10B981"
-          : e.type === "MEETING"
-            ? "#F59E0B"
-            : "#8B5CF6",
+          : e.type === "FILM"
+            ? "#0EA5E9"
+            : e.type === "MEETING"
+              ? "#F59E0B"
+              : "#8B5CF6",
     highlight: false,
   }))
 }

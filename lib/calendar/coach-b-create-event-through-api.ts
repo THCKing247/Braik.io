@@ -34,9 +34,11 @@ export function mapCreateEventToolToCalendarApiBody(a: CreateEventToolArgs): Rec
       ? "practice"
       : a.event_type === "game"
         ? "game"
-        : a.event_type === "meeting"
-          ? "meeting"
-          : "other"
+        : a.event_type === "film"
+          ? "film"
+          : a.event_type === "meeting"
+            ? "meeting"
+            : "other"
 
   const body: Record<string, unknown> = {
     title: a.title,

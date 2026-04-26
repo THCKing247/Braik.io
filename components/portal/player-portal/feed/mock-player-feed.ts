@@ -1,4 +1,8 @@
 import type { PlayerFeedPost } from "@/components/portal/player-portal/feed/player-feed-types"
+import {
+  playerFilmHubPlaybooksFromPortalBase,
+  playerFilmHubStudyFromPortalBase,
+} from "@/lib/player-portal/player-development-routes"
 
 /** Sample feed — replace with API-driven posts when backend is ready */
 export function getMockPlayerFeed(accountBasePath: string): PlayerFeedPost[] {
@@ -30,28 +34,6 @@ export function getMockPlayerFeed(accountBasePath: string): PlayerFeedPost[] {
       cta: { label: "Calendar", href: p("/calendar") },
     },
     {
-      id: "mock-announce",
-      kind: "announcement",
-      authorLabel: "Coach Alvarez",
-      authorSubtitle: "OC",
-      timeLabel: "5h ago",
-      title: "Install update: tempo & RPO tags",
-      body: "Thursday’s practice script is live. Watch the clip notes before chalk talk.",
-      mediaPlaceholder: "practice",
-      cta: { label: "Film room", href: p("/film-room") },
-    },
-    {
-      id: "mock-highlight",
-      kind: "highlight",
-      authorLabel: "Braik Highlights",
-      timeLabel: "Yesterday",
-      title: "Top runs from Tuesday team period",
-      body: "Four clips · every rep with coach audio. Tap through to Film Room.",
-      mediaPlaceholder: "field",
-      reactionSummary: "Team 🔥",
-      cta: { label: "Open clips", href: p("/film-room") },
-    },
-    {
       id: "mock-image",
       kind: "image",
       authorLabel: "Team Photographer",
@@ -69,7 +51,7 @@ export function getMockPlayerFeed(accountBasePath: string): PlayerFeedPost[] {
       title: "Red zone: stack release rules",
       body: "Pages 12–14 updated — new vs cover-1/cover-3 split rules.",
       mediaPlaceholder: "film",
-      cta: { label: "Open playbooks", href: p("/playbooks") },
+      cta: { label: "Open playbooks", href: playerFilmHubPlaybooksFromPortalBase(accountBasePath) },
     },
     {
       id: "mock-study",
@@ -78,7 +60,7 @@ export function getMockPlayerFeed(accountBasePath: string): PlayerFeedPost[] {
       timeLabel: "3d ago",
       title: "Quiz: defensive recognition",
       body: "10 questions · due before Friday walkthrough.",
-      cta: { label: "Study guides", href: p("/study-guides") },
+      cta: { label: "Study guides", href: playerFilmHubStudyFromPortalBase(accountBasePath) },
     },
     {
       id: "mock-motivation",

@@ -35,7 +35,8 @@ export function FeedPostCard({
   const showMedia =
     post.kind !== "motivation" &&
     post.kind !== "study_teaser" &&
-    post.kind !== "pinned_reminder"
+    post.kind !== "pinned_reminder" &&
+    post.kind !== "announcement"
 
   const emphasis = post.pinned || post.kind === "game_day"
 

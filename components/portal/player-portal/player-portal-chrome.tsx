@@ -2,19 +2,13 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import {
-  Calendar,
-  Clapperboard,
-  LogOut,
-  MessageSquare,
-  Newspaper,
-  UserRound,
-} from "lucide-react"
+import { Calendar, Home, LogOut, MessageSquare, UserRound, Video } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { SuspensionBanner } from "@/components/marketing/suspension-banner"
 import { signOut } from "@/lib/auth/client-auth"
 import { braikPlayerChrome } from "@/components/portal/player-portal/braik-player-visual-tokens"
 import { usePlayerPortal } from "@/components/portal/player-portal/player-portal-context"
+import { playerFilmHubRoot } from "@/lib/player-portal/player-development-routes"
 
 function navLinkClass(active: boolean) {
   return cn(
@@ -36,11 +30,26 @@ export function PlayerPortalChrome({
   const base = `/player/${encodeURIComponent(accountSegment)}`
   const pathname = usePathname() ?? ""
 
+  /** First tab = primary home screen (`/player/:id`) — team feed + shortcuts. */
   const items = [
-    { href: base, label: "Feed", icon: Newspaper, match: (p: string) => p === base || p === `${base}/` },
+    {
+      href: base,
+      label: "Home",
+      icon: Home,
+      match: (p: string) => p === base || p === `${base}/`,
+    },
+    {
+      href: playerFilmHubRoot(accountSegment),
+      label: "Film",
+      icon: Video,
+      match: (p: string) =>
+        p.startsWith(`${base}/prep`) ||
+        p.startsWith(`${base}/film-room`) ||
+        p.startsWith(`${base}/study-guides`) ||
+        p.startsWith(`${base}/playbooks`),
+    },
     { href: `${base}/calendar`, label: "Calendar", icon: Calendar, match: (p: string) => p.startsWith(`${base}/calendar`) },
     { href: `${base}/messages`, label: "Msgs", icon: MessageSquare, match: (p: string) => p.startsWith(`${base}/messages`) },
-    { href: `${base}/film-room`, label: "Film", icon: Clapperboard, match: (p: string) => p.startsWith(`${base}/film-room`) },
     { href: `${base}/profile`, label: "Profile", icon: UserRound, match: (p: string) => p.startsWith(`${base}/profile`) },
   ]
 
@@ -73,7 +82,7 @@ export function PlayerPortalChrome({
 
       <nav
         className="fixed bottom-0 left-0 right-0 z-30 border-t border-sky-500/20 bg-[#040a12]/94 px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 shadow-[0_-12px_40px_-18px_rgba(0,0,0,0.72)] backdrop-blur-xl"
-        aria-label="Player portal primary"
+        aria-label="Player portal primary navigation — Home opens the team feed"
       >
         <div className="mx-auto flex max-w-lg items-center justify-between gap-1">
           {items.map(({ href, label, icon: Icon, match }) => {
@@ -91,12 +100,28 @@ export function PlayerPortalChrome({
   )
 }
 
+function playerPortalSectionEyebrow(pathname: string, base: string): string {
+  const p = pathname.split("?")[0] ?? pathname
+  if (p === base || p === `${base}/`) return "Home"
+  if (p.startsWith(`${base}/prep`)) return "Film"
+  if (p.startsWith(`${base}/calendar`)) return "Calendar"
+  if (p.startsWith(`${base}/messages`)) return "Messages"
+  if (p.startsWith(`${base}/profile`)) return "Profile"
+  if (p.startsWith(`${base}/announcements`)) return "News"
+  if (p.startsWith(`${base}/reminders`)) return "Alerts"
+  return "Home"
+}
+
 function PlayerPortalHeaderInner() {
-  const { teamName, sport } = usePlayerPortal()
+  const pathname = usePathname() ?? ""
+  const { teamName, sport, accountSegment } = usePlayerPortal()
+  const base = `/player/${encodeURIComponent(accountSegment)}`
+  const eyebrow = playerPortalSectionEyebrow(pathname, base)
+
   return (
     <div className="mx-auto flex max-w-3xl items-start justify-between gap-2">
       <div className="min-w-0 flex-1">
-        <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-sky-300/95">Feed & tools</p>
+        <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-sky-300/95">{eyebrow}</p>
         <h1 className="truncate bg-gradient-to-r from-sky-100 via-amber-100 to-orange-100 bg-clip-text text-xl font-black text-transparent drop-shadow-sm">
           {teamName}
         </h1>

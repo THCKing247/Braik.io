@@ -85,6 +85,7 @@ export async function executeCreateEventInternal(
   const eventTypeMap: Record<string, string> = {
     practice: "PRACTICE",
     game: "GAME",
+    film: "FILM",
     meeting: "MEETING",
     other: "CUSTOM",
   }

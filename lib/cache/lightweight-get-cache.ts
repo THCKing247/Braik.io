@@ -61,6 +61,10 @@ export function tagTeamAnnouncements(teamId: string): string {
   return `lw-team-announcements:${teamId}`
 }
 
+export function tagTeamHighlightPosts(teamId: string): string {
+  return `lw-team-highlight-posts:${teamId}`
+}
+
 /** All notification preview variants for this user+team share this tag */
 export function tagNotificationsUserTeam(userId: string, teamId: string): string {
   return `lw-notifications:${userId}:${teamId}`
@@ -120,6 +124,10 @@ export function revalidateTeamEngagementHints(teamId: string): void {
 
 export function revalidateTeamAnnouncements(teamId: string): void {
   revalidateTag(tagTeamAnnouncements(teamId))
+}
+
+export function revalidateTeamHighlightPosts(teamId: string): void {
+  revalidateTag(tagTeamHighlightPosts(teamId))
 }
 
 export function revalidateNotificationsForUserTeam(userId: string, teamId: string): void {

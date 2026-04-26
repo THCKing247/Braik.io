@@ -70,6 +70,7 @@ function dbEventTypeToForm(t: string): CreateEventEditingValues["type"] {
   if (u === "PRACTICE") return "practice"
   if (u === "GAME") return "game"
   if (u === "MEETING") return "meeting"
+  if (u === "FILM") return "film"
   return "other"
 }
 

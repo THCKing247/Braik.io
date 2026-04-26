@@ -1,17 +1,9 @@
 "use client"
 
 import Link from "next/link"
-import {
-  Bell,
-  BookOpen,
-  Calendar,
-  Clapperboard,
-  GraduationCap,
-  Megaphone,
-  MessageSquare,
-  UserRound,
-} from "lucide-react"
+import { Bell, Calendar, Megaphone, MessageSquare, UserRound, Video } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { playerFilmHubRootFromPortalBase } from "@/lib/player-portal/player-development-routes"
 
 type Tool = { href: string; label: string; icon: typeof UserRound }
 
@@ -20,9 +12,7 @@ export function QuickToolsStrip({ basePath, className }: { basePath: string; cla
     { href: `${basePath}/profile`, label: "Profile", icon: UserRound },
     { href: `${basePath}/calendar`, label: "Schedule", icon: Calendar },
     { href: `${basePath}/messages`, label: "Messages", icon: MessageSquare },
-    { href: `${basePath}/film-room`, label: "Film", icon: Clapperboard },
-    { href: `${basePath}/playbooks`, label: "Playbooks", icon: BookOpen },
-    { href: `${basePath}/study-guides`, label: "Study", icon: GraduationCap },
+    { href: playerFilmHubRootFromPortalBase(basePath), label: "Film", icon: Video },
     { href: `${basePath}/announcements`, label: "News", icon: Megaphone },
     { href: `${basePath}/reminders`, label: "Alerts", icon: Bell },
   ]

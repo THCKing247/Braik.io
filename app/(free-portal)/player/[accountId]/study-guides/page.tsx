@@ -1,10 +1,6 @@
-import { PlayerPortalStudyGuides } from "@/components/portal/player-portal/player-portal-study-guides"
+import { redirect } from "next/navigation"
 
-export default function PlayerPortalStudyGuidesPage() {
-  return (
-    <>
-      <h1 className="sr-only">Study guides</h1>
-      <PlayerPortalStudyGuides />
-    </>
-  )
+/** Legacy URL — canonical Study lives under the unified Film hub. */
+export default function PlayerPortalStudyGuidesPage({ params }: { params: { accountId: string } }) {
+  redirect(`/player/${encodeURIComponent(params.accountId)}/prep/film/study`)
 }

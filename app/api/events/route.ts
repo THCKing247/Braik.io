@@ -121,6 +121,7 @@ export async function POST(req: NextRequest) {
       practice: "PRACTICE",
       game: "GAME",
       meeting: "MEETING",
+      film: "FILM",
       other: "CUSTOM",
     }
     const eventType = eventTypeMap[typeStr] || "CUSTOM"

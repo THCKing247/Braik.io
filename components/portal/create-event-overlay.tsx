@@ -36,7 +36,7 @@ const selectClass = "mobile-select"
 
 export type CreateEventEditingValues = {
   id: string
-  /** Form values: practice | game | meeting | other */
+  /** Form values: practice | game | film | meeting | other */
   type: string
   title: string
   start: Date
@@ -318,6 +318,7 @@ export function CreateEventOverlay({
               <select value={type} onChange={(e) => setType(e.target.value)} className={selectClass}>
                 <option value="practice">Practice</option>
                 <option value="game">Game</option>
+                <option value="film">Film session</option>
                 <option value="meeting">Meeting</option>
                 <option value="other">Other</option>
               </select>

@@ -1,0 +1,32 @@
+---
+description: Player Film hub — Study, Playbook, and film library only under /prep/film (unified tab)
+alwaysApply: true
+---
+
+# Player portal: unified Film tab for Study, Playbook, Film
+
+## Rule
+
+For the **free player portal** (`/player/[accountId]/...`), **Study**, **Playbooks**, and the **Film room (video library)** are a **single** experience. The **primary** bottom nav entry is **Film** (not separate top-level pages for each).
+
+**Canonical paths** (all under the Film hub):
+
+- **Hub / film library** → `/player/[accountId]/prep/film`
+- **Study** → `/player/[accountId]/prep/film/study`
+- **Playbooks** → `/player/[accountId]/prep/film/playbooks`
+
+Secondary nav (Study | Film | Playbooks) lives in **`PlayerPortalPrepShell`**, applied from **`app/(free-portal)/player/[accountId]/prep/film/layout.tsx`**.
+
+## Allowed
+
+- **`redirect()`** at legacy URLs (`/study-guides`, `/playbooks`, `/film-room`, `/prep/study`, `/prep/playbooks`, etc.) → the canonical `/prep/film/...` paths.
+- Changing **content** on the pages under `/prep/film`, `/prep/film/study`, or `/prep/film/playbooks`.
+
+## Not allowed
+
+- New **primary** nav items that bypass the Film hub for Study or Playbooks (they stay inside **`/prep/film/...`**).
+- New sibling routes such as **`/player/[accountId]/prep/study`** as **live** pages (may only **`redirect`** to **`/prep/film/study`**).
+
+## Dashboard
+
+Staff URLs (`/dashboard/study-guides`, `/dashboard/playbooks`, `/dashboard/game-video`) are unrelated to this player-portal rule.

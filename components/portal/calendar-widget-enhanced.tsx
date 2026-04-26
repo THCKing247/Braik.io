@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useLayoutEffect, useMemo, useRef, useCallback } from "react"
+import { useState, useEffect, useMemo, useRef, useCallback } from "react"
 import { 
   format, 
   startOfWeek, 
@@ -138,32 +138,7 @@ export function CalendarWidgetEnhanced({
   const [currentDate, setCurrentDate] = useState(new Date())
   const [mobileCalendarsOpen, setMobileCalendarsOpen] = useState(false)
 
-  useLayoutEffect(() => {
-    const mq = window.matchMedia("(min-width: 1024px)")
-    if (mq.matches) return
-    if (window.innerWidth < 768) setView("agenda")
-    else setView("day")
-  }, [])
-
-  useEffect(() => {
-    const mq = window.matchMedia("(min-width: 1024px)")
-    const onChange = () => {
-      if (mq.matches) {
-        setView((prev) =>
-          prev === "agenda" ? ((defaultView as CalendarView) || "week") : prev
-        )
-        return
-      }
-      const narrow = window.innerWidth < 768
-      setView((prev) => {
-        if (narrow && (prev === "week" || prev === "month" || prev === "year")) return "agenda"
-        if (!narrow && prev === "agenda") return "day"
-        return prev
-      })
-    }
-    mq.addEventListener("change", onChange)
-    return () => mq.removeEventListener("change", onChange)
-  }, [defaultView])
+  /** Respect `defaultView` from the host (e.g. player portal week) — do not override with agenda/day on narrow viewports. */
   const [events, setEvents] = useState(initialEvents)
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null)
   const [showEventDetail, setShowEventDetail] = useState(false)
@@ -261,6 +236,7 @@ export function CalendarWidgetEnhanced({
   const [calendarFilters, setCalendarFilters] = useState<CalendarFilter[]>([
     { id: "practice", name: "Practices", color: "#10B981", enabled: true },
     { id: "game", name: "Games", color: "#EF4444", enabled: true },
+    { id: "film", name: "Film sessions", color: "#0EA5E9", enabled: true },
     { id: "meeting", name: "Meetings", color: "#F59E0B", enabled: true },
     { id: "other", name: "Other", color: "#8B5CF6", enabled: true },
   ])
@@ -269,6 +245,7 @@ export function CalendarWidgetEnhanced({
     const t = (eventType || "").toLowerCase()
     if (t === "practice") return "practice"
     if (t === "game") return "game"
+    if (t === "film") return "film"
     if (t === "meeting") return "meeting"
     if (t === "custom" || t === "other" || t === "follow_up") return "other"
     return null
@@ -283,6 +260,7 @@ export function CalendarWidgetEnhanced({
     if (title.toLowerCase().startsWith("follow-up:")) return "#8B5CF6"
     if (t === "practice") return "#10B981"
     if (t === "game") return "#EF4444"
+    if (t === "film") return "#0EA5E9"
     if (t === "meeting") return "#F59E0B"
     if (t === "custom" || t === "other" || t === "follow_up") return "#8B5CF6"
     return "#3B82F6" // Team Events / default
@@ -415,6 +393,9 @@ export function CalendarWidgetEnhanced({
   const handleSwipeTouchStart = useCallback((e: React.TouchEvent) => {
     if (typeof window === "undefined" || window.matchMedia("(min-width: 1024px)").matches) return
     if (view !== "day" && view !== "week") return
+    const target = e.target as HTMLElement | null
+    // Don’t arm week/day swipe when the user is tapping an event — avoids changing the date instead of opening details.
+    if (target?.closest?.("[data-calendar-event]")) return
     const t = e.touches[0]
     if (!t) return
     swipeRef.current = { x: t.clientX, t: Date.now() }
@@ -1039,6 +1020,7 @@ export function CalendarWidgetEnhanced({
                       {dayEvents.slice(0, 3).map((event) => (
                         <div
                           key={event.id}
+                          data-calendar-event
                           role="button"
                           tabIndex={0}
                           onClick={(e) => {
@@ -1059,15 +1041,23 @@ export function CalendarWidgetEnhanced({
                             borderLeftWidth: "3px",
                             color: "#FFFFFF",
                           }}
-                          title="Click for event details"
+                          title="Tap for event details"
                         >
                           <span>{event.title}</span>
                         </div>
                       ))}
                       {dayEvents.length > 3 && (
-                        <div className="text-xs font-medium" style={{ color: "rgb(var(--muted))" }}>
-                          +{dayEvents.length - 3} more
-                        </div>
+                        <button
+                          type="button"
+                          className="w-full rounded px-0.5 py-1 text-left text-xs font-semibold underline-offset-2 hover:underline"
+                          style={{ color: "rgb(var(--accent))" }}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleDayClick(day)
+                          }}
+                        >
+                          +{dayEvents.length - 3} more — view day
+                        </button>
                       )}
                     </div>
                   </div>
@@ -1519,56 +1509,8 @@ export function CalendarWidgetEnhanced({
                 className="flex flex-wrap items-center justify-center gap-2 border-t border-transparent pt-2 sm:border-t-0 sm:pt-0 lg:border-l lg:pl-4 lg:pt-0"
                 style={{ borderColor: "rgb(var(--border))" }}
               >
-                <div className="flex flex-wrap justify-center gap-2 md:hidden">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setView("agenda")}
-                    className={viewPillClass(view === "agenda")}
-                  >
-                    Agenda
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setView("day")}
-                    className={viewPillClass(view === "day")}
-                  >
-                    Day
-                  </Button>
-                </div>
-                <div className="hidden flex-wrap justify-center gap-2 md:flex lg:hidden">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setView("agenda")}
-                    className={viewPillClass(view === "agenda")}
-                  >
-                    Agenda
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setView("day")}
-                    className={viewPillClass(view === "day")}
-                  >
-                    Day
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setView("week")}
-                    className={viewPillClass(view === "week")}
-                  >
-                    Week
-                  </Button>
-                </div>
-                <div className="hidden flex-wrap justify-center gap-2 lg:flex">
+                {/* Day / Week / Month on all breakpoints; Year on lg+; Agenda list view on md down as extra */}
+                <div className="flex flex-wrap justify-center gap-2">
                   <Button
                     type="button"
                     variant="ghost"
@@ -1601,9 +1543,18 @@ export function CalendarWidgetEnhanced({
                     variant="ghost"
                     size="sm"
                     onClick={() => setView("year")}
-                    className={viewPillClass(view === "year")}
+                    className={cn(viewPillClass(view === "year"), "hidden lg:inline-flex")}
                   >
                     Year
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setView("agenda")}
+                    className={cn(viewPillClass(view === "agenda"), "lg:hidden")}
+                  >
+                    Agenda
                   </Button>
                 </div>
                 {canEdit && onCreateEvent && (

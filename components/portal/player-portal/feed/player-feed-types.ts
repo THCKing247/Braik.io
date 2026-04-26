@@ -40,4 +40,6 @@ export type PlayerFeedPost = {
   highlightMeta?: string
   /** Conceptual engagement — wire when API exists */
   reactionSummary?: string
+  /** ISO timestamp for ordering mixed feed items (newer first after pin rules) */
+  createdAtForSort?: string
 }

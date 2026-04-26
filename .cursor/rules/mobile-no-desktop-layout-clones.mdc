@@ -1,0 +1,36 @@
+---
+description: Do not reuse or miniaturize desktop layouts on mobile — mobile-native patterns only
+alwaysApply: true
+---
+
+# Do not reuse desktop layout patterns on mobile
+
+## Intent
+
+On **small viewports** (especially **base** / **`max-lg`**, and the **player portal** phone shell), **do not** clone desktop UX in a shrunken form: cramped multi-column grids, sidebar + detail side-by-side, wide tables scaled down, hover-menus turned into tiny lists, dense “dashboard tiles” in one view.
+
+Mobile should get **purpose-built**, **thumb-friendly** structure—not the same DOM/layout compressed.
+
+## Prefer (mobile-native)
+
+| Desktop-style pattern | Prefer on phone / small screens |
+|------------------------|----------------------------------|
+| Sidebar + main | Bottom or top tabs, stacked sections, sheet/drawer for secondary |
+| Wide data table | Card list, one row per entity, essential fields only |
+| Multi-column form | Single column, full width, stepped flow if needed |
+| Hover dropdown / mega menu | Full-width list, modal, or bottom sheet |
+| 3-column dashboard | One primary scroll; drill-in for more |
+
+## How to implement
+
+- **Mobile-first CSS:** Default (or **`max-lg`**) defines the **simple** layout; **`lg:`** / **`xl:`** **add** columns, sidebars, density—do not rely on squishing the desktop layout below **`lg`**.
+- **Separate structure** is OK when the product requires it (e.g. totally different nav on `lg`); **shrinking** the desktop tree is not.
+
+## Player portal
+
+For **`components/portal/player-portal/**`** and **`app/(free-portal)/player/**`**: keep **bottom navigation + single main column**. Do not introduce desktop-style dual-pane or sticky side rails on **`max-lg`** unless explicitly desktop-only behind **`lg:`** with a **different** mobile structure at base.
+
+## Related rules
+
+- [`viewport-desktop-mobile-tablet.mdc`](mdc:.cursor/rules/viewport-desktop-mobile-tablet.mdc) — desktop changes must **not alter** mobile/tablet structure.
+- [`player-portal-mobile-app-like.mdc`](mdc:.cursor/rules/player-portal-mobile-app-like.mdc) — app-like tap targets and simplicity for the player shell.

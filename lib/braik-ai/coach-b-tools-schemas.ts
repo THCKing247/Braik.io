@@ -6,7 +6,7 @@ import { z } from "zod"
  */
 export const createEventSlotsSchema = z.object({
   title: z.string().min(1).max(500),
-  event_type: z.enum(["practice", "game", "meeting", "other"]),
+  event_type: z.enum(["practice", "game", "film", "meeting", "other"]),
   location: z.string().max(500).optional().nullable(),
   audience: z.enum(["team", "parents", "staff", "all"]).optional(),
   /** e.g. "tomorrow", "today", "Friday" — resolved in code, not by the model as a final timestamp */
@@ -25,7 +25,7 @@ export const createEventResolvedSchema = z.object({
   title: z.string().min(1).max(500),
   start_iso: z.string().min(1),
   end_iso: z.string().min(1),
-  event_type: z.enum(["practice", "game", "meeting", "other"]),
+  event_type: z.enum(["practice", "game", "film", "meeting", "other"]),
   location: z.string().max(500).optional().nullable(),
   audience: z.enum(["team", "parents", "staff", "all"]).optional(),
 })

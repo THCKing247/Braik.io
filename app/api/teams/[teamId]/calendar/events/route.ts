@@ -143,6 +143,7 @@ export async function POST(
       practice: "PRACTICE",
       game: "GAME",
       meeting: "MEETING",
+      film: "FILM",
       follow_up: "CUSTOM",
       other: "CUSTOM",
     }

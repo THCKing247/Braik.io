@@ -3,7 +3,7 @@
 import Image from "next/image"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Calendar, Home, LogOut, MessageSquare, UserRound, Video } from "lucide-react"
+import { Calendar, Home, LogOut, MessageSquare, Shield, UserRound } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { SuspensionBanner } from "@/components/marketing/suspension-banner"
 import { signOut } from "@/lib/auth/client-auth"
@@ -32,26 +32,26 @@ export function PlayerPortalChrome({
   const base = `/player/${encodeURIComponent(accountSegment)}`
   const pathname = usePathname() ?? ""
 
-  /** First tab = primary home screen (`/player/:id`) — team feed + shortcuts. */
+  /** First tab = primary feed screen (`/player/:id`). */
   const items = [
     {
       href: base,
-      label: "Home",
+      label: "Feed",
       icon: Home,
       match: (p: string) => p === base || p === `${base}/`,
     },
+    { href: `${base}/calendar`, label: "Calendar", icon: Calendar, match: (p: string) => p.startsWith(`${base}/calendar`) },
+    { href: `${base}/messages`, label: "Messages", icon: MessageSquare, match: (p: string) => p.startsWith(`${base}/messages`) },
     {
       href: playerFilmHubRoot(accountSegment),
-      label: "Film",
-      icon: Video,
+      label: "Team",
+      icon: Shield,
       match: (p: string) =>
         p.startsWith(`${base}/prep`) ||
         p.startsWith(`${base}/film-room`) ||
         p.startsWith(`${base}/study-guides`) ||
         p.startsWith(`${base}/playbooks`),
     },
-    { href: `${base}/calendar`, label: "Calendar", icon: Calendar, match: (p: string) => p.startsWith(`${base}/calendar`) },
-    { href: `${base}/messages`, label: "Msgs", icon: MessageSquare, match: (p: string) => p.startsWith(`${base}/messages`) },
     { href: `${base}/profile`, label: "Profile", icon: UserRound, match: (p: string) => p.startsWith(`${base}/profile`) },
   ]
 
@@ -84,7 +84,7 @@ export function PlayerPortalChrome({
 
       <nav
         className="fixed bottom-0 left-0 right-0 z-30 border-t border-sky-500/20 bg-[#040a12]/94 px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 shadow-[0_-12px_40px_-18px_rgba(0,0,0,0.72)] backdrop-blur-xl"
-        aria-label="Player portal primary navigation — Home opens the team feed"
+        aria-label="Player portal primary navigation"
       >
         <div className="mx-auto flex max-w-lg items-center justify-between gap-1">
           {items.map(({ href, label, icon: Icon, match }) => {
@@ -104,14 +104,14 @@ export function PlayerPortalChrome({
 
 function playerPortalSectionEyebrow(pathname: string, base: string): string {
   const p = pathname.split("?")[0] ?? pathname
-  if (p === base || p === `${base}/`) return "Home"
-  if (p.startsWith(`${base}/prep`)) return "Film"
+  if (p === base || p === `${base}/`) return "Feed"
+  if (p.startsWith(`${base}/prep`)) return "Team"
   if (p.startsWith(`${base}/calendar`)) return "Calendar"
   if (p.startsWith(`${base}/messages`)) return "Messages"
   if (p.startsWith(`${base}/profile`)) return "Profile"
   if (p.startsWith(`${base}/announcements`)) return "News"
   if (p.startsWith(`${base}/reminders`)) return "Alerts"
-  return "Home"
+  return "Feed"
 }
 
 function PlayerPortalHeaderInner() {

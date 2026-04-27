@@ -1,10 +1,10 @@
 /**
  * Player portal — mobile IA & development loop
  *
- * **Primary nav (5 tabs):** Home · Film hub · Calendar · Messages · Profile.
+ * **Primary nav (5 tabs):** Feed · Calendar · Messages · Team · Profile.
  * Keeps thumb navigation predictable; no extra top-level tabs for Study/Film/Playbooks.
  *
- * **Film hub (`/prep/film`):** Secondary segmented nav — Study → Film library → Playbooks.
+ * **Team hub (`/prep/film`):** Secondary segmented nav — Study → Game Film → Playbooks.
  * - **Study** holds assignments and **quizzes** (StudyGuidesModule); quizzes are not a separate route.
  * - **Film** = team video library (prep / recognition).
  * - **Playbooks** = installs & diagrams (apply what you studied).
@@ -46,10 +46,10 @@ export function playerFilmHubPlaybooksFromPortalBase(portalBase: string): string
   return `${playerFilmHubRootFromPortalBase(portalBase)}/playbooks`
 }
 
-/** Ordered segments for the Film hub UI (Study → Film → Playbooks). */
+/** Ordered segments for the Team tab hub UI (Study → Game Film → Playbooks). */
 export const PLAYER_FILM_HUB_SECTIONS = [
   { key: "study", label: "Study", suffix: "/study" as const },
-  { key: "film", label: "Film", suffix: "" as const },
+  { key: "film", label: "Game Film", suffix: "" as const },
   { key: "playbooks", label: "Playbooks", suffix: "/playbooks" as const },
 ] as const
 

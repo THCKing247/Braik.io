@@ -1,27 +1,72 @@
 "use client"
 
 import Link from "next/link"
+import { useMemo } from "react"
 import { Bell, Calendar, Megaphone, MessageSquare, UserRound } from "lucide-react"
+import { useDashboardBootstrapQuery } from "@/lib/dashboard/dashboard-bootstrap-query"
+import { feedRelativeTime } from "@/lib/portal/feed-relative-time"
 import { useParentPortal } from "@/components/portal/parent-portal/parent-portal-context"
 import { cn } from "@/lib/utils"
+
+type ParentFeedPost = {
+  id: string
+  author: string
+  role: string
+  title: string
+  body: string
+  timeLabel: string
+  label: "Announcement" | "Game Result" | "Team Update"
+  href: string
+}
 
 const tileBase =
   "group relative flex flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-transform active:scale-[0.98] sm:p-5"
 
 export function ParentPortalHome() {
-  const { linkCodeSegment, teamName, parentDisplayName, parentEmail, linkedPlayerFirstName } = useParentPortal()
+  const { linkCodeSegment, teamName, linkedPlayerFirstName, teamId } = useParentPortal()
   const base = `/parent/${encodeURIComponent(linkCodeSegment)}`
+  const dashQ = useDashboardBootstrapQuery(teamId)
+  const athleteHint = linkedPlayerFirstName?.trim() || "your athlete"
 
-  const greet =
-    parentDisplayName?.split(/\s+/)[0]?.trim() ||
-    (parentEmail?.split("@")[0] ? parentEmail.split("@")[0].replace(/\./g, " ") : null) ||
-    "there"
+  const posts = useMemo<ParentFeedPost[]>(() => {
+    const announcementPosts: ParentFeedPost[] = (dashQ.data?.announcements ?? []).map((row) => ({
+      id: `announcement-${row.id}`,
+      author: row.author_name?.trim() || "Coach",
+      role: "Coach",
+      title: row.title,
+      body: row.body,
+      timeLabel: feedRelativeTime(row.created_at),
+      label: "Announcement",
+      href: `${base}/announcements`,
+    }))
 
-  const athleteHint =
-    linkedPlayerFirstName?.trim() ||
-    "your athlete"
+    const staticPosts: ParentFeedPost[] = [
+      {
+        id: "parent-result",
+        author: "Braik Football",
+        role: "Team",
+        title: "Final: Braik 28, Central Eagles 17",
+        body: `Great team win. ${athleteHint} can review game context and upcoming schedule in Calendar.`,
+        timeLabel: "2h ago",
+        label: "Game Result",
+        href: `${base}/calendar`,
+      },
+      {
+        id: "parent-update",
+        author: "Head Coach",
+        role: "Head Coach",
+        title: "Travel packet posted for families",
+        body: "Arrival windows, gate map, and sideline family guidance are available for linked families.",
+        timeLabel: "Yesterday",
+        label: "Team Update",
+        href: `${base}/profile`,
+      },
+    ]
 
-  const tiles: Array<{
+    return [...announcementPosts, ...staticPosts]
+  }, [athleteHint, base, dashQ.data?.announcements])
+
+  const desktopTiles: Array<{
     href: string
     title: string
     subtitle: string
@@ -66,20 +111,43 @@ export function ParentPortalHome() {
   ]
 
   return (
-    <div className="mx-auto w-full max-w-lg space-y-5">
-      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-        <p className="text-xs font-semibold uppercase tracking-widest text-slate-500">Today</p>
-        <h2 className="mt-1 text-2xl font-bold text-slate-900">Hello {greet}</h2>
-        <p className="mt-1 text-sm font-medium text-slate-700">{teamName}</p>
-        <p className="mt-3 text-xs leading-relaxed text-slate-500">
-          Stay up to date on {athleteHint}&apos;s schedule and everything your coaches share with families.
+    <div className="mx-auto w-full max-w-lg space-y-4 pb-4">
+      <section className="rounded-2xl border border-white/10 bg-white/5 px-3.5 py-3 backdrop-blur-md lg:hidden">
+        <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-sky-300/85">Feed</p>
+        <p className="mt-1 text-base font-black text-white">{teamName}</p>
+        <p className="text-xs font-medium text-white/70">
+          Family updates and coach posts relevant to {athleteHint}.
         </p>
       </section>
 
-      <section aria-label="Family portal modules">
+      <ul className="space-y-3 lg:hidden">
+        {posts.map((post) => (
+          <li key={post.id} className="rounded-2xl border border-white/10 bg-white px-4 py-3.5 shadow-[0_8px_28px_-16px_rgba(15,23,42,0.35)]">
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="font-bold text-slate-900">{post.author}</p>
+              <span className="rounded-full bg-slate-900 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
+                {post.role}
+              </span>
+              <span className="rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-sky-900">
+                {post.label}
+              </span>
+            </div>
+            <p className="mt-1 text-xs font-semibold uppercase tracking-wide text-slate-400">{post.timeLabel}</p>
+            <h3 className="mt-2 text-base font-black text-slate-900">{post.title}</h3>
+            <p className="mt-1.5 text-sm leading-relaxed text-slate-600">{post.body}</p>
+            <div className="mt-3 border-t border-slate-100 pt-2.5">
+              <Link href={post.href} prefetch={false} className="text-sm font-semibold text-slate-700 hover:text-slate-900">
+                Details
+              </Link>
+            </div>
+          </li>
+        ))}
+      </ul>
+
+      <section className="hidden lg:block" aria-label="Family portal modules">
         <p className="mb-3 px-1 text-xs font-semibold uppercase tracking-widest text-slate-500">Shortcuts</p>
         <ul className="grid grid-cols-2 gap-3 sm:gap-4">
-          {tiles.map((t) => (
+          {desktopTiles.map((t) => (
             <li key={t.href}>
               <Link href={t.href} prefetch={false} className={cn(tileBase, "min-h-[112px]")}>
                 <div

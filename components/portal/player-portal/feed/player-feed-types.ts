@@ -4,16 +4,11 @@
  */
 
 export type PlayerFeedPostKind =
-  | "announcement"
-  | "image"
-  | "game_day"
+  | "coach_announcement"
+  | "team_update"
+  | "game_result"
+  | "coach_video"
   | "highlight"
-  | "media_clip"
-  | "schedule"
-  | "pinned_reminder"
-  | "playbook_teaser"
-  | "study_teaser"
-  | "motivation"
 
 export type PlayerFeedCta = {
   label: string
@@ -27,6 +22,9 @@ export type PlayerFeedPost = {
   /** Display name — coach staff or "Team" */
   authorLabel: string
   authorSubtitle?: string
+  coachBadgeLabel?: string
+  visibilityLabel?: string
+  announcementBadge?: boolean
   /** Relative time or absolute string for mock */
   timeLabel: string
   title?: string

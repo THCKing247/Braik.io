@@ -10,7 +10,7 @@ import {
 } from "@/lib/player-portal/player-development-routes"
 
 /**
- * Film hub: one app-style segmented control (mobile-first, large tap targets).
+ * Team hub: one app-style segmented control (mobile-first, large tap targets).
  * Study → Film → Playbooks supports learn / quiz → film → installs; coach feedback stays in Messages + Home.
  */
 export function PlayerPortalPrepShell({ children }: { children: React.ReactNode }) {
@@ -21,7 +21,7 @@ export function PlayerPortalPrepShell({ children }: { children: React.ReactNode 
   return (
     <div className="mx-auto w-full max-w-lg lg:max-w-2xl">
       <nav
-        aria-label="Study, film, and playbooks"
+        aria-label="Study, game film, and playbooks"
         aria-description="Study includes quizzes. Use Messages from the bottom bar to reach coaches."
         className="mb-4 rounded-2xl border border-white/15 bg-black/25 p-1 shadow-inner shadow-black/20 backdrop-blur-sm"
       >

@@ -32,13 +32,9 @@ export function FeedPostCard({
   const resolveHref = (href: string) =>
     href.startsWith("/player/") ? href : `${accountBasePath}${href.startsWith("/") ? href : `/${href}`}`
 
-  const showMedia =
-    post.kind !== "motivation" &&
-    post.kind !== "study_teaser" &&
-    post.kind !== "pinned_reminder" &&
-    post.kind !== "announcement"
+  const showMedia = post.kind !== "coach_announcement"
 
-  const emphasis = post.pinned || post.kind === "game_day"
+  const emphasis = post.pinned || post.kind === "game_result"
 
   return (
     <article
@@ -54,6 +50,21 @@ export function FeedPostCard({
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
             <span className="truncate font-bold text-slate-900">{post.authorLabel}</span>
             <FeedKindBadge kind={post.kind} />
+            {post.coachBadgeLabel ? (
+              <span className="rounded-full bg-slate-900 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
+                {post.coachBadgeLabel}
+              </span>
+            ) : null}
+            {post.announcementBadge ? (
+              <span className="rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-sky-900">
+                Announcement
+              </span>
+            ) : null}
+            {post.pinned ? (
+              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-900">
+                Pinned
+              </span>
+            ) : null}
           </div>
           {post.authorSubtitle ? (
             <p className="text-[13px] font-medium text-slate-500">{post.authorSubtitle}</p>
@@ -71,50 +82,46 @@ export function FeedPostCard({
             {post.highlightMeta}
           </p>
         ) : null}
+        {post.visibilityLabel ? (
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{post.visibilityLabel}</p>
+        ) : null}
         {post.body ? (
           <p className="text-[15px] leading-relaxed text-slate-600">{post.body}</p>
         ) : null}
 
-        {(showMedia || post.kind === "pinned_reminder") && (
-          <FeedMediaPlaceholder variant={post.mediaPlaceholder} />
-        )}
+        {showMedia ? <FeedMediaPlaceholder variant={post.mediaPlaceholder} /> : null}
 
         {post.reactionSummary ? (
           <p className="text-sm font-semibold text-slate-500">{post.reactionSummary}</p>
         ) : null}
 
-        {post.cta ? (
-          <Link
-            href={resolveHref(post.cta.href)}
-            prefetch={false}
-            className={cn(
-              "inline-flex w-full items-center justify-center rounded-2xl py-3.5 text-[15px] font-bold text-white shadow-lg shadow-orange-900/30 transition active:scale-[0.98]",
-              braikPlayerChrome.ctaButton
-            )}
+        <div className="flex gap-4 border-t border-slate-100 pt-3">
+          {post.cta ? (
+            <Link
+              href={resolveHref(post.cta.href)}
+              prefetch={false}
+              className="text-sm font-semibold text-slate-700 hover:text-slate-900"
+            >
+              {post.cta.label}
+            </Link>
+          ) : (
+            <span className="text-sm font-semibold text-slate-400">Details</span>
+          )}
+          <button
+            type="button"
+            className="text-sm font-semibold text-orange-600 hover:text-orange-700"
+            aria-label="Reactions coming soon"
           >
-            {post.cta.label}
-          </Link>
-        ) : (
-          post.kind !== "motivation" && (
-            <div className="flex gap-4 border-t border-slate-100 pt-3">
-              <button
-                type="button"
-                className="text-sm font-semibold text-orange-600 hover:text-orange-700"
-                aria-label="React with fire — coming soon"
-              >
-                🔥 Tap in
-              </button>
-              <button
-                type="button"
-                className="text-sm font-semibold text-slate-400"
-                aria-label="Comments coming soon"
-                disabled
-              >
-                Comments soon
-              </button>
-            </div>
-          )
-        )}
+            React
+          </button>
+          <button
+            type="button"
+            className="text-sm font-semibold text-slate-500 hover:text-slate-700"
+            aria-label="Reply coming soon"
+          >
+            Reply
+          </button>
+        </div>
       </div>
     </article>
   )

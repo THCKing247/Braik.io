@@ -20,8 +20,8 @@ import {
 } from "@/components/portal/player-portal/player-highlight-composer"
 
 /**
- * Primary home screen: team feed (announcements, player highlights, sample content) + quick tools.
- * Route: `/player/:accountId` — first bottom tab (Home).
+ * Primary mobile screen: feed-first team social stream.
+ * Route: `/player/:accountId` — first bottom tab (Feed).
  */
 export function PlayerPortalHome() {
   const { accountSegment, teamName, sport, userName, userEmail, teamId } = usePlayerPortal()
@@ -72,15 +72,15 @@ export function PlayerPortalHome() {
     <div className="player-portal-feed-root mx-auto w-full max-w-lg pb-4 lg:max-w-2xl">
       <PlayerTeamHero firstName={firstName} teamName={teamName} sport={sport} basePath={basePath} />
 
-      <div className="mt-6">
+      <div className="mt-6 hidden lg:block">
         <QuickToolsStrip basePath={basePath} />
       </div>
 
-      <div className="mt-6">
+      <div className="mt-4">
         <PlayerHighlightComposer teamId={teamId} />
       </div>
 
-      <div className="mt-8">
+      <div className="mt-6">
         <PlayerFeedList
           posts={feedPosts}
           accountBasePath={basePath}

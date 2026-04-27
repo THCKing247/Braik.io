@@ -8,7 +8,7 @@ export function mapTeamHighlightPostsToFeedPosts(rows: TeamHighlightPostRow[]): 
     id: `highlight-${row.id}`,
     kind: "highlight",
     authorLabel: row.author_name?.trim() || "Teammate",
-    authorSubtitle: "Highlight",
+    authorSubtitle: "Player Highlight",
     timeLabel: feedRelativeTime(row.created_at),
     title: row.title,
     body: row.body || undefined,

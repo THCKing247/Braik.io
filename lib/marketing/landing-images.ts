@@ -13,7 +13,7 @@ export const landingOneSystemPanel = {
 export const braikLogo = {
   webp: "/braik-logo.webp",
   width: 480,
-  height: 320,
+  height: 480,
 } as const
 
 /** Home hero background — intrinsic size of `fog-field.webp` (see `scripts/optimize-landing-images.ts`). */

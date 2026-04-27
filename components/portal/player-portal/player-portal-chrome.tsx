@@ -1,5 +1,6 @@
 "use client"
 
+import Image from "next/image"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { Calendar, Home, LogOut, MessageSquare, UserRound, Video } from "lucide-react"
@@ -9,6 +10,7 @@ import { signOut } from "@/lib/auth/client-auth"
 import { braikPlayerChrome } from "@/components/portal/player-portal/braik-player-visual-tokens"
 import { usePlayerPortal } from "@/components/portal/player-portal/player-portal-context"
 import { playerFilmHubRoot } from "@/lib/player-portal/player-development-routes"
+import { braikLogo } from "@/lib/marketing/landing-images"
 
 function navLinkClass(active: boolean) {
   return cn(
@@ -137,9 +139,13 @@ function PlayerPortalHeaderInner() {
           <span className="hidden sm:inline">Sign out</span>
           <span className="sm:hidden">Out</span>
         </button>
-        <div className="rounded-2xl bg-gradient-to-r from-sky-500 via-amber-400 to-orange-600 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.15em] text-white shadow-lg shadow-orange-900/30">
-          Braik
-        </div>
+        <Image
+          src={braikLogo.webp}
+          alt="Braik"
+          width={braikLogo.width}
+          height={braikLogo.height}
+          className="h-9 w-auto max-w-[120px] object-contain drop-shadow-md"
+        />
       </div>
     </div>
   )

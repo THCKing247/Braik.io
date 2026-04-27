@@ -22,6 +22,7 @@ import {
   teamScopedDashboardHref,
 } from "@/lib/portal/dashboard-path"
 import { LayoutDashboard, LogOut, MessageSquare, Sparkles } from "lucide-react"
+import { braikLogo } from "@/lib/marketing/landing-images"
 
 const SIDEBAR_WIDTH = 240
 
@@ -233,7 +234,15 @@ export function DashboardSidebar({ teams }: { teams: Team[] }) {
           <LogOut className="h-4 w-4" aria-hidden />
           Sign out
         </button>
-        <p className="text-center text-xs text-slate-600">Braik</p>
+        <div className="flex justify-center">
+          <Image
+            src={braikLogo.webp}
+            alt="Braik"
+            width={braikLogo.width}
+            height={braikLogo.height}
+            className="h-5 w-auto object-contain opacity-50"
+          />
+        </div>
       </div>
     </div>
   )

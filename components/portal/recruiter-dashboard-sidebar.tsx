@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils"
 import { portalPrefixedDashboardHref, stripDashboardPortalPrefix } from "@/lib/portal/dashboard-path"
 import { ExternalLink, LayoutDashboard, LifeBuoy, MessageSquare, User } from "lucide-react"
 import { usePathname } from "next/navigation"
+import { braikLogo } from "@/lib/marketing/landing-images"
 
 function SidebarSectionLabel({ children }: { children: React.ReactNode }) {
   return (
@@ -146,10 +147,10 @@ export function RecruiterDashboardSidebar() {
         <div className="flex flex-1 flex-col justify-end px-4 pb-4 pt-6">
           <div className="flex justify-center opacity-90">
             <Image
-              src="/braik-logo.webp"
+              src={braikLogo.webp}
               alt=""
-              width={320}
-              height={160}
+              width={braikLogo.width}
+              height={braikLogo.height}
               className="h-10 w-auto object-contain opacity-80"
             />
           </div>

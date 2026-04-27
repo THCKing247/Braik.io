@@ -1,11 +1,13 @@
 "use client"
 
+import Image from "next/image"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { Calendar, Home, Megaphone, MessageSquare, UserRound } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { SuspensionBanner } from "@/components/marketing/suspension-banner"
 import { useParentPortal } from "@/components/portal/parent-portal/parent-portal-context"
+import { braikLogo } from "@/lib/marketing/landing-images"
 
 function navLinkClass(active: boolean) {
   return cn(
@@ -102,8 +104,14 @@ function ParentPortalHeaderInner() {
           {sub ? <span className="text-slate-500">{sub}</span> : null}
         </div>
       </div>
-      <div className="hidden shrink-0 rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-700 sm:block">
-        Braik
+      <div className="hidden shrink-0 sm:block">
+        <Image
+          src={braikLogo.webp}
+          alt="Braik"
+          width={braikLogo.width}
+          height={braikLogo.height}
+          className="h-8 w-auto max-w-[100px] object-contain opacity-90"
+        />
       </div>
     </div>
   )

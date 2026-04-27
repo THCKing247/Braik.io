@@ -1,4 +1,5 @@
 import Image from "next/image"
+import { braikLogo } from "@/lib/marketing/landing-images"
 
 interface LogoWatermarkProps {
   position?: "top-left" | "top-right" | "bottom-left" | "bottom-right"
@@ -20,10 +21,10 @@ export function LogoWatermark({ position = "top-right", className = "" }: LogoWa
       style={{ zIndex: 1 }}
     >
       <Image
-        src="/braik-logo.webp"
+        src={braikLogo.webp}
         alt=""
-        width={800}
-        height={400}
+        width={braikLogo.width}
+        height={braikLogo.height}
         className="w-auto h-auto"
         style={{
           maxWidth: "min(40vw, 600px)",

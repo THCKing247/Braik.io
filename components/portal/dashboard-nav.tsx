@@ -13,6 +13,7 @@ import {
   portalPrefixedDashboardHref,
   teamScopedDashboardHref,
 } from "@/lib/portal/dashboard-path"
+import { braikLogo } from "@/lib/marketing/landing-images"
 import { CANONICAL_DASHBOARD_TEAM_PATH_RE } from "@/lib/navigation/organization-routes"
 
 interface Team {
@@ -144,10 +145,10 @@ export function DashboardNav({ teams }: { teams: Team[] }) {
               aria-label="Braik - Home"
             >
               <Image
-                src="/braik-logo.webp"
+                src={braikLogo.webp}
                 alt="Braik"
-                width={720}
-                height={360}
+                width={braikLogo.width}
+                height={braikLogo.height}
                 className="h-[4.5rem] w-auto object-contain object-center"
                 priority
               />
@@ -187,10 +188,10 @@ export function DashboardNav({ teams }: { teams: Team[] }) {
                 aria-label="Braik - Return to dashboard"
               >
                 <Image
-                  src="/braik-logo.webp"
+                  src={braikLogo.webp}
                   alt="Braik Logo"
-                  width={720}
-                  height={360}
+                  width={braikLogo.width}
+                  height={braikLogo.height}
                   className="h-[4.5rem] w-auto max-w-[min(240px,calc(100vw-28rem))] object-contain object-left"
                   priority
                 />

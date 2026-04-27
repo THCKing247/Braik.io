@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button"
 import { useAdAppBootstrapOptional } from "@/components/portal/ad-app-bootstrap-context"
 import type { AdPortalTabVisibility } from "@/lib/enforcement/football-ad-access"
 import { AppLoader } from "@/components/ui/app-loader"
+import { braikLogo } from "@/lib/marketing/landing-images"
 
 const fullOwnerNav: {
   href: string
@@ -82,10 +83,10 @@ export function AdNav({
               className="flex items-center gap-2"
             >
               <Image
-                src="/braik-logo.webp"
+                src={braikLogo.webp}
                 alt="Braik"
-                width={480}
-                height={320}
+                width={braikLogo.width}
+                height={braikLogo.height}
                 className="h-[4.5rem] w-auto object-contain"
                 sizes="180px"
               />

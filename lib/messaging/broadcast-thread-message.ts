@@ -10,8 +10,8 @@ export type BroadcastMessagePayload = {
 }
 
 /**
- * Push `new_message` on Realtime topic `messages:${threadId}` via Supabase JS broadcast send (HTTP when not socket-joined).
- * Uses the service-role admin client — does not call Postgres `realtime.broadcast` RPC.
+ * Push `new_message` on Realtime topic `messages:${threadId}` using the JS client's HTTP broadcast path
+ * (no channel subscribe). Uses the service-role admin client only — never `.rpc()` from this module.
  */
 export async function broadcastThreadNewMessage(threadId: string, payload: BroadcastMessagePayload): Promise<void> {
   const supabaseAdmin = getSupabaseAdminClient()

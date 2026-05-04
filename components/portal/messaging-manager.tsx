@@ -419,9 +419,13 @@ export function MessagingManager({
     selectedThreadIdRef.current = selectedThread?.id ?? null
   }, [selectedThread?.id])
 
-  // TODO: remove — temporary dev-only Realtime channel monitor (pg_stat: list_changes volume / leak check). Do not ship as permanent logging.
+  // TODO: remove — temporary Realtime channel monitor (dev or `?debugRealtime=1` on deployed builds). Do not ship as permanent logging.
   useEffect(() => {
-    if (process.env.NODE_ENV !== "development") return
+    const shouldDebugRealtime =
+      process.env.NODE_ENV === "development" ||
+      window.location.search.includes("debugRealtime=1")
+
+    if (!shouldDebugRealtime) return
 
     const interval = window.setInterval(() => {
       const channels = supabase.getChannels()

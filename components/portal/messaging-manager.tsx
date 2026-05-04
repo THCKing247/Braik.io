@@ -34,6 +34,7 @@ import {
   wireThreadListItemToThread,
   type MessageThreadWireItem,
 } from "@/lib/messaging/thread-list-wire"
+import type { RealtimeChannel } from "@supabase/supabase-js"
 import { supabase } from "@/lib/supabaseClient"
 import { cn } from "@/lib/utils"
 import {
@@ -112,6 +113,18 @@ function messageDaySeparatorLabel(d: Date | string) {
   if (isToday(date)) return "Today"
   if (isYesterday(date)) return "Yesterday"
   return format(date, "MMMM d, yyyy")
+}
+
+/** Dev-only: inspect Realtime channel leaks / duplicate topics (`supabase.getChannels()`). */
+function logMessagingRealtimeChannels(context: string) {
+  if (process.env.NODE_ENV !== "development") return
+  try {
+    const channels = supabase.getChannels()
+    const topics = channels.map((c) => (c as { topic?: string }).topic ?? "?")
+    console.info(`[messaging:realtime] ${context}`, { count: channels.length, topics })
+  } catch {
+    /* ignore */
+  }
 }
 
 /** Inbox list from API or bootstrap: wire items use `threadId`; legacy formatted threads use `id`. */
@@ -290,7 +303,9 @@ export function MessagingManager({
   const [searchQuery, setSearchQuery] = useState("")
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const messagesContainerRef = useRef<HTMLDivElement>(null)
-  const realtimeSubscriptionRef = useRef<any>(null)
+  /** Latest `loadMessages` invocation; stale completions must not apply state or attach Realtime. */
+  const messagesLoadSerialRef = useRef(0)
+  const realtimeChannelRef = useRef<RealtimeChannel | null>(null)
   const optimisticMessageIdRef = useRef<string | null>(null)
   const isRefreshingRef = useRef<boolean>(false)
   const [refreshing, setRefreshing] = useState(false)
@@ -404,6 +419,22 @@ export function MessagingManager({
     selectedThreadIdRef.current = selectedThread?.id ?? null
   }, [selectedThread?.id])
 
+  // TODO: remove — temporary dev-only Realtime channel monitor (pg_stat: list_changes volume / leak check). Do not ship as permanent logging.
+  useEffect(() => {
+    if (process.env.NODE_ENV !== "development") return
+
+    const interval = window.setInterval(() => {
+      const channels = supabase.getChannels()
+      console.log("[messaging:realtime] ACTIVE CHANNELS", {
+        count: channels.length,
+        topics: channels.map((c) => (c as { topic?: string }).topic ?? "?"),
+        selectedThreadId: selectedThreadIdRef.current,
+      })
+    }, 3000)
+
+    return () => window.clearInterval(interval)
+  }, [])
+
   // On canonical dashboard or free-portal messages routes, the open thread is driven by the path (or [messageId] param), not `?threadId=`.
   useEffect(() => {
     const hasCanon = Boolean(canonicalTeamParts)
@@ -493,16 +524,20 @@ export function MessagingManager({
       setUnreadCount(0)
       logThreadMessageBanner("clear", "no_thread_selected", {})
       // Cleanup subscription when no thread selected
-      if (realtimeSubscriptionRef.current) {
-        realtimeSubscriptionRef.current.unsubscribe()
-        realtimeSubscriptionRef.current = null
+      if (realtimeChannelRef.current) {
+        const ch = realtimeChannelRef.current
+        realtimeChannelRef.current = null
+        void supabase.removeChannel(ch)
+        logMessagingRealtimeChannels("after remove (no thread)")
       }
     }
-    // Cleanup: unsubscribe from previous thread's realtime
+    // Cleanup: remove previous thread's Realtime channel (avoids orphan channels on reconnect)
     return () => {
-      if (realtimeSubscriptionRef.current) {
-        realtimeSubscriptionRef.current.unsubscribe()
-        realtimeSubscriptionRef.current = null
+      if (realtimeChannelRef.current) {
+        const ch = realtimeChannelRef.current
+        realtimeChannelRef.current = null
+        void supabase.removeChannel(ch)
+        logMessagingRealtimeChannels("after remove (thread effect cleanup)")
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1000,6 +1035,7 @@ export function MessagingManager({
   }
 
   const loadMessages = async (threadId: string, showLoading = true) => {
+    const loadSerial = ++messagesLoadSerialRef.current
     if (showLoading) {
       setHasMoreOlder(false)
       setMessagesLoading(true)
@@ -1023,6 +1059,19 @@ export function MessagingManager({
         throw new Error(errorData.error || "Failed to load messages")
       }
       const data = await response.json()
+      if (loadSerial !== messagesLoadSerialRef.current) {
+        if (showLoading) {
+          const rb = optimisticReadRef.current
+          if (rb?.threadId === threadId) {
+            setThreads((prev) =>
+              prev.map((t) => (t.id === threadId ? { ...t, unreadCount: rb.prevUnread } : t))
+            )
+            messagingUnread?.applyThreadUnreadDelta(rb.prevUnread)
+            optimisticReadRef.current = null
+          }
+        }
+        return null
+      }
       if (typeof performance !== "undefined") {
         console.info("[messaging:thread-open] GET thread detail", {
           threadId,
@@ -1077,12 +1126,15 @@ export function MessagingManager({
       }
 
       // Setup realtime subscription for this thread (only on initial load)
-      if (showLoading) {
+      if (showLoading && selectedThreadIdRef.current === threadId) {
         setupRealtimeSubscription(threadId)
       }
 
       return { messages: sortedMessages as Message[], raw: data }
     } catch (error: unknown) {
+      if (loadSerial !== messagesLoadSerialRef.current) {
+        return null
+      }
       console.error("Error loading messages:", error)
       if (showLoading) {
         const rb = optimisticReadRef.current
@@ -1097,7 +1149,7 @@ export function MessagingManager({
       setError(error instanceof Error ? error.message : "Failed to load messages")
       return null
     } finally {
-      if (showLoading) {
+      if (showLoading && loadSerial === messagesLoadSerialRef.current) {
         setMessagesLoading(false)
       }
     }
@@ -1233,14 +1285,13 @@ export function MessagingManager({
   }
 
   const setupRealtimeSubscription = (threadId: string) => {
-    // Cleanup existing subscription
-    if (realtimeSubscriptionRef.current) {
-      realtimeSubscriptionRef.current.unsubscribe()
-      realtimeSubscriptionRef.current = null
+    if (realtimeChannelRef.current) {
+      const prev = realtimeChannelRef.current
+      realtimeChannelRef.current = null
+      void supabase.removeChannel(prev)
     }
 
-    // Subscribe to new messages for this thread
-    const subscription = supabase
+    const channel = supabase
       .channel(`messages:${threadId}`)
       .on(
         'postgres_changes',
@@ -1248,9 +1299,11 @@ export function MessagingManager({
           event: 'INSERT',
           schema: 'public',
           table: 'messages',
-          filter: `thread_id=eq.${threadId}`
+          filter: `thread_id=eq.${threadId}`,
         },
         async (payload) => {
+          if (selectedThreadIdRef.current !== threadId) return
+
           const newMessageId = payload.new.id as string
 
           if (optimisticMessageIdRef.current === newMessageId) {
@@ -1315,7 +1368,8 @@ export function MessagingManager({
       )
       .subscribe()
 
-    realtimeSubscriptionRef.current = subscription
+    realtimeChannelRef.current = channel
+    logMessagingRealtimeChannels(`subscribed messages:${threadId}`)
   }
 
   useEffect(() => {

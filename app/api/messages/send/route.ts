@@ -9,6 +9,7 @@ import {
   ensureUserThreadParticipant,
   repairThreadParticipantsFromThreadAndMessages,
 } from "@/lib/messaging/thread-participants"
+import { broadcastThreadNewMessage } from "@/lib/messaging/broadcast-thread-message"
 
 /**
  * POST /api/messages/send
@@ -174,6 +175,14 @@ export async function POST(request: Request) {
     }
 
     console.log("[POST /api/messages/send] Message created successfully:", message.id)
+
+    void broadcastThreadNewMessage(supabase, {
+      id: message.id,
+      thread_id: threadId,
+      sender_id: message.sender_id,
+      content: message.content,
+      created_at: message.created_at,
+    }).catch((e) => console.error("[POST /api/messages/send] realtime broadcast failed:", e))
 
     trackProductEventServer({
       eventName: BRAIK_EVENTS.messaging.message_sent,

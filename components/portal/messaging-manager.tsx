@@ -1298,26 +1298,25 @@ export function MessagingManager({
     const channel = supabase
       .channel(`messages:${threadId}`)
       .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'messages',
-          filter: `thread_id=eq.${threadId}`,
-        },
-        async (payload) => {
+        "broadcast",
+        { event: "new_message" },
+        async (evt) => {
           if (selectedThreadIdRef.current !== threadId) return
 
-          const newMessageId = payload.new.id as string
+          const row = (evt as { payload?: Record<string, unknown> }).payload
+          if (!row || typeof row !== "object") return
+
+          const newMessageId = row.id as string | undefined
+          const senderId = row.sender_id as string | undefined
+          const content = row.content as string | undefined
+          const createdAt = row.created_at as string | undefined
+
+          if (!newMessageId || !senderId || content === undefined || !createdAt) return
 
           if (optimisticMessageIdRef.current === newMessageId) {
             optimisticMessageIdRef.current = null
             return
           }
-
-          const senderId = payload.new.sender_id as string
-          const content = payload.new.content as string
-          const createdAt = payload.new.created_at as string
 
           {
             const c = messagesContainerRef.current

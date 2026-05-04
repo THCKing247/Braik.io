@@ -1,35 +1,46 @@
-import type { SupabaseClient } from "@supabase/supabase-js"
+import { getSupabaseAdminClient } from "@/lib/supabase/supabase-admin"
 
-export type NewMessageBroadcastPayload = {
+export type BroadcastMessagePayload = {
   id: string
   thread_id: string
   sender_id: string
-  content: string
+  content: string | null
   created_at: string
+  [key: string]: unknown
 }
 
 /**
- * Publish a Realtime broadcast on topic `messages:${threadId}` so clients subscribed with
- * `.on('broadcast', { event: 'new_message' }, ...)` receive updates without postgres_changes.
- *
- * Uses broadcast REST-style send (no server `.subscribe()`), then removes the ephemeral channel.
+ * Push `new_message` on Realtime topic `messages:${threadId}` via Supabase JS broadcast send (HTTP when not socket-joined).
+ * Uses the service-role admin client — does not call Postgres `realtime.broadcast` RPC.
  */
-export async function broadcastThreadNewMessage(
-  supabase: SupabaseClient,
-  payload: NewMessageBroadcastPayload
-): Promise<void> {
-  const topic = `messages:${payload.thread_id}`
-  const channel = supabase.channel(topic)
+export async function broadcastThreadNewMessage(threadId: string, payload: BroadcastMessagePayload): Promise<void> {
+  const supabaseAdmin = getSupabaseAdminClient()
+  if (!supabaseAdmin) {
+    console.warn("[messages:broadcast] skipped — Supabase admin client not configured")
+    return
+  }
+
+  const channel = supabaseAdmin.channel(`messages:${threadId}`)
+
   try {
-    const status = await channel.send({
+    const result = await channel.send({
       type: "broadcast",
       event: "new_message",
       payload,
     })
-    if (status !== "ok") {
-      throw new Error(`realtime broadcast send failed: ${status}`)
+
+    if (result !== "ok") {
+      console.warn("[messages:broadcast] send returned non-ok", {
+        threadId,
+        result,
+      })
     }
+  } catch (error) {
+    console.error("[messages:broadcast] failed", {
+      threadId,
+      error,
+    })
   } finally {
-    await supabase.removeChannel(channel)
+    await supabaseAdmin.removeChannel(channel)
   }
 }

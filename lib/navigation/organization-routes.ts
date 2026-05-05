@@ -147,23 +147,47 @@ function sortByCreationThenId<T extends { id: string; created_at?: string | null
   })
 }
 
+async function resolveShortOrgIdsForOrganizationPortalUuidsLegacy(
+  supabase: SupabaseClient,
+  unique: string[]
+): Promise<Map<string, string | null>> {
+  const out = new Map<string, string | null>()
+  const rows = sortByCreationThenId(await fetchAllOrganizationPortals(supabase))
+  const indexById = new Map(rows.map((r, i) => [r.id, i]))
+  for (const id of unique) {
+    const idx = indexById.get(id)
+    out.set(id, idx !== undefined ? String(idx + 1) : null)
+  }
+  return out
+}
+
 /**
- * Resolve dashboard short org segments for many athletic_department IDs in one `athletic_departments` fetch.
- * (Calling {@link resolveShortOrgIdForOrganizationPortalUuid} per portal repeats the full table read.)
+ * Resolve dashboard short org segments for many athletic_department IDs.
+ * Prefer RPC {@link short_org_ordinals_for_athletic_department_ids} (single indexed query); legacy loads full table.
  */
 export async function resolveShortOrgIdsForOrganizationPortalUuids(
   supabase: SupabaseClient,
   organizationPortalUuids: string[]
 ): Promise<Map<string, string | null>> {
   const unique = [...new Set(organizationPortalUuids.filter(Boolean))]
-  const out = new Map<string, string | null>()
-  if (unique.length === 0) return out
+  if (unique.length === 0) return new Map()
 
-  const rows = sortByCreationThenId(await fetchAllOrganizationPortals(supabase))
-  const indexById = new Map(rows.map((r, i) => [r.id, i]))
+  const { data, error } = await supabase.rpc("short_org_ordinals_for_athletic_department_ids", {
+    p_ids: unique,
+  })
+
+  if (error || data == null) {
+    return resolveShortOrgIdsForOrganizationPortalUuidsLegacy(supabase, unique)
+  }
+
+  const out = new Map<string, string | null>()
   for (const id of unique) {
-    const idx = indexById.get(id)
-    out.set(id, idx !== undefined ? String(idx + 1) : null)
+    out.set(id, null)
+  }
+  for (const row of data as Array<{ id: string; ordinal: number | string }>) {
+    if (row?.id != null && row.ordinal != null) {
+      out.set(row.id, String(row.ordinal))
+    }
   }
   return out
 }

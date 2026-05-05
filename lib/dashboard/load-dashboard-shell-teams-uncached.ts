@@ -1,5 +1,7 @@
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { resolveShortOrgIdsForOrganizationPortalUuids } from "@/lib/navigation/organization-routes"
+import { braikPerfServerEnabled } from "@/lib/perf/braik-perf-config"
+import { perfLogServer } from "@/lib/perf/braik-perf-server"
 
 export type DashboardShellTeam = {
   id: string
@@ -29,6 +31,15 @@ export async function loadDashboardShellTeamsUncached(
 ): Promise<DashboardShellTeam[]> {
   const supabase = getSupabaseServer()
 
+  const logPhase = (phase: string, started: number, extra?: Record<string, unknown>) => {
+    if (!braikPerfServerEnabled()) return
+    perfLogServer(`dashboard.shell.teams.${phase}`, {
+      ms: Math.round(performance.now() - started),
+      ...extra,
+    })
+  }
+
+  let phaseStart = performance.now()
   const [membersRes, profileRes] = await Promise.all([
     supabase
       .from("team_members")
@@ -39,6 +50,7 @@ export async function loadDashboardShellTeamsUncached(
       ? supabase.from("profiles").select("team_id").eq("id", effectiveUserId).maybeSingle()
       : Promise.resolve({ data: null as { team_id?: string | null } | null }),
   ])
+  logPhase("members_profile", phaseStart)
 
   const membershipRows = membersRes.data
   const profileTeamId = isImpersonating ? profileRes.data?.team_id : undefined
@@ -54,6 +66,7 @@ export async function loadDashboardShellTeamsUncached(
   }
 
   if (teamIds.length === 0) {
+    phaseStart = performance.now()
     const [hcRes, createdRes] = await Promise.all([
       supabase.from("teams").select("id").eq("head_coach_user_id", effectiveUserId),
       supabase.from("teams").select("id").eq("created_by", effectiveUserId),
@@ -65,6 +78,7 @@ export async function loadDashboardShellTeamsUncached(
     } else if (createdTeams?.length) {
       teamIds = createdTeams.map((t) => t.id)
     }
+    logPhase("empty_membership_fallback", phaseStart)
   }
 
   if (teamIds.length === 0 && sessionTeamId && effectiveUserId === sessionUserId) {
@@ -73,6 +87,7 @@ export async function loadDashboardShellTeamsUncached(
 
   if (teamIds.length === 0) return []
 
+  phaseStart = performance.now()
   const { data: teamsData } = await supabase
     .from("teams")
     .select("id, name, created_at, athletic_department_id, program_id, team_status")
@@ -86,6 +101,11 @@ export async function loadDashboardShellTeamsUncached(
   const { data: organizations } = organizationIds.length
     ? await supabase.from("organizations").select("id, athletic_department_id").in("id", organizationIds)
     : { data: [] as { id: string; athletic_department_id: string | null }[] }
+  logPhase("teams_programs_orgs", phaseStart, {
+    teamRows: (teamsData ?? []).length,
+    programRows: (programs ?? []).length,
+    orgRows: (organizations ?? []).length,
+  })
 
   const programToOrg = new Map((programs ?? []).map((p) => [p.id, p.organization_id ?? null]))
   const orgToPortal = new Map((organizations ?? []).map((o) => [o.id, o.athletic_department_id ?? null]))
@@ -120,10 +140,12 @@ export async function loadDashboardShellTeamsUncached(
       })
   }
   const portalKeys = [...byPortal.keys()]
+  phaseStart = performance.now()
   const shortOrgBatch =
     portalKeys.length > 0
       ? await resolveShortOrgIdsForOrganizationPortalUuids(supabase, portalKeys)
       : new Map<string, string | null>()
+  logPhase("short_org_ids", phaseStart, { portalCount: portalKeys.length })
   const shortOrgByPortal = new Map<string, string | null>()
   for (const portalId of portalKeys) {
     shortOrgByPortal.set(portalId, shortOrgBatch.get(portalId) ?? null)

@@ -126,32 +126,41 @@ export async function GET(request: Request) {
     const supabase = getSupabaseServer()
     let msPortalKind = 0
     let msTeams = 0
-    const [portalKind, teams] = await Promise.all([
-      (async () => {
-        const a = performance.now()
-        const kind = await resolveBraikPortalKind({
-          supabase,
-          userId: shellUser.id,
-          profileRoleUpper: userRole ?? "USER",
-        })
-        msPortalKind = Math.round(performance.now() - a)
-        return kind
-      })(),
-      (async () => {
-        const a = performance.now()
-        const list = await loadDashboardShellTeamsUncached(
-          effectiveUserId,
-          shellUser.id,
-          shellUser.teamId,
-          isImpersonating
-        )
-        msTeams = Math.round(performance.now() - a)
-        return list
-      })(),
-    ])
-    const tPortalHome = performance.now()
-    const portalHome = await resolvePortalHomeForUser(supabase, shellUser.id, portalKind)
-    const msPortalHome = Math.round(performance.now() - tPortalHome)
+    let msPortalHome = 0
+
+    const teamsPromise = (async () => {
+      const a = performance.now()
+      const list = await loadDashboardShellTeamsUncached(
+        effectiveUserId,
+        shellUser.id,
+        shellUser.teamId,
+        isImpersonating
+      )
+      msTeams = Math.round(performance.now() - a)
+      return list
+    })()
+
+    const portalKindPromise = (async () => {
+      const a = performance.now()
+      const kind = await resolveBraikPortalKind({
+        supabase,
+        userId: shellUser.id,
+        profileRoleUpper: userRole ?? "USER",
+      })
+      msPortalKind = Math.round(performance.now() - a)
+      return kind
+    })()
+
+    const portalKind = await portalKindPromise
+
+    const portalHomePromise = (async () => {
+      const a = performance.now()
+      const home = await resolvePortalHomeForUser(supabase, shellUser.id, portalKind)
+      msPortalHome = Math.round(performance.now() - a)
+      return home
+    })()
+
+    const [teams, portalHome] = await Promise.all([teamsPromise, portalHomePromise])
     const { defaultPath: resolvedDefaultPath, playerAccountSegment, parentPortalSegment } = portalHome
     const userForShell: SessionUser = {
       ...shellUser,

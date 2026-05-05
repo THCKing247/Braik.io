@@ -5,6 +5,8 @@ import {
   getParentPortalSegmentForUser,
   getPlayerAccountSegmentForUser,
 } from "@/lib/portal/resolve-free-portal-segments"
+import { braikPerfServerEnabled } from "@/lib/perf/braik-perf-config"
+import { perfLogServer } from "@/lib/perf/braik-perf-server"
 
 export type ResolvedPortalHome = {
   defaultPath: string
@@ -20,10 +22,17 @@ export async function resolvePortalHomeForUser(
   userId: string,
   portalKind: BraikPortalKind
 ): Promise<ResolvedPortalHome> {
+  const tSeg = performance.now()
   const [playerAccountSegment, parentPortalSegment] = await Promise.all([
     portalKind === "player" ? getPlayerAccountSegmentForUser(supabase, userId) : Promise.resolve(null),
     portalKind === "parent" ? getParentPortalSegmentForUser(supabase, userId) : Promise.resolve(null),
   ])
+  if (braikPerfServerEnabled()) {
+    perfLogServer("dashboard.shell.portal_home.segments", {
+      ms: Math.round(performance.now() - tSeg),
+      portalKind,
+    })
+  }
 
   let defaultPath = defaultDashboardEntryForPortal(portalKind)
   if (portalKind === "player" && playerAccountSegment) {

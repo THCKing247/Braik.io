@@ -15,7 +15,7 @@ import type { TeamRow } from "@/components/portal/ad/ad-teams-table"
 
 /**
  * Teams page: initial rows come from the server component (first paint).
- * React Query keeps the same cache key as GET /api/ad/pages/teams-table for background refresh.
+ * React Query keeps the same cache key as GET /api/ad/pages/teams-table for explicit invalidation.
  */
 export function AdTeamsPageLoader({ initialTeams }: { initialTeams: TeamRow[] }) {
   const router = useRouter()
@@ -36,7 +36,9 @@ export function AdTeamsPageLoader({ initialTeams }: { initialTeams: TeamRow[] })
     gcTime: AD_TEAMS_TABLE_GC_MS,
     placeholderData: (previousData) => previousData,
     retry: 1,
+    refetchOnMount: false,
     refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
   })
 
   const teamsData = teamsQ.data ?? initialTeams

@@ -15,7 +15,7 @@ export class DashboardShellUnauthorizedError extends Error {
  */
 export const BRAIK_DASHBOARD_SHELL_QUERY_KEY = ["braik-dashboard-shell"] as const
 
-const SHELL_STALE_MS = 2 * 60 * 1000
+const SHELL_STALE_MS = 10 * 60 * 1000
 
 async function fetchDashboardShell(): Promise<DashboardShellPayload> {
   const t0 = typeof performance !== "undefined" ? performance.now() : 0

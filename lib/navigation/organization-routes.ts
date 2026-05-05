@@ -177,8 +177,17 @@ export async function resolveShortOrgIdsForOrganizationPortalUuids(
   })
 
   if (error || data == null) {
+    console.warn("short_org_ids: FALLBACK path used", {
+      count: unique.length,
+      error: error?.message ?? null,
+    })
     return resolveShortOrgIdsForOrganizationPortalUuidsLegacy(supabase, unique)
   }
+
+  console.log("short_org_ids: using RPC path", {
+    count: unique.length,
+    rows: Array.isArray(data) ? data.length : 0,
+  })
 
   const out = new Map<string, string | null>()
   for (const id of unique) {

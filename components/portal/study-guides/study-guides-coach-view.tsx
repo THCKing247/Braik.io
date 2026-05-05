@@ -1,6 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useState } from "react"
+import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { PortalUnderlineTabs } from "@/components/portal/portal-underline-tabs"
 import { PortalStandardPageHeader, PortalStandardPageRoot } from "@/components/portal/portal-standard-page"
 import { Button } from "@/components/ui/button"
@@ -32,21 +33,29 @@ const COACH_TABS: { id: CoachTab; label: string }[] = [
 ]
 
 export function StudyGuidesCoachView({ teamId }: { teamId: string }) {
+  const queryClient = useQueryClient()
   const [tab, setTab] = useState<CoachTab>("assignments")
-  const [assignments, setAssignments] = useState<CoachAssignmentSummary[]>([])
   const [packs, setPacks] = useState<{ id: string; title: string; description: string | null; items: unknown[] }[]>([])
   const [packsLoaded, setPacksLoaded] = useState(false)
-  const [assignmentsLoading, setAssignmentsLoading] = useState(true)
   const [builderOpen, setBuilderOpen] = useState(false)
   const [detailId, setDetailId] = useState<string | null>(null)
 
   const base = `/api/teams/${encodeURIComponent(teamId)}/study`
 
-  const loadAssignments = useCallback(async () => {
-    const res = await fetch(`${base}/assignments`, { credentials: "same-origin" })
-    const data = res.ok ? await res.json() : { assignments: [] }
-    setAssignments(data.assignments ?? [])
-  }, [base])
+  const assignmentsQuery = useQuery({
+    queryKey: ["study", "assignments", teamId],
+    queryFn: async () => {
+      const res = await fetch(`${base}/assignments`, { credentials: "same-origin" })
+      const data = res.ok ? await res.json() : { assignments: [] }
+      return (data.assignments ?? []) as CoachAssignmentSummary[]
+    },
+    enabled: Boolean(teamId),
+    staleTime: 60_000,
+    gcTime: 5 * 60_000,
+  })
+
+  const assignments = assignmentsQuery.data ?? []
+  const assignmentsLoading = assignmentsQuery.isPending
 
   const loadPacks = useCallback(async () => {
     const res = await fetch(`${base}/packs`, { credentials: "same-origin" })
@@ -54,17 +63,6 @@ export function StudyGuidesCoachView({ teamId }: { teamId: string }) {
     setPacks(data.packs ?? [])
     setPacksLoaded(true)
   }, [base])
-
-  useEffect(() => {
-    let cancelled = false
-    setAssignmentsLoading(true)
-    loadAssignments().finally(() => {
-      if (!cancelled) setAssignmentsLoading(false)
-    })
-    return () => {
-      cancelled = true
-    }
-  }, [loadAssignments])
 
   useEffect(() => {
     if (tab !== "library" || packsLoaded) return
@@ -219,7 +217,7 @@ export function StudyGuidesCoachView({ teamId }: { teamId: string }) {
         onClose={() => setBuilderOpen(false)}
         onCreated={async () => {
           setBuilderOpen(false)
-          await loadAssignments()
+          await queryClient.invalidateQueries({ queryKey: ["study", "assignments", teamId] })
         }}
       />
 
@@ -228,7 +226,9 @@ export function StudyGuidesCoachView({ teamId }: { teamId: string }) {
         teamId={teamId}
         assignmentId={detailId}
         onClose={() => setDetailId(null)}
-        onUpdated={loadAssignments}
+        onUpdated={() =>
+          queryClient.invalidateQueries({ queryKey: ["study", "assignments", teamId] })
+        }
       />
     </PortalStandardPageRoot>
   )
@@ -245,7 +245,7 @@ function CoachAssignmentDetailDialog({
   teamId: string
   assignmentId: string | null
   onClose: () => void
-  onUpdated: () => Promise<void>
+  onUpdated: () => void | Promise<void>
 }) {
   const [sub, setSub] = useState<"overview" | "results">("overview")
   const [detail, setDetail] = useState<{
@@ -300,7 +300,7 @@ function CoachAssignmentDetailDialog({
       alert("Update failed")
       return
     }
-    await onUpdated()
+    await Promise.resolve(onUpdated())
     setDetail((prev) =>
       prev
         ? {

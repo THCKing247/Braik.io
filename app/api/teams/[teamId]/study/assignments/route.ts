@@ -17,8 +17,21 @@ type SapRow = {
   score_percent: number | null
 }
 
+type AssignmentListRow = {
+  id: string
+  title: string
+  due_date: string | null
+  assigned_to_type: string
+  assigned_position_group: string | null
+  assigned_side: string | null
+  assignment_type: string | null
+  publish_status: string | null
+  created_at: string
+  study_assignment_players: SapRow[] | null
+}
+
 /**
- * GET — coach assignment summaries (single bulk player row fetch; no N+1).
+ * GET — coach assignment summaries (one round-trip: assignments + nested player rows).
  */
 export async function GET(
   _request: Request,
@@ -37,32 +50,28 @@ export async function GET(
     const { data: assigns, error } = await supabase
       .from("study_assignments")
       .select(
-        "id, title, due_date, assigned_to_type, assigned_position_group, assigned_side, assignment_type, publish_status, created_at"
+        `id, title, due_date, assigned_to_type, assigned_position_group, assigned_side, assignment_type, publish_status, created_at,
+        study_assignment_players (
+          assignment_id,
+          status,
+          opened_at,
+          review_completed_at,
+          quiz_submitted_at,
+          score_percent
+        )`
       )
       .eq("team_id", teamId)
       .order("created_at", { ascending: false })
 
     if (error) return NextResponse.json({ error: "Failed" }, { status: 500 })
 
-    const list = assigns ?? []
-    const ids = list.map((a) => a.id)
-    if (ids.length === 0) return NextResponse.json({ assignments: [] })
-
-    const { data: sapAll } = await supabase
-      .from("study_assignment_players")
-      .select("assignment_id, status, opened_at, review_completed_at, quiz_submitted_at, score_percent")
-      .in("assignment_id", ids)
-
-    const byAssign = new Map<string, SapRow[]>()
-    for (const r of sapAll ?? []) {
-      const arr = byAssign.get(r.assignment_id) ?? []
-      arr.push(r as SapRow)
-      byAssign.set(r.assignment_id, arr)
-    }
+    const list = (assigns ?? []) as AssignmentListRow[]
+    if (list.length === 0) return NextResponse.json({ assignments: [] })
 
     const now = Date.now()
-    const enriched = list.map((a) => {
-      const rows = byAssign.get(a.id) ?? []
+    const enriched = list.map((row) => {
+      const { study_assignment_players: sapNested, ...a } = row
+      const rows = sapNested ?? []
       const assignmentType = (a.assignment_type ?? "review") as StudyAssignmentType
       let notStarted = 0
       let inProgress = 0

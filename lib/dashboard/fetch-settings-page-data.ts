@@ -20,14 +20,21 @@ type TeamsRow = {
   roster_slot_limit: number | null
 }
 
-type CalendarSettingsRow = Record<string, unknown> & {
+type CalendarSettingsRow = {
   id: string
   default_view?: string | null
   assistants_can_add_meetings?: boolean | null
   assistants_can_add_practices?: boolean | null
   assistants_can_edit_nonlocked?: boolean | null
-  compact_view?: boolean | null
 }
+
+const SETTINGS_CALENDAR_COLUMNS = [
+  "id",
+  "default_view",
+  "assistants_can_add_meetings",
+  "assistants_can_add_practices",
+  "assistants_can_edit_nonlocked",
+].join(",")
 
 export type FetchSettingsPageBundleOptions = {
   /**
@@ -74,7 +81,11 @@ export async function fetchSettingsPageBundle(
       .eq("id", teamId)
       .maybeSingle()
 
-    const calendarQuery = supabase.from("calendar_settings").select("*").eq("team_id", teamId).maybeSingle()
+    const calendarQuery = supabase
+      .from("calendar_settings")
+      .select(SETTINGS_CALENDAR_COLUMNS)
+      .eq("team_id", teamId)
+      .maybeSingle()
 
     const playersQuery = supabase.from("players").select("id").eq("team_id", teamId)
 
@@ -114,7 +125,11 @@ export async function fetchSettingsPageBundle(
     .eq("id", teamId)
     .maybeSingle()
 
-  const calendarQuery = supabase.from("calendar_settings").select("*").eq("team_id", teamId).maybeSingle()
+  const calendarQuery = supabase
+    .from("calendar_settings")
+    .select(SETTINGS_CALENDAR_COLUMNS)
+    .eq("team_id", teamId)
+    .maybeSingle()
 
   const playersQuery = supabase.from("players").select("id").eq("team_id", teamId)
 

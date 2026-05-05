@@ -41,6 +41,31 @@ const WEEKLY_STAT_ENTRY_AUDIT_COLUMNS = [
   "deleted_by",
 ].join(",")
 
+type WeeklyStatAuditRow = {
+  id: string
+  team_id: string
+  player_id: string
+  season_year: number | null
+  week_number: number | null
+  game_id: string | null
+  opponent: string | null
+  game_date: string | null
+  game_type: string | null
+  location: string | null
+  venue: string | null
+  result: string | null
+  team_score: number | null
+  opponent_score: number | null
+  notes: string | null
+  stats: Record<string, unknown> | null
+  created_at: string | null
+  created_by: string | null
+  updated_at: string | null
+  updated_by: string | null
+  deleted_at: string | null
+  deleted_by: string | null
+}
+
 async function resolveGameFields(
   supabase: ReturnType<typeof getSupabaseServer>,
   teamId: string,
@@ -330,10 +355,11 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Failed to save weekly stats" }, { status: 500 })
     }
 
-    for (const row of inserted ?? []) {
-      const snap = weeklyEntryRowToAuditSnapshot(row as Record<string, unknown>)
+    const insertedRows = ((inserted ?? []) as unknown) as WeeklyStatAuditRow[]
+    for (const row of insertedRows) {
+      const snap = weeklyEntryRowToAuditSnapshot(row)
       await insertWeeklyStatEntryAudit(supabase, {
-        entryId: row.id as string,
+        entryId: row.id,
         teamId,
         action: "create",
         beforeData: null,
@@ -344,7 +370,7 @@ export async function POST(request: Request) {
 
     await recalculateSeasonStatsFromWeeklyForPlayers(supabase, teamId, [...playerIdsForSync])
 
-    return NextResponse.json({ success: true, created: (inserted ?? []).length })
+    return NextResponse.json({ success: true, created: insertedRows.length })
   } catch (err) {
     if (err instanceof MembershipLookupError) {
       return NextResponse.json({ error: "Access denied" }, { status: 403 })
@@ -415,8 +441,9 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: "Entry not found" }, { status: 404 })
     }
 
-    const beforeSnap = weeklyEntryRowToAuditSnapshot(existing as Record<string, unknown>)
-    const playerId = existing.player_id as string
+    const existingRow = (existing as unknown) as WeeklyStatAuditRow
+    const beforeSnap = weeklyEntryRowToAuditSnapshot(existingRow)
+    const playerId = existingRow.player_id
 
     const updates: Record<string, unknown> = {
       updated_by: userId,
@@ -440,7 +467,7 @@ export async function PATCH(request: Request) {
             : null
     }
 
-    let nextGameId = (existing.game_id as string | null) ?? null
+    let nextGameId = existingRow.game_id ?? null
     if (body.game_id !== undefined) {
       let gid: string | null
       if (body.game_id === null) {
@@ -481,8 +508,8 @@ export async function PATCH(request: Request) {
       Boolean(nextGameId) &&
       (body.game_id !== undefined || body.opponent !== undefined || body.game_date !== undefined)
     if (shouldResolveGame && nextGameId) {
-      const opp = (updates.opponent as string | null | undefined) ?? (existing.opponent as string | null)
-      const gd = (updates.game_date as string | null | undefined) ?? (existing.game_date as string | null)
+      const opp = (updates.opponent as string | null | undefined) ?? existingRow.opponent
+      const gd = (updates.game_date as string | null | undefined) ?? existingRow.game_date
       const resolved = await resolveGameFields(supabase, teamId, nextGameId, opp, gd ? String(gd).slice(0, 10) : null)
       if (resolved.error) {
         return NextResponse.json({ error: resolved.error }, { status: 400 })
@@ -504,12 +531,13 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: "Failed to update entry" }, { status: 500 })
     }
 
+    const updatedRow = (updated as unknown) as WeeklyStatAuditRow
     await insertWeeklyStatEntryAudit(supabase, {
       entryId,
       teamId,
       action: "update",
       beforeData: beforeSnap,
-      afterData: weeklyEntryRowToAuditSnapshot(updated as Record<string, unknown>),
+      afterData: weeklyEntryRowToAuditSnapshot(updatedRow),
       actedBy: userId,
     })
 
@@ -569,7 +597,7 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: "Failed to delete weekly stats" }, { status: 500 })
     }
 
-    const rows = toDelete ?? []
+    const rows = ((toDelete ?? []) as unknown) as WeeklyStatAuditRow[]
     if (rows.length === 0) {
       return NextResponse.json({ success: true, deleted: 0 })
     }
@@ -578,9 +606,9 @@ export async function DELETE(request: Request) {
     const playerIds = new Set<string>()
 
     for (const row of rows) {
-      const id = row.id as string
-      playerIds.add(row.player_id as string)
-      const beforeSnap = weeklyEntryRowToAuditSnapshot(row as Record<string, unknown>)
+      const id = row.id
+      playerIds.add(row.player_id)
+      const beforeSnap = weeklyEntryRowToAuditSnapshot(row)
 
       const { data: afterRow, error: softErr } = await supabase
         .from("player_weekly_stat_entries")
@@ -601,12 +629,13 @@ export async function DELETE(request: Request) {
         continue
       }
 
+      const afterAuditRow = (afterRow as unknown) as WeeklyStatAuditRow
       await insertWeeklyStatEntryAudit(supabase, {
         entryId: id,
         teamId,
         action: "soft_delete",
         beforeData: beforeSnap,
-        afterData: weeklyEntryRowToAuditSnapshot(afterRow as Record<string, unknown>),
+        afterData: weeklyEntryRowToAuditSnapshot(afterAuditRow),
         actedBy: userId,
       })
     }

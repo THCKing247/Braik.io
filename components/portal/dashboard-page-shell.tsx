@@ -8,7 +8,7 @@
 
 import { Suspense, useEffect } from "react"
 import { useSession } from "@/lib/auth/client-auth"
-import { useSearchParams } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { ConnectToTeam } from "@/components/portal/connect-to-team"
 import { useEffectiveTeamId } from "@/components/portal/portal-team-context"
 import { useDashboardShellIdentity } from "@/lib/hooks/use-dashboard-shell-identity"
@@ -33,6 +33,7 @@ function DashboardPageShellContent({
 }) {
   const identity = useDashboardShellIdentity()
   const { data: session, status } = useSession()
+  const router = useRouter()
   const searchParams = useSearchParams()
   const teamIdFromQuery = searchParams.get("teamId")
   const sessionTeamHint = identity.sessionUser?.teamId
@@ -68,7 +69,7 @@ function DashboardPageShellContent({
           </p>
           <button
             type="button"
-            onClick={() => window.location.reload()}
+            onClick={() => router.refresh()}
             className="mt-4 rounded-md border px-3 py-2 text-sm font-medium"
             style={{ borderColor: "rgb(var(--border))", color: "rgb(var(--text))" }}
           >

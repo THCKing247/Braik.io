@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { useEffect, useMemo, useRef, useState } from "react"
-import { useSearchParams } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { SiteHeader } from "@/components/marketing/site-header"
 import { SiteFooter } from "@/components/marketing/site-footer"
 import { HeroLoginForm } from "@/components/marketing/hero-login-form"
@@ -13,7 +13,6 @@ import {
 } from "@/components/auth/mobile-app-login-screen"
 import { isNativeAppSync } from "@/lib/native/app-environment"
 import { useMinWidthLg } from "@/lib/hooks/use-min-width-lg"
-import { supabaseClient } from "@/src/lib/supabaseClient"
 import { getDefaultAppPathForRole } from "@/lib/auth/default-app-path-for-role"
 
 /** Same rules as `HeroLoginForm` — safe in-app paths only. */
@@ -30,13 +29,8 @@ function normalizeCallbackUrl(value: string | null): string | undefined {
   return value
 }
 
-type SessionApiUser = {
-  id: string
-  defaultAppPath?: string
-  role?: string
-}
-
 export default function LoginPage() {
+  const router = useRouter()
   const { data, status } = useSession()
   const searchParams = useSearchParams()
   const callbackUrl = useMemo(
@@ -48,88 +42,37 @@ export default function LoginPage() {
   const isLgUp = useMinWidthLg()
   const [nativeClient, setNativeClient] = useState(false)
   const hasRedirected = useRef(false)
-  const staleCleanupDone = useRef(false)
 
   useEffect(() => {
     setNativeClient(isNativeAppSync())
   }, [])
 
-  // Server cookies (middleware) are the source of truth. Never redirect using only client persistence.
+  /**
+   * Avoid the old login-page server-session verification waterfall. Middleware/cookies already gate
+   * protected routes; this client handoff should only use the hydrated client seed when it exists.
+   */
   useEffect(() => {
-    let cancelled = false
+    if (!hasAuthRedirectTarget) return
+    if (hasRedirected.current) return
+    if (status !== "authenticated" || !data?.user?.id) return
 
-    async function verifyServerSession() {
-      const clientPresent = status === "authenticated" && Boolean(data?.user)
-      console.log("[login] client session present:", clientPresent)
-
-      try {
-        const res = await fetch("/api/auth/session", { credentials: "include" })
-        if (cancelled) return
-
-        if (res.status === 503) {
-          console.log("[login] server session check unavailable (503), skipping redirect/cleanup")
-          return
-        }
-
-        if (!res.ok) {
-          console.log("[login] server session check failed:", res.status)
-          return
-        }
-
-        const json = (await res.json()) as { user?: SessionApiUser | null }
-        if (cancelled) return
-
-        const serverUser = json?.user ?? null
-        console.log("[login] server session present:", Boolean(serverUser?.id))
-
-        if (serverUser?.id && hasAuthRedirectTarget) {
-          if (hasRedirected.current) return
-          hasRedirected.current = true
-          const destination =
-            callbackUrl ??
-            serverUser.defaultAppPath ??
-            getDefaultAppPathForRole(serverUser.role)
-          console.log("[login] redirect destination:", destination)
-          window.location.href = destination
-          return
-        }
-
-        if (status === "loading") {
-          return
-        }
-
-        if (clientPresent && !staleCleanupDone.current) {
-          staleCleanupDone.current = true
-          console.log("[login] stale session cleanup triggered")
-          await supabaseClient.auth.signOut().catch(() => null)
-          await fetch("/api/auth/logout", { method: "POST", credentials: "include" }).catch(
-            () => null
-          )
-        }
-      } catch (e) {
-        console.log("[login] server session verify error:", e)
-      }
-    }
-
-    void verifyServerSession()
-    return () => {
-      cancelled = true
-    }
-  }, [status, data?.user?.id, callbackUrl, hasAuthRedirectTarget])
+    hasRedirected.current = true
+    const destination = callbackUrl ?? data.user.defaultAppPath ?? getDefaultAppPathForRole(data.user.role)
+    router.replace(destination)
+  }, [status, data?.user, callbackUrl, hasAuthRedirectTarget, router])
 
   const useNativeLoginChrome = nativeClient
   const useMobileWebLoginChrome = !nativeClient && !isLgUp
+  const showMobileLogin = !hasAuthRedirectTarget || status !== "authenticated"
 
   return (
     <>
       {(useNativeLoginChrome || useMobileWebLoginChrome) && (
         <div className={useNativeLoginChrome ? "min-h-screen" : "lg:hidden"}>
-          {!hasAuthRedirectTarget || status === "unauthenticated" ? (
+          {showMobileLogin ? (
             <MobileAppLoginScreen />
           ) : (
-            <MobileAppEntryLoading
-              message={status === "authenticated" ? "Opening your workspace…" : "Loading…"}
-            />
+            <MobileAppEntryLoading message="Opening your workspace…" />
           )}
         </div>
       )}

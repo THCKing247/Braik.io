@@ -147,14 +147,33 @@ function sortByCreationThenId<T extends { id: string; created_at?: string | null
   })
 }
 
+/**
+ * Resolve dashboard short org segments for many athletic_department IDs in one `athletic_departments` fetch.
+ * (Calling {@link resolveShortOrgIdForOrganizationPortalUuid} per portal repeats the full table read.)
+ */
+export async function resolveShortOrgIdsForOrganizationPortalUuids(
+  supabase: SupabaseClient,
+  organizationPortalUuids: string[]
+): Promise<Map<string, string | null>> {
+  const unique = [...new Set(organizationPortalUuids.filter(Boolean))]
+  const out = new Map<string, string | null>()
+  if (unique.length === 0) return out
+
+  const rows = sortByCreationThenId(await fetchAllOrganizationPortals(supabase))
+  const indexById = new Map(rows.map((r, i) => [r.id, i]))
+  for (const id of unique) {
+    const idx = indexById.get(id)
+    out.set(id, idx !== undefined ? String(idx + 1) : null)
+  }
+  return out
+}
+
 export async function resolveShortOrgIdForOrganizationPortalUuid(
   supabase: SupabaseClient,
   organizationPortalUuid: string
 ): Promise<string | null> {
-  const rows = sortByCreationThenId(await fetchAllOrganizationPortals(supabase))
-  const index = rows.findIndex((r) => r.id === organizationPortalUuid)
-  if (index < 0) return null
-  return String(index + 1)
+  const map = await resolveShortOrgIdsForOrganizationPortalUuids(supabase, [organizationPortalUuid])
+  return map.get(organizationPortalUuid) ?? null
 }
 
 export async function resolveOrganizationPortalUuidFromShortOrgId(

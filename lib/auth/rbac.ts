@@ -4,6 +4,8 @@ import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { isFootballProgramSport } from "@/lib/enforcement/football-ad-access"
 import { ROLES, type Role, canManageTeam, canEditRoster, canManageBilling, canPostAnnouncements, canViewPayments } from "./roles"
 import { logPermissionDenial } from "@/lib/audit/structured-logger"
+import { braikPerfServerEnabled } from "@/lib/perf/braik-perf-config"
+import { perfLogServer } from "@/lib/perf/braik-perf-server"
 
 /** Thrown when membership lookup fails due to DB/schema error (callers should return 500, not 403). */
 export class MembershipLookupError extends Error {
@@ -313,6 +315,7 @@ export async function requireTeamAccessFast(
   teamId: string,
   userId: string
 ): Promise<UserMembership> {
+  const t0 = performance.now()
   const { data, error } = await supabase
     .from("team_members")
     .select("user_id, role, staff_status, is_primary")
@@ -320,6 +323,15 @@ export async function requireTeamAccessFast(
     .eq("user_id", userId)
     .eq("active", true)
     .maybeSingle()
+
+  if (braikPerfServerEnabled()) {
+    perfLogServer("rbac.requireTeamAccessFast", {
+      ms_membership_lookup: Math.round(performance.now() - t0),
+      teamId,
+      userId,
+      ok: !error && Boolean(data),
+    })
+  }
 
   if (error) {
     console.error("[requireTeamAccessFast] team_members lookup failed", { userId, teamId, error })

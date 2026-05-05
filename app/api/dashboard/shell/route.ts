@@ -68,7 +68,15 @@ export async function GET(request: Request) {
 
     const userRole = shellUser.role?.toUpperCase()
 
-    const jsonResponse = (body: DashboardShellPayload, timing?: { auth: number; teams?: number }) => {
+    const jsonResponse = (
+      body: DashboardShellPayload,
+      timing?: {
+        auth: number
+        portal_kind?: number
+        portal_home?: number
+        teams?: number
+      }
+    ) => {
       const res = NextResponse.json(body)
       applyDashboardShellCacheHeaders(res)
       if (liteResult.refreshedSession) {
@@ -76,6 +84,12 @@ export async function GET(request: Request) {
       }
       if (timing && braikPerfServerEnabled()) {
         const parts = [{ name: "auth", dur: timing.auth }]
+        if (typeof timing.portal_kind === "number") {
+          parts.push({ name: "portal_kind", dur: timing.portal_kind })
+        }
+        if (typeof timing.portal_home === "number") {
+          parts.push({ name: "portal_home", dur: timing.portal_home })
+        }
         if (typeof timing.teams === "number") {
           parts.push({ name: "teams", dur: timing.teams })
         }
@@ -110,26 +124,40 @@ export async function GET(request: Request) {
     const isImpersonating = Boolean(impersonationSession)
 
     const supabase = getSupabaseServer()
-    const portalKind = await resolveBraikPortalKind({
-      supabase,
-      userId: shellUser.id,
-      profileRoleUpper: userRole ?? "USER",
-    })
+    let msPortalKind = 0
+    let msTeams = 0
+    const [portalKind, teams] = await Promise.all([
+      (async () => {
+        const a = performance.now()
+        const kind = await resolveBraikPortalKind({
+          supabase,
+          userId: shellUser.id,
+          profileRoleUpper: userRole ?? "USER",
+        })
+        msPortalKind = Math.round(performance.now() - a)
+        return kind
+      })(),
+      (async () => {
+        const a = performance.now()
+        const list = await loadDashboardShellTeamsUncached(
+          effectiveUserId,
+          shellUser.id,
+          shellUser.teamId,
+          isImpersonating
+        )
+        msTeams = Math.round(performance.now() - a)
+        return list
+      })(),
+    ])
+    const tPortalHome = performance.now()
     const portalHome = await resolvePortalHomeForUser(supabase, shellUser.id, portalKind)
+    const msPortalHome = Math.round(performance.now() - tPortalHome)
     const { defaultPath: resolvedDefaultPath, playerAccountSegment, parentPortalSegment } = portalHome
     const userForShell: SessionUser = {
       ...shellUser,
       defaultAppPath: resolvedDefaultPath || defaultDashboardEntryForPortal(portalKind),
     }
 
-    const tBeforeTeams = performance.now()
-    const teams = await loadDashboardShellTeamsUncached(
-      effectiveUserId,
-      shellUser.id,
-      shellUser.teamId,
-      isImpersonating
-    )
-    const msTeams = Math.round(performance.now() - tBeforeTeams)
     authTimingServer("dashboard_shell_teams_done", { ms: Math.round(performance.now() - t0), teamCount: teams.length })
 
     const cookieStore = cookies()
@@ -159,7 +187,9 @@ export async function GET(request: Request) {
     if (braikPerfServerEnabled()) {
       perfLogServer("api.GET.dashboard.shell", {
         mode: "full",
-        ms_auth: msAuth,
+        ms_auth_gate: msAuth,
+        ms_portal_kind: msPortalKind,
+        ms_portal_home: msPortalHome,
         ms_teams: msTeams,
         ms_total: Math.round(performance.now() - t0),
         teamCount: teams.length,
@@ -179,7 +209,7 @@ export async function GET(request: Request) {
         playerAccountSegment,
         parentPortalSegment,
       },
-      { auth: msAuth, teams: msTeams }
+      { auth: msAuth, portal_kind: msPortalKind, portal_home: msPortalHome, teams: msTeams }
     )
   } catch (err) {
     console.error("[GET /api/dashboard/shell]", err instanceof Error ? err.message : err)

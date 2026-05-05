@@ -11,7 +11,8 @@ import { readPersistLongSessionFromCookies } from "@/lib/auth/persist-session-co
 import { getDefaultAppPathForRole } from "@/lib/auth/default-app-path-for-role"
 import { resolvePortalEntryPath } from "@/lib/auth/portal-entry-path"
 import { adTeamsFlowPerfLog, shouldLogAdTeamsFlowPerf } from "@/lib/ad/ad-teams-table-perf"
-import { perfLogAuthVerbose } from "@/lib/perf/braik-perf-server"
+import { braikPerfServerEnabled } from "@/lib/perf/braik-perf-config"
+import { perfLogAuthVerbose, perfLogServer } from "@/lib/perf/braik-perf-server"
 
 const AUTH_DEBUG = process.env.DEBUG_AUTH === "true"
 
@@ -235,13 +236,23 @@ export async function getRequestUserLite(): Promise<RequestUserLiteResult | null
     if (decoded?.sub && decoded?.email && !tokenExpired) {
       const tLite = performance.now()
       const user = await buildSessionUserLite(decoded.sub, decoded.email)
+      const msProfile = Math.round(performance.now() - tLite)
       if (devLog) adTeamsFlowPerfLog("getRequestUserLite", "buildSessionUserLite", performance.now() - tLite)
       logAuth({
         ms: Math.round(performance.now() - tAll),
         outcome: "ok_jwt_decode",
         userId: user.id,
-        profile_ms: Math.round(performance.now() - tLite),
+        profile_ms: msProfile,
       })
+      if (braikPerfServerEnabled()) {
+        perfLogServer("auth.getRequestUserLite", {
+          path: "jwt_decode",
+          ms_total: Math.round(performance.now() - tAll),
+          ms_profiles_users_parallel: msProfile,
+          uses_auth_get_user: false,
+          userId: user.id,
+        })
+      }
       return { user }
     }
 
@@ -260,14 +271,25 @@ export async function getRequestUserLite(): Promise<RequestUserLiteResult | null
     if (refreshed) {
       const tLite = performance.now()
       const user = await buildSessionUserLite(refreshed.user.id, refreshed.user.email ?? "")
+      const msProfile = Math.round(performance.now() - tLite)
       if (devLog) adTeamsFlowPerfLog("getRequestUserLite", "buildSessionUserLite", performance.now() - tLite)
       logAuth({
         ms: Math.round(performance.now() - tAll),
         outcome: "ok_refresh_token",
         userId: user.id,
-        profile_ms: Math.round(performance.now() - tLite),
+        profile_ms: msProfile,
         refreshed_session: true,
       })
+      if (braikPerfServerEnabled()) {
+        perfLogServer("auth.getRequestUserLite", {
+          path: "refresh_token",
+          ms_total: Math.round(performance.now() - tAll),
+          ms_profiles_users_parallel: msProfile,
+          uses_auth_get_user: false,
+          userId: user.id,
+          refreshed_session: true,
+        })
+      }
       return {
         user,
         refreshedSession: {

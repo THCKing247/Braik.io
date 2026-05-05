@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server"
-import { requireAuth, requireTeamAccessFast } from "@/lib/auth/rbac"
+import { requireTeamAccessFast } from "@/lib/auth/rbac"
+import { getRequestAuth } from "@/lib/auth/request-auth-context"
 import { canEditRoster } from "@/lib/auth/roles"
+import { braikPerfServerEnabled } from "@/lib/perf/braik-perf-config"
+import { perfLogServer } from "@/lib/perf/braik-perf-server"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { resolveAssignmentPlayerIds } from "@/lib/study-guides-server"
 import { isPlayerAssignmentComplete, type StudyAssignmentType } from "@/lib/study-assignment-logic"
@@ -37,19 +40,23 @@ export async function GET(
   _request: Request,
   { params }: { params: Promise<{ teamId: string }> }
 ) {
-  const start = performance.now()
+  const routeStart = performance.now()
   try {
     const { teamId } = await params
     if (!teamId) return NextResponse.json({ error: "teamId required" }, { status: 400 })
 
-    const user = await requireAuth()
+    const tAuth = performance.now()
+    const lite = await getRequestAuth()
+    if (!lite?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    const msAuthLite = Math.round(performance.now() - tAuth)
+
     const supabase = getSupabaseServer()
-    const membership = await requireTeamAccessFast(supabase, teamId, user.id)
+    const membership = await requireTeamAccessFast(supabase, teamId, lite.user.id)
     if (!canEditRoster(membership.role)) {
       return NextResponse.json({ error: "Coach access only" }, { status: 403 })
     }
-    console.log("after auth (requireTeamAccessFast)", performance.now() - start)
-    const queryStart = performance.now()
+
+    const tDb = performance.now()
     const { data: assigns, error } = await supabase
       .from("study_assignments")
       .select(
@@ -65,18 +72,20 @@ export async function GET(
       )
       .eq("team_id", teamId)
       .order("created_at", { ascending: false })
-    console.log("DB query time:", performance.now() - queryStart)
-    console.log("after main DB query", performance.now() - start)
+    const msDb = Math.round(performance.now() - tDb)
 
     if (error) return NextResponse.json({ error: "Failed" }, { status: 500 })
 
     const list = (assigns ?? []) as AssignmentListRow[]
     if (list.length === 0) {
-      const assignments: unknown[] = []
-      console.log("after data transformation", performance.now() - start)
-      console.log("assignments count:", assignments.length)
-      console.log("response size approx:", JSON.stringify(assignments).length)
-      console.log("before response return", performance.now() - start)
+      if (braikPerfServerEnabled()) {
+        perfLogServer("api.GET.teams.study.assignments", {
+          ms_auth_request_lite: msAuthLite,
+          ms_db_query: msDb,
+          ms_total: Math.round(performance.now() - routeStart),
+          assignmentCount: 0,
+        })
+      }
       return NextResponse.json({ assignments: [] })
     }
 
@@ -125,12 +134,14 @@ export async function GET(
         avgScore,
       }
     })
-    console.log("after data transformation", performance.now() - start)
-
-    const assignments = enriched
-    console.log("assignments count:", assignments.length)
-    console.log("response size approx:", JSON.stringify(assignments).length)
-    console.log("before response return", performance.now() - start)
+    if (braikPerfServerEnabled()) {
+      perfLogServer("api.GET.teams.study.assignments", {
+        ms_auth_request_lite: msAuthLite,
+        ms_db_query: msDb,
+        ms_total: Math.round(performance.now() - routeStart),
+        assignmentCount: enriched.length,
+      })
+    }
     return NextResponse.json({ assignments: enriched })
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Error"
@@ -150,13 +161,14 @@ export async function POST(
     const { teamId } = await params
     if (!teamId) return NextResponse.json({ error: "teamId required" }, { status: 400 })
 
-    const user = await requireAuth()
+    const lite = await getRequestAuth()
+    if (!lite?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     const supabase = getSupabaseServer()
-    const membership = await requireTeamAccessFast(supabase, teamId, user.id)
+    const membership = await requireTeamAccessFast(supabase, teamId, lite.user.id)
     if (!canEditRoster(membership.role)) {
       return NextResponse.json({ error: "Coach access only" }, { status: 403 })
     }
-    const auth = { user, membership }
+    const auth = { user: lite.user, membership }
 
     const body = (await request.json()) as {
       title?: string

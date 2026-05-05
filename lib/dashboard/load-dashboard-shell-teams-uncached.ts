@@ -1,5 +1,5 @@
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
-import { resolveShortOrgIdForOrganizationPortalUuid } from "@/lib/navigation/organization-routes"
+import { resolveShortOrgIdsForOrganizationPortalUuids } from "@/lib/navigation/organization-routes"
 
 export type DashboardShellTeam = {
   id: string
@@ -119,13 +119,15 @@ export async function loadDashboardShellTeamsUncached(
         shortByTeamId.set(team.id, String(index + 1))
       })
   }
+  const portalKeys = [...byPortal.keys()]
+  const shortOrgBatch =
+    portalKeys.length > 0
+      ? await resolveShortOrgIdsForOrganizationPortalUuids(supabase, portalKeys)
+      : new Map<string, string | null>()
   const shortOrgByPortal = new Map<string, string | null>()
-  await Promise.all(
-    [...byPortal.keys()].map(async (portalId) => {
-      const short = await resolveShortOrgIdForOrganizationPortalUuid(supabase, portalId)
-      shortOrgByPortal.set(portalId, short)
-    })
-  )
+  for (const portalId of portalKeys) {
+    shortOrgByPortal.set(portalId, shortOrgBatch.get(portalId) ?? null)
+  }
 
   return (teamsData ?? []).map((t) => ({
     id: t.id,

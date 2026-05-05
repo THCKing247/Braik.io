@@ -42,6 +42,31 @@ const WEEKLY_STAT_ENTRY_AUDIT_COLUMNS = [
   "deleted_by",
 ].join(",")
 
+type WeeklyStatAuditRow = {
+  id: string
+  team_id: string
+  player_id: string
+  season_year: number | null
+  week_number: number | null
+  game_id: string | null
+  opponent: string | null
+  game_date: string | null
+  game_type: string | null
+  location: string | null
+  venue: string | null
+  result: string | null
+  team_score: number | null
+  opponent_score: number | null
+  notes: string | null
+  stats: Record<string, unknown> | null
+  created_at: string | null
+  created_by: string | null
+  updated_at: string | null
+  updated_by: string | null
+  deleted_at: string | null
+  deleted_by: string | null
+}
+
 type UpdatesBody = {
   opponent?: unknown
   date?: unknown
@@ -248,7 +273,7 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: "Failed to load entries" }, { status: 500 })
     }
 
-    const beforeList = beforeRows ?? []
+    const beforeList = ((beforeRows ?? []) as unknown) as WeeklyStatAuditRow[]
     if (beforeList.length === 0) {
       return NextResponse.json({ success: true, updated: 0 })
     }
@@ -260,7 +285,7 @@ export async function PATCH(request: Request) {
       updated_by: userId,
     }
 
-    const targetIds = beforeList.map((r) => r.id as string)
+    const targetIds = beforeList.map((r) => r.id)
 
     const { data: afterRows, error: upErr } = await supabase
       .from("player_weekly_stat_entries")
@@ -275,22 +300,23 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: "Failed to update entries" }, { status: 500 })
     }
 
-    const afterById = new Map((afterRows ?? []).map((r) => [r.id as string, r]))
+    const afterList = ((afterRows ?? []) as unknown) as WeeklyStatAuditRow[]
+    const afterById = new Map(afterList.map((r) => [r.id, r]))
     for (const row of beforeList) {
-      const id = row.id as string
+      const id = row.id
       const after = afterById.get(id)
       if (!after) continue
       await insertWeeklyStatEntryAudit(supabase, {
         entryId: id,
         teamId,
         action: "update",
-        beforeData: weeklyEntryRowToAuditSnapshot(row as Record<string, unknown>),
-        afterData: weeklyEntryRowToAuditSnapshot(after as Record<string, unknown>),
+        beforeData: weeklyEntryRowToAuditSnapshot(row),
+        afterData: weeklyEntryRowToAuditSnapshot(after),
         actedBy: userId,
       })
     }
 
-    return NextResponse.json({ success: true, updated: (afterRows ?? []).length })
+    return NextResponse.json({ success: true, updated: afterList.length })
   } catch (err) {
     if (err instanceof MembershipLookupError) {
       return NextResponse.json({ error: "Access denied" }, { status: 403 })

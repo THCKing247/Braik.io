@@ -305,6 +305,59 @@ export async function requireTeamAccess(teamId: string, requiredRole?: Role) {
 }
 
 /**
+ * Single round-trip team access check via `team_members` (active row only).
+ * Use on hot paths where full `getUserMembershipForUserId` resolution (program/org/profile) is unnecessary.
+ */
+export async function requireTeamAccessFast(
+  supabase: SupabaseClient,
+  teamId: string,
+  userId: string
+): Promise<UserMembership> {
+  const { data, error } = await supabase
+    .from("team_members")
+    .select("user_id, role, staff_status, is_primary")
+    .eq("team_id", teamId)
+    .eq("user_id", userId)
+    .eq("active", true)
+    .maybeSingle()
+
+  if (error) {
+    console.error("[requireTeamAccessFast] team_members lookup failed", { userId, teamId, error })
+    throw new MembershipLookupError("Database error during membership lookup", error)
+  }
+
+  if (!data) {
+    logPermissionDenial({
+      userId,
+      teamId,
+      reason: "Not a member of this team",
+    })
+    throw new Error("Access denied: Not a member of this team")
+  }
+
+  const row = data as {
+    user_id: string
+    role?: string | null
+    staff_status?: string | null
+    is_primary?: boolean | null
+  }
+
+  const role = teamMemberDbRoleToNormalizedRole(String(row.role ?? ""))
+  const staffStatus: StaffStatus =
+    String(row.staff_status || "") === "pending_assignment" ? "pending_assignment" : "active"
+  const isPrimaryHeadCoach =
+    role === ROLES.HEAD_COACH ? row.is_primary !== false : undefined
+
+  return {
+    userId,
+    teamId,
+    role,
+    staffStatus,
+    isPrimaryHeadCoach,
+  }
+}
+
+/**
  * Like requireTeamAccess but uses an already-loaded session user (avoids a second getServerSession).
  * Use when the route must call getServerSession first (e.g. applyRefreshedSessionCookies on token refresh).
  */

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { requireTeamAccess } from "@/lib/auth/rbac"
+import { requireAuth, requireTeamAccessFast } from "@/lib/auth/rbac"
 import { canEditRoster } from "@/lib/auth/roles"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { resolveAssignmentPlayerIds } from "@/lib/study-guides-server"
@@ -42,13 +42,13 @@ export async function GET(
     const { teamId } = await params
     if (!teamId) return NextResponse.json({ error: "teamId required" }, { status: 400 })
 
-    const { membership } = await requireTeamAccess(teamId)
+    const user = await requireAuth()
+    const supabase = getSupabaseServer()
+    const membership = await requireTeamAccessFast(supabase, teamId, user.id)
     if (!canEditRoster(membership.role)) {
       return NextResponse.json({ error: "Coach access only" }, { status: 403 })
     }
-    console.log("after auth (requireTeamAccess)", performance.now() - start)
-
-    const supabase = getSupabaseServer()
+    console.log("after auth (requireTeamAccessFast)", performance.now() - start)
     const queryStart = performance.now()
     const { data: assigns, error } = await supabase
       .from("study_assignments")
@@ -150,10 +150,13 @@ export async function POST(
     const { teamId } = await params
     if (!teamId) return NextResponse.json({ error: "teamId required" }, { status: 400 })
 
-    const auth = await requireTeamAccess(teamId)
-    if (!canEditRoster(auth.membership.role)) {
+    const user = await requireAuth()
+    const supabase = getSupabaseServer()
+    const membership = await requireTeamAccessFast(supabase, teamId, user.id)
+    if (!canEditRoster(membership.role)) {
       return NextResponse.json({ error: "Coach access only" }, { status: 403 })
     }
+    const auth = { user, membership }
 
     const body = (await request.json()) as {
       title?: string
@@ -193,8 +196,6 @@ export async function POST(
     }
     const qErr = needsQuiz && questions.length ? validateDraftQuestionsForSave(questions) : null
     if (qErr) return NextResponse.json({ error: qErr }, { status: 400 })
-
-    const supabase = getSupabaseServer()
 
     const assignedSide =
       body.assignedToType === "side" ? (body.assignedSide as "offense" | "defense" | "special_teams") : null

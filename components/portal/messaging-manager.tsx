@@ -33,11 +33,16 @@ import { getMessagingPermissions } from "@/lib/enforcement/messaging-permissions
 import type { MessageThreadsInboxPayload } from "@/lib/messaging/load-message-threads-inbox"
 import {
   invalidateMessageThreadInboxStatsForUser,
+  invalidateMessagesThreads,
   invalidateMessagingUnreadTotal,
+  messagesThreadsQueryKey,
   useMessageThreadInboxStatsQuery,
+  useMessagesThreadsQuery,
   useMessagingUnreadTotalQuery,
+  type MessagesThreadsQueryData,
 } from "@/lib/messaging/messaging-queries"
 import {
+  mapLegacyFormattedThreadsToWire,
   wireThreadListItemToThread,
   type MessageThreadWireItem,
 } from "@/lib/messaging/thread-list-wire"
@@ -142,6 +147,50 @@ function threadsPayloadToUiThreads(raw: unknown[]): Thread[] {
     return (raw as MessageThreadWireItem[]).map(wireThreadListItemToThread)
   }
   return raw as Thread[]
+}
+
+/** Cheap list equality for inbox rows (avoids JSON.stringify on large payloads). */
+function threadsInboxSnapshotEqual(a: Thread[], b: Thread[]): boolean {
+  if (a.length !== b.length) return false
+  for (let i = 0; i < a.length; i++) {
+    const x = a[i]
+    const y = b[i]
+    if (x.id !== y.id) return false
+    if (x.updatedAt.getTime() !== y.updatedAt.getTime()) return false
+    if ((x.unreadCount ?? 0) !== (y.unreadCount ?? 0)) return false
+    if ((x._count?.messages ?? 0) !== (y._count?.messages ?? 0)) return false
+  }
+  return true
+}
+
+function threadInboxRowKey(t: Thread) {
+  return `${t.id}\u0000${t.updatedAt.getTime()}\u0000${t.unreadCount ?? 0}\u0000${t._count?.messages ?? 0}`
+}
+
+function createdThreadJsonToWire(raw: Record<string, unknown>): MessageThreadWireItem {
+  const participantsRaw = raw.participants as
+    | Array<{ userId: string; user: { id: string; name: string | null; email: string } }>
+    | undefined
+  const participants = (participantsRaw ?? []).map((p) => ({
+    userId: p.userId,
+    displayName: (p.user.name || p.user.email || "Member").trim(),
+    participantKind: "staff" as const,
+    email: p.user.email ?? "",
+  }))
+  const updatedAt =
+    typeof raw.updatedAt === "string"
+      ? raw.updatedAt
+      : new Date(raw.updatedAt as string).toISOString()
+  return {
+    threadId: String(raw.id),
+    subject: (raw.subject as string | null) ?? null,
+    threadType: String(raw.threadType ?? "GROUP"),
+    updatedAt,
+    lastMessage: null,
+    participants,
+    unreadCount: 0,
+    totalMessageCount: 0,
+  }
 }
 
 function messageAttachmentIsImage(att: { mimeType?: string; fileName?: string }) {
@@ -288,14 +337,10 @@ export function MessagingManager({
   const messagingUnread = useMessagingUnreadOptional()
   const messagingUnreadRef = useRef(messagingUnread)
   messagingUnreadRef.current = messagingUnread
-  const [threads, setThreads] = useState<Thread[]>([])
   const [selectedThread, setSelectedThread] = useState<Thread | null>(null)
   const [messages, setMessages] = useState<Message[]>([])
   const [contacts, setContacts] = useState<Contact[]>([])
   const [loading, setLoading] = useState(false)
-  const [initialLoading, setInitialLoading] = useState(true)
-  /** Thread list fetch only — avoids conflating with send/message errors. */
-  const [inboxLoadError, setInboxLoadError] = useState<string | null>(null)
   const [messagesLoading, setMessagesLoading] = useState(false)
   const [hasMoreOlder, setHasMoreOlder] = useState(false)
   const [loadingOlder, setLoadingOlder] = useState(false)
@@ -314,7 +359,6 @@ export function MessagingManager({
   const messagesLoadSerialRef = useRef(0)
   const realtimeChannelRef = useRef<RealtimeChannel | null>(null)
   const optimisticMessageIdRef = useRef<string | null>(null)
-  const isRefreshingRef = useRef<boolean>(false)
   const [refreshing, setRefreshing] = useState(false)
   const [showJumpToNewest, setShowJumpToNewest] = useState(false)
   const [unreadCount, setUnreadCount] = useState(0)
@@ -337,9 +381,77 @@ export function MessagingManager({
   const [priorityCollapsed, setPriorityCollapsed] = useState(false)
 
   const queryClient = useQueryClient()
-  const visibleThreadIds = useMemo(() => threads.map((t) => t.id), [threads])
+
+  const messagesThreadsEnabled =
+    Boolean(teamId) && (bootstrapCoreReady !== true || bootstrapThreadsInbox !== undefined)
+
+  const messagesThreadsQuery = useMessagesThreadsQuery({
+    teamId,
+    enabled: messagesThreadsEnabled,
+  })
+
+  const threadsBase = useMemo(
+    () => threadsPayloadToUiThreads(messagesThreadsQuery.data?.threads ?? []),
+    [messagesThreadsQuery.data?.threads]
+  )
+
+  const visibleThreadIds = useMemo(() => threadsBase.map((t) => t.id), [threadsBase])
+
   const messagingUnreadTotalQuery = useMessagingUnreadTotalQuery({ userId, teamId })
   const messageThreadInboxStatsQuery = useMessageThreadInboxStatsQuery({ userId, visibleThreadIds })
+
+  const threads = useMemo(() => {
+    const rows = messageThreadInboxStatsQuery.data
+    if (!rows?.length) return threadsBase
+    const byId = new Map(rows.map((r) => [r.thread_id, r]))
+    const openId = selectedThread?.id ?? null
+    return threadsBase.map((t) => {
+      const row = byId.get(t.id)
+      if (!row) return t
+      const isOpen = openId === t.id
+      const unreadCount = Number(row.unread_count ?? 0)
+      const messageCount = Number(row.message_count ?? 0)
+      const next: Thread = { ...t, unreadCount, _count: { messages: messageCount } }
+      if (!isOpen && row.last_message_id && row.last_sender_id) {
+        const sid = row.last_sender_id
+        const p = t.participants.find((pp) => pp.userId === sid)
+        return {
+          ...next,
+          updatedAt: new Date(row.last_message_created_at ?? t.updatedAt),
+          messages: [
+            {
+              id: row.last_message_id,
+              body: row.last_message_content ?? "",
+              attachments: [],
+              createdAt: new Date(row.last_message_created_at ?? t.updatedAt),
+              creator: {
+                id: sid,
+                name: p ? displayNameForParticipantUser(p.user) : null,
+                email: p?.user.email ?? "",
+              },
+            },
+          ],
+        }
+      }
+      return next
+    })
+  }, [threadsBase, messageThreadInboxStatsQuery.data, selectedThread?.id])
+
+  const threadsRef = useRef<Thread[]>([])
+  useEffect(() => {
+    threadsRef.current = threads
+  }, [threads])
+
+  const initialLoading =
+    Boolean(teamId && messagesThreadsEnabled) &&
+    messagesThreadsQuery.isPending &&
+    messagesThreadsQuery.data === undefined
+
+  const inboxLoadError = messagesThreadsQuery.isError
+    ? messagesThreadsQuery.error instanceof Error
+      ? messagesThreadsQuery.error.message
+      : "Failed to load threads"
+    : null
 
   useEffect(() => {
     if (messagingUnreadTotalQuery.data === undefined) return
@@ -356,17 +468,8 @@ export function MessagingManager({
   const messagesRef = useRef<Message[]>([])
   /** Snapshot for rollback if POST /read fails after optimistic UI. */
   const optimisticReadRef = useRef<{ threadId: string; prevUnread: number } | null>(null)
-  const isLoadingRef = useRef(false)
-
-  const bootstrapInboxRef = useRef(bootstrapThreadsInbox)
-  bootstrapInboxRef.current = bootstrapThreadsInbox
 
   const lastHydratedBootstrapSigRef = useRef<string>("")
-  const inboxListFetchGuardsRef = useRef<{
-    teamId: string | null
-    initialListFetched: boolean
-    nullBootstrapFetched: boolean
-  }>({ teamId: null, initialListFetched: false, nullBootstrapFetched: false })
 
   const logThreadMessageBanner = useCallback(
     (
@@ -374,6 +477,7 @@ export function MessagingManager({
       reason: string,
       detail?: { threadId?: string | null; messageId?: string | null }
     ) => {
+      if (process.env.NODE_ENV !== "development") return
       console.info(`[messaging:thread-banner] ${event}`, {
         reason,
         userId,
@@ -436,44 +540,6 @@ export function MessagingManager({
   useEffect(() => {
     selectedThreadIdRef.current = selectedThread?.id ?? null
   }, [selectedThread?.id])
-
-  useEffect(() => {
-    const rows = messageThreadInboxStatsQuery.data
-    if (!rows?.length) return
-    const byId = new Map(rows.map((r) => [r.thread_id, r]))
-    setThreads((prev) =>
-      prev.map((t) => {
-        const row = byId.get(t.id)
-        if (!row) return t
-        const isOpen = selectedThreadIdRef.current === t.id
-        const unreadCount = Number(row.unread_count ?? 0)
-        const messageCount = Number(row.message_count ?? 0)
-        const next: Thread = { ...t, unreadCount, _count: { messages: messageCount } }
-        if (!isOpen && row.last_message_id && row.last_sender_id) {
-          const sid = row.last_sender_id
-          const p = t.participants.find((pp) => pp.userId === sid)
-          return {
-            ...next,
-            updatedAt: new Date(row.last_message_created_at ?? t.updatedAt),
-            messages: [
-              {
-                id: row.last_message_id,
-                body: row.last_message_content ?? "",
-                attachments: [],
-                createdAt: new Date(row.last_message_created_at ?? t.updatedAt),
-                creator: {
-                  id: sid,
-                  name: p ? displayNameForParticipantUser(p.user) : null,
-                  email: p?.user.email ?? "",
-                },
-              },
-            ],
-          }
-        }
-        return next
-      })
-    )
-  }, [messageThreadInboxStatsQuery.data])
 
   // TODO: remove — temporary Realtime channel monitor (dev or `?debugRealtime=1` on deployed builds). Do not ship as permanent logging.
   useEffect(() => {
@@ -762,95 +828,11 @@ export function MessagingManager({
     scrollToBottom()
   }
 
-  const loadThreads = useCallback(async () => {
-      if (isLoadingRef.current) {
-        console.info("[messaging:inbox] loadThreads skipped (already in flight)", { teamId })
-        return
-      }
-      isLoadingRef.current = true
-      console.info("[messaging:inbox] loadThreads start", { teamId })
-      try {
-        const response = await fetch(`/api/messages/threads?teamId=${teamId}`)
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({}))
-          throw new Error(errorData.error || "Failed to load threads")
-        }
-        const raw = await response.json()
-        const list = Array.isArray(raw) ? raw : ((raw as { threads?: unknown[] }).threads ?? [])
-        console.info("[messaging:inbox] raw thread response", {
-          teamId,
-          topLevelKeys: raw && typeof raw === "object" && !Array.isArray(raw) ? Object.keys(raw as object) : [],
-          listLength: list.length,
-          firstKeys: list[0] && typeof list[0] === "object" ? Object.keys(list[0] as object) : [],
-        })
-        const data = threadsPayloadToUiThreads(list)
-        console.info("[messaging:inbox] mapped thread list", {
-          teamId,
-          count: data.length,
-          idsSample: data.slice(0, 3).map((t) => t.id),
-        })
-        setThreads((prev) => {
-          if (JSON.stringify(prev) === JSON.stringify(data)) return prev
-          return data
-        })
-        setSelectedThread((prev) => {
-          if (!prev) return prev
-          const match = data.find((t: Thread) => t.id === prev.id)
-          if (!match) return prev
-          return { ...match, messages: prev.messages }
-        })
-
-        // Legacy coach/dashboard route: deep link via ?threadId= only (canonical uses path segment).
-        const legacyQueryThreadId = canonicalTeamParts
-          ? null
-          : searchParamsRef.current?.get("threadId")?.trim()
-        if (legacyQueryThreadId && !urlThreadIdProcessedRef.current) {
-          const threadFromUrl = data.find((t: Thread) => t.id === legacyQueryThreadId)
-          if (threadFromUrl) {
-            setSelectedThread(threadFromUrl)
-            setMobileShowList(false)
-            urlThreadIdProcessedRef.current = true
-          } else {
-            console.warn(`Thread ${legacyQueryThreadId} not found or access denied`)
-          }
-        }
-        setInboxLoadError(null)
-        setError(null)
-        void invalidateMessagingUnreadTotal(queryClient, userId, teamId)
-        void invalidateMessageThreadInboxStatsForUser(queryClient, userId)
-      } catch (error: unknown) {
-        console.error("[messaging:inbox] Error loading threads:", error)
-        const msg = error instanceof Error ? error.message : "Failed to load threads"
-        setInboxLoadError(msg)
-        setError(msg)
-      } finally {
-        isLoadingRef.current = false
-        setInitialLoading(false)
-        console.info("[messaging:inbox] loadThreads finished", { teamId })
-      }
-  }, [teamId, canonicalTeamParts, queryClient, userId])
-
-  const loadThreadsFrom = useCallback(
-    async (source: string) => {
-      console.info(`[messaging] loadThreads source=${source} teamId=${teamId} at=${new Date().toISOString()}`)
-      await loadThreads()
-    },
-    [teamId, loadThreads]
-  )
-
   useEffect(() => {
-    const g = inboxListFetchGuardsRef.current
-    if (g.teamId !== teamId) {
-      inboxListFetchGuardsRef.current = {
-        teamId,
-        initialListFetched: false,
-        nullBootstrapFetched: false,
-      }
-      lastHydratedBootstrapSigRef.current = ""
-    }
+    lastHydratedBootstrapSigRef.current = ""
   }, [teamId])
 
-  /** Apply server inbox from dashboard bootstrap when it arrives (signature dedupes React Query reference churn). */
+  /** Seed React Query from dashboard deferred-core bootstrap (deduped by signature). */
   useEffect(() => {
     if (!teamId || bootstrapCoreReady !== true || bootstrapThreadsInbox == null) return
 
@@ -858,13 +840,28 @@ export function MessagingManager({
     if (sig === lastHydratedBootstrapSigRef.current) return
     lastHydratedBootstrapSigRef.current = sig
 
-    const raw = bootstrapThreadsInbox.threads
-    const data = threadsPayloadToUiThreads(Array.isArray(raw) ? raw : [])
-    console.info("[messaging:inbox] hydrate from bootstrap", { teamId, threadCount: data.length, sig })
-    setThreads((prev) => {
-      if (JSON.stringify(prev) === JSON.stringify(data)) return prev
-      return data
-    })
+    const rawArr = Array.isArray(bootstrapThreadsInbox.threads) ? bootstrapThreadsInbox.threads : []
+    const wire = mapLegacyFormattedThreadsToWire(rawArr)
+    const nextUi = threadsPayloadToUiThreads(wire)
+    const metaNext = bootstrapThreadsInbox.meta ?? { totalUnread: 0 }
+    const prevCached = queryClient.getQueryData<MessagesThreadsQueryData>(messagesThreadsQueryKey(teamId))
+    const prevUi = prevCached ? threadsPayloadToUiThreads(prevCached.threads) : null
+    const skipCacheWrite =
+      Boolean(
+        prevCached &&
+          prevUi &&
+          threadsInboxSnapshotEqual(prevUi, nextUi) &&
+          metaNext.totalUnread === prevCached.meta.totalUnread
+      )
+
+    if (!skipCacheWrite) {
+      queryClient.setQueryData<MessagesThreadsQueryData>(messagesThreadsQueryKey(teamId), {
+        threads: wire,
+        meta: metaNext,
+      })
+    }
+
+    const data = nextUi
     setSelectedThread((prev) => {
       if (!prev) return prev
       const match = data.find((t: Thread) => t.id === prev.id)
@@ -884,62 +881,62 @@ export function MessagingManager({
         console.warn(`Thread ${legacyQueryThreadId} not found or access denied`)
       }
     }
-    setInboxLoadError(null)
     setError(null)
-    setInitialLoading(false)
-    void invalidateMessagingUnreadTotal(queryClient, userId, teamId)
-    void invalidateMessageThreadInboxStatsForUser(queryClient, userId)
-  }, [teamId, bootstrapCoreReady, bootstrapThreadsInbox, canonicalTeamParts, queryClient, userId])
+  }, [teamId, bootstrapCoreReady, bootstrapThreadsInbox, canonicalTeamParts, queryClient])
 
-  /**
-   * Thread list GET only when needed — deps intentionally omit `bootstrapThreadsInbox` identity
-   * so selecting a thread / React Query data reference churn does not re-trigger `threads?teamId=`.
-   */
   useEffect(() => {
-    if (!teamId) return
-
-    const inbox = bootstrapInboxRef.current
-
-    console.info("[messaging:inbox] list-fetch effect", {
-      teamId,
-      bootstrapCoreReady,
-      inboxState: inbox === null ? "null" : inbox === undefined ? "undefined" : "object",
+    setSelectedThread((prev) => {
+      if (!prev) return prev
+      const match = threads.find((t) => t.id === prev.id)
+      if (!match) return prev
+      if (threadInboxRowKey(match) === threadInboxRowKey(prev) && match.subject === prev.subject) return prev
+      return { ...match, messages: prev.messages }
     })
+  }, [threads])
 
-    if (bootstrapCoreReady === true && inbox != null) {
-      console.info("[messaging:inbox] list-fetch skip (bootstrap inbox present)", { teamId })
-      return
-    }
+  const patchMessagesThreadsCache = useCallback(
+    (updater: (prev: MessagesThreadsQueryData | undefined) => MessagesThreadsQueryData | undefined) => {
+      queryClient.setQueryData<MessagesThreadsQueryData>(messagesThreadsQueryKey(teamId), updater)
+    },
+    [queryClient, teamId]
+  )
 
-    if (bootstrapCoreReady === true && inbox === undefined) {
-      console.info("[messaging:inbox] list-fetch skip (core ready, inbox undefined — wait for payload)", {
-        teamId,
+  const patchThreadListFromDetailMessages = useCallback(
+    (threadId: string, detailMessages: Message[], isViewingThread: boolean) => {
+      patchMessagesThreadsCache((old) => {
+        if (!old) return old
+        return {
+          ...old,
+          threads: old.threads.map((w) => {
+            if (w.threadId !== threadId) return w
+            if (!detailMessages.length) {
+              return isViewingThread ? { ...w, unreadCount: 0 } : w
+            }
+            const last = detailMessages[detailMessages.length - 1]
+            const created = last.createdAt instanceof Date ? last.createdAt : new Date(last.createdAt)
+            const countFromPayload =
+              detailMessages.length > 1
+                ? detailMessages.length
+                : Math.max(w.totalMessageCount, detailMessages.length)
+            return {
+              ...w,
+              updatedAt: created.toISOString(),
+              lastMessage: {
+                id: last.id,
+                body: last.body,
+                createdAt: created.toISOString(),
+                senderId: last.creator.id,
+                senderDisplayName: (last.creator.name || last.creator.email || "").trim() || null,
+              },
+              unreadCount: isViewingThread ? 0 : w.unreadCount,
+              totalMessageCount: countFromPayload,
+            }
+          }),
+        }
       })
-      return
-    }
-
-    if (bootstrapCoreReady === true && inbox === null) {
-      if (inboxListFetchGuardsRef.current.nullBootstrapFetched) {
-        console.info("[messaging:inbox] list-fetch skip (already fetched for null-bootstrap)", { teamId })
-        return
-      }
-      inboxListFetchGuardsRef.current.nullBootstrapFetched = true
-      console.info("[messaging:inbox] loadThreads triggered", { teamId, reason: "bootstrap-inbox-null" })
-      void loadThreadsFrom("bootstrap-inbox-fallback")
-      return
-    }
-
-    if (inboxListFetchGuardsRef.current.initialListFetched) {
-      console.info("[messaging:inbox] list-fetch skip (initial list already requested)", { teamId })
-      return
-    }
-    inboxListFetchGuardsRef.current.initialListFetched = true
-    console.info("[messaging:inbox] loadThreads triggered", {
-      teamId,
-      reason: "initial-list-while-deferred-pending",
-    })
-    void loadThreadsFrom("initial-load")
-  }, [teamId, bootstrapCoreReady, loadThreadsFrom])
+    },
+    [patchMessagesThreadsCache]
+  )
 
   const loadContacts = async () => {
     try {
@@ -956,54 +953,22 @@ export function MessagingManager({
     }
   }
 
-  /** Update inbox row preview from a thread detail payload (avoids refetching the full thread list). */
-  const patchThreadListFromDetailMessages = (threadId: string, detailMessages: Message[], isViewingThread: boolean) => {
-    if (!detailMessages.length) {
-      if (!isViewingThread) return
-      setThreads((prev) =>
-        prev.map((t) => (t.id === threadId ? { ...t, unreadCount: 0 } : t))
-      )
-      return
-    }
-    const last = detailMessages[detailMessages.length - 1]
-    const previewMessages: Message[] = [
-      {
-        id: last.id,
-        body: last.body,
-        attachments: Array.isArray(last.attachments) ? last.attachments : [],
-        createdAt: last.createdAt instanceof Date ? last.createdAt : new Date(last.createdAt),
-        creator: last.creator,
-      },
-    ]
-    setThreads((prev) =>
-      prev.map((t) => {
-        if (t.id !== threadId) return t
-        const countFromPayload =
-          detailMessages.length > 1 ? detailMessages.length : (t._count?.messages ?? detailMessages.length)
-        return {
-          ...t,
-          updatedAt: new Date(
-            last.createdAt instanceof Date ? last.createdAt : new Date(last.createdAt)
-          ),
-          messages: previewMessages,
-          unreadCount: isViewingThread ? 0 : t.unreadCount ?? 0,
-          _count: { messages: countFromPayload },
-        }
-      })
-    )
-  }
-
   const markThreadReadAndSync = useCallback(
     async (threadId: string): Promise<boolean> => {
       const rollback = optimisticReadRef.current
       try {
-        const tRead = typeof performance !== "undefined" ? performance.now() : 0
         const res = await fetch(`/api/messages/threads/${threadId}/read`, { method: "POST" })
         if (!res.ok) {
           if (rollback?.threadId === threadId) {
-            setThreads((prev) =>
-              prev.map((t) => (t.id === threadId ? { ...t, unreadCount: rollback.prevUnread } : t))
-            )
+            patchMessagesThreadsCache((old) => {
+              if (!old) return old
+              return {
+                ...old,
+                threads: old.threads.map((w) =>
+                  w.threadId === threadId ? { ...w, unreadCount: rollback.prevUnread } : w
+                ),
+              }
+            })
             messagingUnread?.applyThreadUnreadDelta(rollback.prevUnread)
           }
           optimisticReadRef.current = null
@@ -1011,12 +976,6 @@ export function MessagingManager({
           return false
         }
         optimisticReadRef.current = null
-        if (typeof performance !== "undefined") {
-          console.info("[messaging:thread-open] POST read", {
-            threadId,
-            ms: Math.round(performance.now() - tRead),
-          })
-        }
         const data = (await res.json()) as {
           unreadNotifications?: number
           markedNotificationCount?: number
@@ -1032,9 +991,15 @@ export function MessagingManager({
         return true
       } catch (e) {
         if (rollback?.threadId === threadId) {
-          setThreads((prev) =>
-            prev.map((t) => (t.id === threadId ? { ...t, unreadCount: rollback.prevUnread } : t))
-          )
+          patchMessagesThreadsCache((old) => {
+            if (!old) return old
+            return {
+              ...old,
+              threads: old.threads.map((w) =>
+                w.threadId === threadId ? { ...w, unreadCount: rollback.prevUnread } : w
+              ),
+            }
+          })
           messagingUnread?.applyThreadUnreadDelta(rollback.prevUnread)
         }
         optimisticReadRef.current = null
@@ -1042,7 +1007,7 @@ export function MessagingManager({
         return false
       }
     },
-    [shell, messagingUnread, queryClient, userId, teamId]
+    [shell, messagingUnread, queryClient, userId, teamId, patchMessagesThreadsCache]
   )
 
   const resolveRealtimeCreator = (senderId: string): Message["creator"] => {
@@ -1093,15 +1058,20 @@ export function MessagingManager({
       setShowJumpToNewest(false)
       setUnreadCount(0)
       logThreadMessageBanner("clear", "load_messages_start", { threadId })
-      const prevU = threads.find((t) => t.id === threadId)?.unreadCount ?? 0
+      const prevU = threadsRef.current.find((t) => t.id === threadId)?.unreadCount ?? 0
       optimisticReadRef.current = { threadId, prevUnread: prevU }
       messagingUnread?.applyThreadUnreadDelta(-prevU)
-      setThreads((prev) =>
-        prev.map((t) => (t.id === threadId ? { ...t, unreadCount: 0 } : t))
-      )
+      patchMessagesThreadsCache((old) => {
+        if (!old) return old
+        return {
+          ...old,
+          threads: old.threads.map((w) =>
+            w.threadId === threadId ? { ...w, unreadCount: 0 } : w
+          ),
+        }
+      })
     }
     try {
-      const tOpen = typeof performance !== "undefined" ? performance.now() : 0
       void markThreadReadAndSync(threadId)
       const response = await fetch(threadDetailFetchUrl(threadId))
       if (!response.ok) {
@@ -1113,21 +1083,20 @@ export function MessagingManager({
         if (showLoading) {
           const rb = optimisticReadRef.current
           if (rb?.threadId === threadId) {
-            setThreads((prev) =>
-              prev.map((t) => (t.id === threadId ? { ...t, unreadCount: rb.prevUnread } : t))
-            )
+            patchMessagesThreadsCache((old) => {
+              if (!old) return old
+              return {
+                ...old,
+                threads: old.threads.map((w) =>
+                  w.threadId === threadId ? { ...w, unreadCount: rb.prevUnread } : w
+                ),
+              }
+            })
             messagingUnread?.applyThreadUnreadDelta(rb.prevUnread)
             optimisticReadRef.current = null
           }
         }
         return null
-      }
-      if (typeof performance !== "undefined") {
-        console.info("[messaging:thread-open] GET thread detail", {
-          threadId,
-          ms: Math.round(performance.now() - tOpen),
-          messageCount: Array.isArray(data.messages) ? data.messages.length : 0,
-        })
       }
       const pag = data.pagination as
         | { hasMoreOlder?: boolean; oldestMessageId?: string | null }
@@ -1186,17 +1155,23 @@ export function MessagingManager({
         return null
       }
       console.error("Error loading messages:", error)
-      if (showLoading) {
-        const rb = optimisticReadRef.current
-        if (rb?.threadId === threadId) {
-          setThreads((prev) =>
-            prev.map((t) => (t.id === threadId ? { ...t, unreadCount: rb.prevUnread } : t))
-          )
-          messagingUnread?.applyThreadUnreadDelta(rb.prevUnread)
-          optimisticReadRef.current = null
+        if (showLoading) {
+          const rb = optimisticReadRef.current
+          if (rb?.threadId === threadId) {
+            patchMessagesThreadsCache((old) => {
+              if (!old) return old
+              return {
+                ...old,
+                threads: old.threads.map((w) =>
+                  w.threadId === threadId ? { ...w, unreadCount: rb.prevUnread } : w
+                ),
+              }
+            })
+            messagingUnread?.applyThreadUnreadDelta(rb.prevUnread)
+            optimisticReadRef.current = null
+          }
         }
-      }
-      setError(error instanceof Error ? error.message : "Failed to load messages")
+        setError(error instanceof Error ? error.message : "Failed to load messages")
       return null
     } finally {
       if (showLoading && loadSerial === messagesLoadSerialRef.current) {
@@ -1226,7 +1201,7 @@ export function MessagingManager({
         const bTime = new Date(b.createdAt).getTime()
         return aTime - bTime
       })
-      messageIngressRef.current = "poll"
+      messageIngressRef.current = "idle"
       setMessages((prev) => {
         const byId = new Map<string, Message>()
         for (const m of sortedIncoming) byId.set(m.id, m)
@@ -1265,68 +1240,13 @@ export function MessagingManager({
     return () => obs.disconnect()
   }, [selectedThread?.id, hasMoreOlder, loadOlderMessages])
 
-  const refreshMessages = async (threadId: string) => {
-    if (isRefreshingRef.current) return // Prevent concurrent refreshes
-    isRefreshingRef.current = true
-    {
-      const c = messagesContainerRef.current
-      scrollIntentAfterNextMessagesRef.current =
-        c && isNearBottomEl(c) ? "bottom" : "keep"
-    }
-    const wasNearBottom = messagesContainerRef.current ? isNearBottomEl(messagesContainerRef.current) : false
-    try {
-      // Fetch latest messages without showing loading spinner
-      const response = await fetch(threadDetailFetchUrl(threadId))
-      if (response.ok) {
-        const data = await response.json()
-
-        let hadNewFromPoll = false
-        setMessages((prev) => {
-          const existingIds = new Set(prev.map((m) => m.id))
-          const newMessages = (data.messages || []).filter((m: Message) => !existingIds.has(m.id))
-          hadNewFromPoll = newMessages.length > 0
-
-          if (newMessages.length === 0) {
-            return prev
-          }
-
-          messageIngressRef.current = "poll"
-
-          const merged = [...prev, ...newMessages]
-          return merged.sort((a, b) => {
-            const aTime = new Date(a.createdAt).getTime()
-            const bTime = new Date(b.createdAt).getTime()
-            return aTime - bTime
-          })
-        })
-
-        const pageSorted = [...(data.messages || [])].sort((a: Message, b: Message) => {
-          const aTime = new Date(a.createdAt).getTime()
-          const bTime = new Date(b.createdAt).getTime()
-          return aTime - bTime
-        }) as Message[]
-        const viewing = selectedThreadIdRef.current === threadId
-        const clearUnreadInList = viewing && (!hadNewFromPoll || wasNearBottom)
-        if (pageSorted.length) {
-          patchThreadListFromDetailMessages(threadId, pageSorted, clearUnreadInList)
-        }
-        if (hadNewFromPoll && wasNearBottom && viewing) {
-          void markThreadReadAndSync(threadId)
-        }
-      }
-    } catch (error) {
-      console.error("Error refreshing messages:", error)
-    } finally {
-      isRefreshingRef.current = false
-    }
-  }
-
   const handleManualRefresh = async () => {
-    if (!selectedThread?.id) return
     setRefreshing(true)
     try {
-      await loadMessages(selectedThread.id, true)
-      await loadThreadsFrom("manual-refresh")
+      await queryClient.invalidateQueries({ queryKey: messagesThreadsQueryKey(teamId) })
+      if (selectedThread?.id) {
+        await loadMessages(selectedThread.id, true)
+      }
     } catch (error) {
       console.error("Error refreshing messages:", error)
     } finally {
@@ -1392,6 +1312,10 @@ export function MessagingManager({
           }
           appendRealtimeMessage(newMessage)
 
+          void invalidateMessagesThreads(queryClient, teamId)
+          void invalidateMessagingUnreadTotal(queryClient, userId, teamId)
+          void invalidateMessageThreadInboxStatsForUser(queryClient, userId)
+
           if (senderId === userId) {
             patchThreadListFromDetailMessages(threadId, [newMessage], true)
             return
@@ -1402,18 +1326,7 @@ export function MessagingManager({
           if (active) {
             void markThreadReadAndSync(threadId)
           } else {
-            setThreads((prev) =>
-              prev.map((t) =>
-                t.id === threadId ? { ...t, unreadCount: (t.unreadCount ?? 0) + 1 } : t
-              )
-            )
             messagingUnread?.applyThreadUnreadDelta(1)
-            void invalidateMessagingUnreadTotal(queryClient, userId, teamId)
-            void invalidateMessageThreadInboxStatsForUser(queryClient, userId)
-            console.info("[messaging:realtime] background message → increment unread", {
-              threadId,
-              userId,
-            })
           }
         }
       )
@@ -1612,16 +1525,23 @@ export function MessagingManager({
         throw new Error(error.error || "Failed to create thread")
       }
 
-      const newThread = await response.json()
-      setThreads([newThread, ...threads])
-      setSelectedThread(newThread)
+      const newThread = (await response.json()) as Record<string, unknown>
+      const wire = createdThreadJsonToWire(newThread)
+      queryClient.setQueryData<MessagesThreadsQueryData>(messagesThreadsQueryKey(teamId), (old) => {
+        if (!old) {
+          return { threads: [wire], meta: { totalUnread: 0 } }
+        }
+        return { ...old, threads: [wire, ...old.threads] }
+      })
+      setSelectedThread(wireThreadListItemToThread(wire))
       setInboxPhase("thread")
-      if (freePortalBaseTrimmed && newThread?.id) {
-        pendingCanonicalThreadNavRef.current = newThread.id
-        router.push(`${freePortalBaseTrimmed.replace(/\/$/, "")}/messages/${encodeURIComponent(newThread.id)}`)
-      } else if (canonicalTeamParts && newThread?.id) {
-        pendingCanonicalThreadNavRef.current = newThread.id
-        router.push(buildDashboardTeamMessagePath(canonicalTeamParts, newThread.id))
+      const newId = String(newThread.id ?? "")
+      if (freePortalBaseTrimmed && newId) {
+        pendingCanonicalThreadNavRef.current = newId
+        router.push(`${freePortalBaseTrimmed.replace(/\/$/, "")}/messages/${encodeURIComponent(newId)}`)
+      } else if (canonicalTeamParts && newId) {
+        pendingCanonicalThreadNavRef.current = newId
+        router.push(buildDashboardTeamMessagePath(canonicalTeamParts, newId))
       }
       setNewThreadSubject("")
       setSelectedContacts([])
@@ -1939,12 +1859,10 @@ export function MessagingManager({
         onKeyDown={(e) => {
           if (e.key === "Enter" || e.key === " ") {
             e.preventDefault()
-            console.info("[messaging:thread-select]", { threadId: thread.id, teamId, source: "sidebar-keyboard" })
             navigateToThread(thread)
           }
         }}
         onClick={() => {
-          console.info("[messaging:thread-select]", { threadId: thread.id, teamId, source: "sidebar-click" })
           navigateToThread(thread)
         }}
         className={cn(
@@ -2065,7 +1983,7 @@ export function MessagingManager({
                   size="sm"
                   variant="outline"
                   className="rounded-xl"
-                  onClick={() => void loadThreadsFrom("landing-refresh")}
+                  onClick={() => void queryClient.invalidateQueries({ queryKey: messagesThreadsQueryKey(teamId) })}
                   disabled={refreshing || initialLoading}
                 >
                   <RefreshCw className={cn("mr-1.5 h-4 w-4", refreshing && "animate-spin")} aria-hidden />
@@ -2181,9 +2099,7 @@ export function MessagingManager({
                   variant="outline"
                   className="mt-3 rounded-xl"
                   onClick={() => {
-                    setInboxLoadError(null)
-                    setInitialLoading(true)
-                    void loadThreadsFrom("retry-inbox")
+                    void messagesThreadsQuery.refetch()
                   }}
                 >
                   Try again
@@ -2447,9 +2363,7 @@ export function MessagingManager({
                 variant="outline"
                 className="mt-3 rounded-xl"
                 onClick={() => {
-                  setInboxLoadError(null)
-                  setInitialLoading(true)
-                  void loadThreadsFrom("retry-inbox")
+                  void messagesThreadsQuery.refetch()
                 }}
               >
                 Try again

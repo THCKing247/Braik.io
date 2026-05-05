@@ -2,6 +2,7 @@
 
 import { useMemo } from "react"
 import { keepPreviousData, useQuery, type QueryClient } from "@tanstack/react-query"
+import type { MessageThreadWireItem } from "@/lib/messaging/thread-list-wire"
 import { supabase } from "@/lib/supabaseClient"
 
 export const MESSAGING_UNREAD_TOTAL_QUERY_KEY = "messaging-unread-total" as const
@@ -80,4 +81,48 @@ export function invalidateMessagingUnreadTotal(queryClient: QueryClient, userId:
 
 export function invalidateMessageThreadInboxStatsForUser(queryClient: QueryClient, userId: string) {
   return queryClient.invalidateQueries({ queryKey: [MESSAGE_THREAD_INBOX_STATS_QUERY_KEY, userId] })
+}
+
+export const MESSAGES_THREADS_QUERY_KEY = "messages-threads" as const
+
+export type MessagesThreadsQueryData = {
+  threads: MessageThreadWireItem[]
+  meta: { totalUnread: number }
+}
+
+export function messagesThreadsQueryKey(teamId: string) {
+  return [MESSAGES_THREADS_QUERY_KEY, teamId] as const
+}
+
+export async function fetchMessagesThreadsList(teamId: string): Promise<MessagesThreadsQueryData> {
+  const res = await fetch(`/api/messages/threads?teamId=${encodeURIComponent(teamId)}`, {
+    credentials: "same-origin",
+  })
+  if (!res.ok) {
+    const err = (await res.json().catch(() => ({}))) as { error?: string }
+    throw new Error(err.error || "Failed to load threads")
+  }
+  const raw = (await res.json()) as { threads?: MessageThreadWireItem[]; meta?: { totalUnread?: number } }
+  return {
+    threads: raw.threads ?? [],
+    meta: { totalUnread: Number(raw.meta?.totalUnread ?? 0) },
+  }
+}
+
+export function useMessagesThreadsQuery(opts: { teamId: string; enabled: boolean }) {
+  const { teamId, enabled } = opts
+  return useQuery({
+    queryKey: messagesThreadsQueryKey(teamId),
+    queryFn: () => fetchMessagesThreadsList(teamId),
+    enabled: Boolean(teamId && enabled),
+    staleTime: 30_000,
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    placeholderData: keepPreviousData,
+  })
+}
+
+export function invalidateMessagesThreads(queryClient: QueryClient, teamId: string) {
+  return queryClient.invalidateQueries({ queryKey: messagesThreadsQueryKey(teamId) })
 }

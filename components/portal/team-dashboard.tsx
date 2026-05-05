@@ -137,6 +137,7 @@ function TeamBanner({
   scheduleGamesLoading,
   prefetchedTeamSummary,
   bootstrapTeamLoading,
+  allowTeamSummaryFallback,
   networkSyncHint,
 }: {
   user: SessionUser
@@ -147,6 +148,8 @@ function TeamBanner({
   prefetchedTeamSummary?: { name: string; slogan: string | null; logoUrl: string | null }
   /** While bootstrap is in flight, skip redundant team GET until success or fallback. */
   bootstrapTeamLoading?: boolean
+  /** Only allow `/api/teams/:id` fallback after bootstrap failure/unavailable state. */
+  allowTeamSummaryFallback?: boolean
   /** Shown under the welcome line when showing cached data or background refresh. */
   networkSyncHint?: string | null
 }) {
@@ -172,6 +175,9 @@ function TeamBanner({
     if (bootstrapTeamLoading) {
       return
     }
+    if (!allowTeamSummaryFallback) {
+      return
+    }
     let cancelled = false
     fetch(`/api/teams/${teamId}`)
       .then((res) => (res.ok ? res.json() : null))
@@ -188,7 +194,7 @@ function TeamBanner({
         if (!cancelled) setTeamSummary(null)
       })
     return () => { cancelled = true }
-  }, [teamId, prefetchedTeamSummary, bootstrapTeamLoading])
+  }, [teamId, prefetchedTeamSummary, bootstrapTeamLoading, allowTeamSummaryFallback])
 
   const teamName = teamSummary?.name || user.teamName || user.organizationName || "Your Team"
   const lastName = user?.name?.split(" ").slice(-1)[0] || ""
@@ -704,6 +710,7 @@ function UpcomingGameCard({
 // ─── Connect to Team Card Component ───────────────────────────────────────────
 
 function ConnectToTeamCard({ user }: { user: SessionUser }) {
+  const router = useRouter()
   const [code, setCode] = useState("")
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
@@ -736,9 +743,9 @@ function ConnectToTeamCard({ user }: { user: SessionUser }) {
       setSuccess(true)
       setLoading(false)
 
-      // Reload the page after a short delay so the dashboard refreshes with team data
+      // Refresh after connect so bootstrap/session data revalidates without full reload.
       setTimeout(() => {
-        window.location.reload()
+        router.refresh()
       }, 1500)
     } catch {
       setError("A network error occurred. Please check your connection and try again.")
@@ -903,9 +910,18 @@ export function TeamDashboard({ session, teamId, canAddCalendarEvents }: TeamDas
   const dashQ = useDashboardBootstrapQuery(bootstrapQueryTeamId)
   useBraikPerfDashboardBootstrapReady(bootstrapQueryTeamId, Boolean(dashQ.data?.dashboard))
   useBraikPerfMount("TeamDashboard", 64)
-  const [scheduleGames, setScheduleGames] = useState<TeamGameRow[]>([])
-  const [scheduleGamesLoading, setScheduleGamesLoading] = useState(true)
-  const [dashNetworkHint, setDashNetworkHint] = useState<string | null>(null)
+  const scheduleGames = useMemo<TeamGameRow[]>(() => {
+    const games = dashQ.data?.dashboard?.games
+    return Array.isArray(games) ? games : []
+  }, [dashQ.data?.dashboard?.games])
+  const scheduleGamesLoading =
+    Boolean(bootstrapQueryTeamId) &&
+    (dashQ.isPending || dashQ.data?.deferredPending === true) &&
+    scheduleGames.length === 0
+  const dashNetworkHint =
+    dashQ.isFetching && scheduleGames.length > 0 && dashQ.data?.deferredPending !== true
+      ? "Refreshing dashboard data…"
+      : null
 
   useEffect(() => {
     devDashboardHandoffLog("TeamDashboard", {
@@ -939,65 +955,6 @@ export function TeamDashboard({ session, teamId, canAddCalendarEvents }: TeamDas
     return "fallback"
   }, [bootstrapQueryTeamId, dashQ.isPending, dashQ.isError, dashQ.data])
 
-  const loadScheduleGames = useCallback(() => {
-    const gid = bootstrapQueryTeamId.trim()
-    if (!gid) {
-      setScheduleGames([])
-      setScheduleGamesLoading(false)
-      return
-    }
-    setScheduleGamesLoading(true)
-    fetch(`/api/stats/games?teamId=${encodeURIComponent(gid)}`)
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data: { games?: TeamGameRow[] } | null) => {
-        if (data?.games && Array.isArray(data.games)) {
-          setScheduleGames(data.games)
-        } else {
-          setScheduleGames([])
-        }
-      })
-      .catch(() => setScheduleGames([]))
-      .finally(() => setScheduleGamesLoading(false))
-  }, [bootstrapQueryTeamId])
-
-  useEffect(() => {
-    if (!bootstrapQueryTeamId.trim()) {
-      setScheduleGames([])
-      setScheduleGamesLoading(false)
-      setDashNetworkHint(null)
-      return
-    }
-    const awaitingCore = dashQ.data?.deferredPending === true
-    if (awaitingCore) {
-      setScheduleGamesLoading(true)
-      setDashNetworkHint(null)
-      return
-    }
-    if (dashQ.data?.dashboard?.games && Array.isArray(dashQ.data.dashboard.games)) {
-      setScheduleGames(dashQ.data.dashboard.games)
-      setScheduleGamesLoading(false)
-      setDashNetworkHint(dashQ.isFetching ? "Refreshing dashboard data…" : null)
-    } else if (dashQ.isPending && !dashQ.data) {
-      setScheduleGamesLoading(true)
-      setDashNetworkHint(null)
-    } else if (dashQ.isError && !dashQ.data) {
-      setDashNetworkHint(null)
-      loadScheduleGames()
-    } else if (!dashQ.isPending && !dashQ.data?.dashboard) {
-      loadScheduleGames()
-    }
-  }, [
-    bootstrapQueryTeamId,
-    dashQ.data?.deferredPending,
-    dashQ.data?.dashboard?.games,
-    dashQ.data?.dashboard,
-    dashQ.isPending,
-    dashQ.isFetching,
-    dashQ.isError,
-    dashQ.data,
-    loadScheduleGames,
-  ])
-
   const homeNotificationsFiltered = useMemo(() => {
     const raw = dashQ.data?.notifications?.notifications ?? []
     return mapNotificationRowsForHomeCard(raw).filter((n) =>
@@ -1008,11 +965,13 @@ export function TeamDashboard({ session, teamId, canAddCalendarEvents }: TeamDas
   useEffect(() => {
     const handler = (e: Event) => {
       const ce = e as CustomEvent<{ teamId?: string }>
-      if (ce.detail?.teamId === bootstrapQueryTeamId) loadScheduleGames()
+      if (ce.detail?.teamId === bootstrapQueryTeamId) {
+        void dashQ.refetch()
+      }
     }
     window.addEventListener(TEAM_GAMES_CHANGED_EVENT, handler)
     return () => window.removeEventListener(TEAM_GAMES_CHANGED_EVENT, handler)
-  }, [bootstrapQueryTeamId, loadScheduleGames])
+  }, [bootstrapQueryTeamId, dashQ])
 
   if (!user) {
     return (
@@ -1040,7 +999,7 @@ export function TeamDashboard({ session, teamId, canAddCalendarEvents }: TeamDas
         user={user}
         teamId={dataTeamId}
         scheduleGames={scheduleGames}
-        scheduleGamesLoading={scheduleGamesLoading && !bootstrapAligned}
+        scheduleGamesLoading={scheduleGamesLoading}
         prefetchedTeamSummary={
           bootstrapAligned
             ? {
@@ -1050,7 +1009,8 @@ export function TeamDashboard({ session, teamId, canAddCalendarEvents }: TeamDas
               }
             : undefined
         }
-        bootstrapTeamLoading={dashboardBootstrapState === "loading"}
+        bootstrapTeamLoading={dashboardBootstrapState === "loading" || awaitingDeferredCore}
+        allowTeamSummaryFallback={dashboardBootstrapState === "fallback"}
         networkSyncHint={dashNetworkHint}
       />
 
@@ -1100,9 +1060,12 @@ export function TeamDashboard({ session, teamId, canAddCalendarEvents }: TeamDas
             <div className="min-h-0 lg:col-span-5">
               <NotificationsCard
                 teamId={dataTeamId}
-                bootstrapLoading={dashboardBootstrapState === "loading"}
+                bootstrapLoading={
+                  dashboardBootstrapState === "loading" ||
+                  dashQ.data?.deferredPending === true
+                }
                 initialNotifications={
-                  dashboardBootstrapState === "ok" && !awaitingDeferredCore
+                  dashboardBootstrapState === "ok" && dashQ.data?.deferredPending !== true
                     ? homeNotificationsFiltered
                     : undefined
                 }

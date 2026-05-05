@@ -16,6 +16,31 @@ import {
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
+const WEEKLY_STAT_ENTRY_AUDIT_COLUMNS = [
+  "id",
+  "team_id",
+  "player_id",
+  "season_year",
+  "week_number",
+  "game_id",
+  "opponent",
+  "game_date",
+  "game_type",
+  "location",
+  "venue",
+  "result",
+  "team_score",
+  "opponent_score",
+  "notes",
+  "stats",
+  "created_at",
+  "created_by",
+  "updated_at",
+  "updated_by",
+  "deleted_at",
+  "deleted_by",
+].join(",")
+
 async function resolveGameFields(
   supabase: ReturnType<typeof getSupabaseServer>,
   teamId: string,
@@ -296,7 +321,10 @@ export async function POST(request: Request) {
       })
     }
 
-    const { data: inserted, error } = await supabase.from("player_weekly_stat_entries").insert(insertRows).select("*")
+    const { data: inserted, error } = await supabase
+      .from("player_weekly_stat_entries")
+      .insert(insertRows)
+      .select(WEEKLY_STAT_ENTRY_AUDIT_COLUMNS)
     if (error) {
       console.error("[POST /api/stats/weekly]", error)
       return NextResponse.json({ error: "Failed to save weekly stats" }, { status: 500 })
@@ -377,7 +405,7 @@ export async function PATCH(request: Request) {
 
     const { data: existing, error: exErr } = await supabase
       .from("player_weekly_stat_entries")
-      .select("*")
+      .select(WEEKLY_STAT_ENTRY_AUDIT_COLUMNS)
       .eq("id", entryId)
       .eq("team_id", teamId)
       .is("deleted_at", null)
@@ -468,7 +496,7 @@ export async function PATCH(request: Request) {
       .update(updates)
       .eq("id", entryId)
       .eq("team_id", teamId)
-      .select("*")
+      .select(WEEKLY_STAT_ENTRY_AUDIT_COLUMNS)
       .maybeSingle()
 
     if (upErr || !updated) {
@@ -531,7 +559,7 @@ export async function DELETE(request: Request) {
 
     const { data: toDelete, error: fetchErr } = await supabase
       .from("player_weekly_stat_entries")
-      .select("*")
+      .select(WEEKLY_STAT_ENTRY_AUDIT_COLUMNS)
       .eq("team_id", teamId)
       .in("id", ids)
       .is("deleted_at", null)
@@ -565,7 +593,7 @@ export async function DELETE(request: Request) {
         .eq("id", id)
         .eq("team_id", teamId)
         .is("deleted_at", null)
-        .select("*")
+        .select(WEEKLY_STAT_ENTRY_AUDIT_COLUMNS)
         .maybeSingle()
 
       if (softErr || !afterRow) {

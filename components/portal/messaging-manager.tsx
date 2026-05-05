@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } from "react"
+import { useQueryClient } from "@tanstack/react-query"
 import { useAppBootstrapOptional } from "@/components/portal/app-bootstrap-context"
 import { useMessagingUnreadOptional } from "@/components/portal/messaging-unread-context"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
@@ -30,6 +31,12 @@ import {
 } from "lucide-react"
 import { getMessagingPermissions } from "@/lib/enforcement/messaging-permissions"
 import type { MessageThreadsInboxPayload } from "@/lib/messaging/load-message-threads-inbox"
+import {
+  invalidateMessageThreadInboxStatsForUser,
+  invalidateMessagingUnreadTotal,
+  useMessageThreadInboxStatsQuery,
+  useMessagingUnreadTotalQuery,
+} from "@/lib/messaging/messaging-queries"
 import {
   wireThreadListItemToThread,
   type MessageThreadWireItem,
@@ -328,6 +335,17 @@ export function MessagingManager({
   const [contactPositionFilter, setContactPositionFilter] = useState<string | null>(null)
   const [participantsModalPurpose, setParticipantsModalPurpose] = useState<"pick" | "view">("pick")
   const [priorityCollapsed, setPriorityCollapsed] = useState(false)
+
+  const queryClient = useQueryClient()
+  const visibleThreadIds = useMemo(() => threads.map((t) => t.id), [threads])
+  const messagingUnreadTotalQuery = useMessagingUnreadTotalQuery({ userId, teamId })
+  const messageThreadInboxStatsQuery = useMessageThreadInboxStatsQuery({ userId, visibleThreadIds })
+
+  useEffect(() => {
+    if (messagingUnreadTotalQuery.data === undefined) return
+    messagingUnreadRef.current?.syncThreadUnreadFromServer(messagingUnreadTotalQuery.data)
+  }, [messagingUnreadTotalQuery.data])
+
   const messageIngressRef = useRef<"idle" | "full-load" | "poll" | "realtime" | "user-send" | "optimistic">("idle")
   const scrollIntentAfterNextMessagesRef = useRef<"bottom" | "keep">("keep")
   const lastMessageCountRef = useRef<number>(0)
@@ -418,6 +436,44 @@ export function MessagingManager({
   useEffect(() => {
     selectedThreadIdRef.current = selectedThread?.id ?? null
   }, [selectedThread?.id])
+
+  useEffect(() => {
+    const rows = messageThreadInboxStatsQuery.data
+    if (!rows?.length) return
+    const byId = new Map(rows.map((r) => [r.thread_id, r]))
+    setThreads((prev) =>
+      prev.map((t) => {
+        const row = byId.get(t.id)
+        if (!row) return t
+        const isOpen = selectedThreadIdRef.current === t.id
+        const unreadCount = Number(row.unread_count ?? 0)
+        const messageCount = Number(row.message_count ?? 0)
+        const next: Thread = { ...t, unreadCount, _count: { messages: messageCount } }
+        if (!isOpen && row.last_message_id && row.last_sender_id) {
+          const sid = row.last_sender_id
+          const p = t.participants.find((pp) => pp.userId === sid)
+          return {
+            ...next,
+            updatedAt: new Date(row.last_message_created_at ?? t.updatedAt),
+            messages: [
+              {
+                id: row.last_message_id,
+                body: row.last_message_content ?? "",
+                attachments: [],
+                createdAt: new Date(row.last_message_created_at ?? t.updatedAt),
+                creator: {
+                  id: sid,
+                  name: p ? displayNameForParticipantUser(p.user) : null,
+                  email: p?.user.email ?? "",
+                },
+              },
+            ],
+          }
+        }
+        return next
+      })
+    )
+  }, [messageThreadInboxStatsQuery.data])
 
   // TODO: remove — temporary Realtime channel monitor (dev or `?debugRealtime=1` on deployed builds). Do not ship as permanent logging.
   useEffect(() => {
@@ -706,8 +762,7 @@ export function MessagingManager({
     scrollToBottom()
   }
 
-  const loadThreads = useCallback(
-    async (opts?: { skipMessagingBadgeSync?: boolean }) => {
+  const loadThreads = useCallback(async () => {
       if (isLoadingRef.current) {
         console.info("[messaging:inbox] loadThreads skipped (already in flight)", { teamId })
         return
@@ -734,11 +789,6 @@ export function MessagingManager({
           count: data.length,
           idsSample: data.slice(0, 3).map((t) => t.id),
         })
-        const meta = Array.isArray(raw) ? null : (raw as { meta?: { totalUnread?: number } }).meta
-        const mu = messagingUnreadRef.current
-        if (typeof meta?.totalUnread === "number" && !opts?.skipMessagingBadgeSync) {
-          mu?.syncThreadUnreadFromServer(meta.totalUnread)
-        }
         setThreads((prev) => {
           if (JSON.stringify(prev) === JSON.stringify(data)) return prev
           return data
@@ -766,6 +816,8 @@ export function MessagingManager({
         }
         setInboxLoadError(null)
         setError(null)
+        void invalidateMessagingUnreadTotal(queryClient, userId, teamId)
+        void invalidateMessageThreadInboxStatsForUser(queryClient, userId)
       } catch (error: unknown) {
         console.error("[messaging:inbox] Error loading threads:", error)
         const msg = error instanceof Error ? error.message : "Failed to load threads"
@@ -776,14 +828,12 @@ export function MessagingManager({
         setInitialLoading(false)
         console.info("[messaging:inbox] loadThreads finished", { teamId })
       }
-    },
-    [teamId, canonicalTeamParts]
-  )
+  }, [teamId, canonicalTeamParts, queryClient, userId])
 
   const loadThreadsFrom = useCallback(
-    async (source: string, opts?: { skipMessagingBadgeSync?: boolean }) => {
+    async (source: string) => {
       console.info(`[messaging] loadThreads source=${source} teamId=${teamId} at=${new Date().toISOString()}`)
-      await loadThreads(opts)
+      await loadThreads()
     },
     [teamId, loadThreads]
   )
@@ -811,10 +861,6 @@ export function MessagingManager({
     const raw = bootstrapThreadsInbox.threads
     const data = threadsPayloadToUiThreads(Array.isArray(raw) ? raw : [])
     console.info("[messaging:inbox] hydrate from bootstrap", { teamId, threadCount: data.length, sig })
-    const meta = bootstrapThreadsInbox.meta
-    if (typeof meta?.totalUnread === "number") {
-      messagingUnreadRef.current?.syncThreadUnreadFromServer(meta.totalUnread)
-    }
     setThreads((prev) => {
       if (JSON.stringify(prev) === JSON.stringify(data)) return prev
       return data
@@ -841,7 +887,9 @@ export function MessagingManager({
     setInboxLoadError(null)
     setError(null)
     setInitialLoading(false)
-  }, [teamId, bootstrapCoreReady, bootstrapThreadsInbox, canonicalTeamParts])
+    void invalidateMessagingUnreadTotal(queryClient, userId, teamId)
+    void invalidateMessageThreadInboxStatsForUser(queryClient, userId)
+  }, [teamId, bootstrapCoreReady, bootstrapThreadsInbox, canonicalTeamParts, queryClient, userId])
 
   /**
    * Thread list GET only when needed — deps intentionally omit `bootstrapThreadsInbox` identity
@@ -979,10 +1027,8 @@ export function MessagingManager({
         } else if (typeof data.markedNotificationCount === "number" && data.markedNotificationCount > 0) {
           shell?.applyUnreadDelta(-data.markedNotificationCount)
         }
-        const teamTu = data.teamThreadUnread
-        if (typeof teamTu === "number") {
-          messagingUnread?.syncThreadUnreadFromServer(teamTu)
-        }
+        void invalidateMessagingUnreadTotal(queryClient, userId, teamId)
+        void invalidateMessageThreadInboxStatsForUser(queryClient, userId)
         return true
       } catch (e) {
         if (rollback?.threadId === threadId) {
@@ -996,7 +1042,7 @@ export function MessagingManager({
         return false
       }
     },
-    [shell, messagingUnread]
+    [shell, messagingUnread, queryClient, userId, teamId]
   )
 
   const resolveRealtimeCreator = (senderId: string): Message["creator"] => {
@@ -1362,6 +1408,8 @@ export function MessagingManager({
               )
             )
             messagingUnread?.applyThreadUnreadDelta(1)
+            void invalidateMessagingUnreadTotal(queryClient, userId, teamId)
+            void invalidateMessageThreadInboxStatsForUser(queryClient, userId)
             console.info("[messaging:realtime] background message → increment unread", {
               threadId,
               userId,
@@ -1499,6 +1547,8 @@ export function MessagingManager({
           true
         )
       }
+      void invalidateMessagingUnreadTotal(queryClient, userId, teamId)
+      void invalidateMessageThreadInboxStatsForUser(queryClient, userId)
     } catch (error: any) {
       const errorMessage = error.message || "Error sending message"
       setError(errorMessage)
@@ -1580,6 +1630,8 @@ export function MessagingManager({
       setComposeGroupFilter(null)
       setError(null)
       setMobileShowList(false)
+      void invalidateMessagingUnreadTotal(queryClient, userId, teamId)
+      void invalidateMessageThreadInboxStatsForUser(queryClient, userId)
     } catch (error: any) {
       const errorMessage = error.message || "Error creating thread"
       setError(errorMessage)

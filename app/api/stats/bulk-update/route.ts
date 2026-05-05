@@ -17,6 +17,31 @@ import {
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
+const WEEKLY_STAT_ENTRY_AUDIT_COLUMNS = [
+  "id",
+  "team_id",
+  "player_id",
+  "season_year",
+  "week_number",
+  "game_id",
+  "opponent",
+  "game_date",
+  "game_type",
+  "location",
+  "venue",
+  "result",
+  "team_score",
+  "opponent_score",
+  "notes",
+  "stats",
+  "created_at",
+  "created_by",
+  "updated_at",
+  "updated_by",
+  "deleted_at",
+  "deleted_by",
+].join(",")
+
 type UpdatesBody = {
   opponent?: unknown
   date?: unknown
@@ -213,7 +238,7 @@ export async function PATCH(request: Request) {
 
     const { data: beforeRows, error: fetchErr } = await supabase
       .from("player_weekly_stat_entries")
-      .select("*")
+      .select(WEEKLY_STAT_ENTRY_AUDIT_COLUMNS)
       .eq("team_id", teamId)
       .in("id", ids)
       .is("deleted_at", null)
@@ -243,7 +268,7 @@ export async function PATCH(request: Request) {
       .eq("team_id", teamId)
       .in("id", targetIds)
       .is("deleted_at", null)
-      .select("*")
+      .select(WEEKLY_STAT_ENTRY_AUDIT_COLUMNS)
 
     if (upErr) {
       console.error("[PATCH /api/stats/bulk-update] update", upErr)

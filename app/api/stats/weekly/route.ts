@@ -11,6 +11,7 @@ import { normalizeWeeklyStatsForStorage, sanitizeWeeklyStatsInput } from "@/lib/
 import { recalculateSeasonStatsFromWeeklyForPlayers } from "@/lib/stats-weekly-season-sync"
 import {
   insertWeeklyStatEntryAudit,
+  insertWeeklyStatEntryAuditBatch,
   weeklyEntryRowToAuditSnapshot,
 } from "@/lib/stats-weekly-audit"
 
@@ -269,20 +270,17 @@ export async function POST(request: Request) {
 
     await requireTeamPermission(teamId, "edit_roster")
 
-    const insertRows: Array<{
-      team_id: string
-      player_id: string
-      season_year: number | null
-      week_number: number | null
-      game_id: string | null
+    type ParsedWeeklyRow = {
+      playerId: string
+      seasonYear: number | null
+      weekNumber: number | null
+      gameId: string | null
       opponent: string | null
-      game_date: string | null
+      gameDate: string | null
       stats: Record<string, number>
-      created_by: string
-      updated_by: string
-    }> = []
+    }
 
-    const playerIdsForSync = new Set<string>()
+    const parsed: ParsedWeeklyRow[] = []
 
     for (const e of list) {
       const pid = e.playerId?.trim()
@@ -312,35 +310,90 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: "gameDate must be YYYY-MM-DD" }, { status: 400 })
       }
 
-      if (gid) {
-        const resolved = await resolveGameFields(supabase, teamId, gid, opponent, gameDate)
-        if (resolved.error) {
-          return NextResponse.json({ error: resolved.error }, { status: 400 })
-        }
-        opponent = resolved.opponent
-        gameDate = resolved.gameDate
-      }
+      parsed.push({
+        playerId: pid,
+        seasonYear,
+        weekNumber,
+        gameId: gid,
+        opponent,
+        gameDate,
+        stats,
+      })
+    }
 
-      const { data: playerRow } = await supabase
-        .from("players")
-        .select("id")
-        .eq("id", pid)
-        .eq("team_id", teamId)
-        .maybeSingle()
-      if (!playerRow) {
+    const uniquePlayerIds = [...new Set(parsed.map((p) => p.playerId))]
+    const gameIdsToLoad = [...new Set(parsed.map((p) => p.gameId).filter((g): g is string => Boolean(g)))]
+
+    const [playersRes, gamesRes] = await Promise.all([
+      supabase.from("players").select("id").eq("team_id", teamId).in("id", uniquePlayerIds),
+      gameIdsToLoad.length > 0
+        ? supabase
+            .from("games")
+            .select("id, opponent, game_date")
+            .eq("team_id", teamId)
+            .in("id", gameIdsToLoad)
+        : Promise.resolve({ data: [] as { id: string; opponent?: string | null; game_date?: string | null }[], error: null }),
+    ])
+
+    if (playersRes.error) {
+      console.error("[POST /api/stats/weekly] players batch", playersRes.error)
+      return NextResponse.json({ error: "Failed to validate players" }, { status: 500 })
+    }
+    if (gamesRes.error) {
+      console.error("[POST /api/stats/weekly] games batch", gamesRes.error)
+      return NextResponse.json({ error: "Failed to validate games" }, { status: 500 })
+    }
+
+    const validPlayerIds = new Set((playersRes.data ?? []).map((r) => (r as { id: string }).id))
+    const gameById = new Map<string, { opponent?: string | null; game_date?: string | null }>()
+    for (const g of gamesRes.data ?? []) {
+      const row = g as { id: string; opponent?: string | null; game_date?: string | null }
+      gameById.set(row.id, { opponent: row.opponent, game_date: row.game_date })
+    }
+
+    const insertRows: Array<{
+      team_id: string
+      player_id: string
+      season_year: number | null
+      week_number: number | null
+      game_id: string | null
+      opponent: string | null
+      game_date: string | null
+      stats: Record<string, number>
+      created_by: string
+      updated_by: string
+    }> = []
+
+    const playerIdsForSync = new Set<string>()
+
+    for (const row of parsed) {
+      if (!validPlayerIds.has(row.playerId)) {
         return NextResponse.json({ error: "Player not on this team" }, { status: 400 })
       }
 
-      playerIdsForSync.add(pid)
+      let opponent = row.opponent
+      let gameDate = row.gameDate
+      const gid = row.gameId
+
+      if (gid) {
+        const gr = gameById.get(gid)
+        if (!gr) {
+          return NextResponse.json({ error: "Invalid game for this team" }, { status: 400 })
+        }
+        if (!opponent && gr.opponent) opponent = gr.opponent
+        if (!gameDate && gr.game_date) gameDate = String(gr.game_date).slice(0, 10)
+      }
+
+      playerIdsForSync.add(row.playerId)
       insertRows.push({
         team_id: teamId,
-        player_id: pid,
-        season_year: seasonYear,
-        week_number: weekNumber,
+        player_id: row.playerId,
+        season_year: row.seasonYear,
+        week_number: row.weekNumber,
         game_id: gid,
         opponent,
         game_date: gameDate,
-        stats,
+        stats: row.stats,
         created_by: userId,
         updated_by: userId,
       })
@@ -356,17 +409,17 @@ export async function POST(request: Request) {
     }
 
     const insertedRows = ((inserted ?? []) as unknown) as WeeklyStatAuditRow[]
-    for (const row of insertedRows) {
-      const snap = weeklyEntryRowToAuditSnapshot(row)
-      await insertWeeklyStatEntryAudit(supabase, {
+    await insertWeeklyStatEntryAuditBatch(
+      supabase,
+      insertedRows.map((row) => ({
         entryId: row.id,
         teamId,
-        action: "create",
+        action: "create" as const,
         beforeData: null,
-        afterData: snap,
+        afterData: weeklyEntryRowToAuditSnapshot(row),
         actedBy: userId,
-      })
-    }
+      }))
+    )
 
     await recalculateSeasonStatsFromWeeklyForPlayers(supabase, teamId, [...playerIdsForSync])
 
@@ -603,42 +656,43 @@ export async function DELETE(request: Request) {
     }
 
     const now = new Date().toISOString()
-    const playerIds = new Set<string>()
+    const playerIds = new Set(rows.map((r) => r.player_id))
+    const idList = rows.map((r) => r.id)
+    const beforeById = new Map(rows.map((r) => [r.id, r]))
 
-    for (const row of rows) {
-      const id = row.id
-      playerIds.add(row.player_id)
-      const beforeSnap = weeklyEntryRowToAuditSnapshot(row)
-
-      const { data: afterRow, error: softErr } = await supabase
-        .from("player_weekly_stat_entries")
-        .update({
-          deleted_at: now,
-          deleted_by: userId,
-          updated_at: now,
-          updated_by: userId,
-        })
-        .eq("id", id)
-        .eq("team_id", teamId)
-        .is("deleted_at", null)
-        .select(WEEKLY_STAT_ENTRY_AUDIT_COLUMNS)
-        .maybeSingle()
-
-      if (softErr || !afterRow) {
-        console.error("[DELETE /api/stats/weekly] soft delete", softErr)
-        continue
-      }
-
-      const afterAuditRow = (afterRow as unknown) as WeeklyStatAuditRow
-      await insertWeeklyStatEntryAudit(supabase, {
-        entryId: id,
-        teamId,
-        action: "soft_delete",
-        beforeData: beforeSnap,
-        afterData: weeklyEntryRowToAuditSnapshot(afterAuditRow),
-        actedBy: userId,
+    const { data: afterRows, error: bulkSoftErr } = await supabase
+      .from("player_weekly_stat_entries")
+      .update({
+        deleted_at: now,
+        deleted_by: userId,
+        updated_at: now,
+        updated_by: userId,
       })
+      .in("id", idList)
+      .eq("team_id", teamId)
+      .is("deleted_at", null)
+      .select(WEEKLY_STAT_ENTRY_AUDIT_COLUMNS)
+
+    if (bulkSoftErr) {
+      console.error("[DELETE /api/stats/weekly] soft delete bulk", bulkSoftErr)
+      return NextResponse.json({ error: "Failed to delete weekly stats" }, { status: 500 })
     }
+
+    const afterList = ((afterRows ?? []) as unknown) as WeeklyStatAuditRow[]
+    await insertWeeklyStatEntryAuditBatch(
+      supabase,
+      afterList.map((afterRow) => {
+        const beforeRow = beforeById.get(afterRow.id)
+        return {
+          entryId: afterRow.id,
+          teamId,
+          action: "soft_delete" as const,
+          beforeData: beforeRow ? weeklyEntryRowToAuditSnapshot(beforeRow) : null,
+          afterData: weeklyEntryRowToAuditSnapshot(afterRow),
+          actedBy: userId,
+        }
+      })
+    )
 
     await recalculateSeasonStatsFromWeeklyForPlayers(supabase, teamId, [...playerIds])
 

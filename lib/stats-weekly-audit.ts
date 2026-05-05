@@ -28,6 +28,34 @@ export async function insertWeeklyStatEntryAudit(
   }
 }
 
+/** One round-trip for create/update bulk audit rows (POST weekly batch delete path). */
+export async function insertWeeklyStatEntryAuditBatch(
+  supabase: SupabaseClient,
+  rows: Array<{
+    entryId: string
+    teamId: string
+    action: WeeklyStatAuditAction
+    beforeData: WeeklyEntryAuditSnapshot | null
+    afterData: WeeklyEntryAuditSnapshot | null
+    actedBy: string | null
+  }>
+): Promise<void> {
+  if (rows.length === 0) return
+  const { error } = await supabase.from("player_weekly_stat_entry_audit").insert(
+    rows.map((row) => ({
+      entry_id: row.entryId,
+      team_id: row.teamId,
+      action: row.action,
+      before_data: row.beforeData,
+      after_data: row.afterData,
+      acted_by: row.actedBy,
+    }))
+  )
+  if (error) {
+    console.error("[insertWeeklyStatEntryAuditBatch]", error)
+  }
+}
+
 export function weeklyEntryRowToAuditSnapshot(raw: Record<string, unknown>): WeeklyEntryAuditSnapshot {
   return {
     id: raw.id,

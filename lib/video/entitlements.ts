@@ -45,6 +45,19 @@ type TeamSettingsRow = {
   max_clips: number | null
 }
 
+const VIDEO_SETTINGS_COLUMNS = [
+  "capability_tier",
+  "storage_cap_bytes",
+  "shared_storage_scope",
+  "ai_video_features_enabled",
+  "tagging_enabled",
+  "cross_team_library_enabled",
+  "bulk_management_enabled",
+  "advanced_clip_tools_enabled",
+  "priority_processing_enabled",
+  "max_clips",
+].join(",")
+
 function mergeBool(base: boolean, override: boolean | null | undefined): boolean {
   return override === null || override === undefined ? base : Boolean(override)
 }
@@ -68,14 +81,23 @@ export async function resolveEffectiveVideoEntitlements(
 
   const programId = (team as { program_id?: string | null }).program_id ?? null
 
-  let programRow: ProgramSettingsRow | null = null
-  if (programId) {
-    const { data: pr } = await supabase.from("program_video_settings").select("*").eq("program_id", programId).maybeSingle()
-    if (pr) programRow = pr as ProgramSettingsRow
-  }
+  const [programResult, teamResult] = await Promise.all([
+    programId
+      ? supabase
+          .from("program_video_settings")
+          .select(VIDEO_SETTINGS_COLUMNS)
+          .eq("program_id", programId)
+          .maybeSingle()
+      : Promise.resolve({ data: null }),
+    supabase
+      .from("team_video_settings")
+      .select(VIDEO_SETTINGS_COLUMNS)
+      .eq("team_id", teamId)
+      .maybeSingle(),
+  ])
 
-  const { data: teamRowRaw } = await supabase.from("team_video_settings").select("*").eq("team_id", teamId).maybeSingle()
-  const teamRow = teamRowRaw as TeamSettingsRow | null
+  const programRow = programResult.data as ProgramSettingsRow | null
+  const teamRow = teamResult.data as TeamSettingsRow | null
 
   const programTier = programRow ? assertTier(programRow.capability_tier) : ("starter" as VideoCapabilityTier)
   const mergedTier = assertTier(teamRow?.capability_tier ?? programTier)

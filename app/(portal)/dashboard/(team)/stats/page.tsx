@@ -2,6 +2,7 @@
 
 import dynamic from "next/dynamic"
 import { useEffect, useState, useMemo, useRef } from "react"
+import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { useSearchParams, usePathname } from "next/navigation"
 import { DashboardPageShell } from "@/components/portal/dashboard-page-shell"
 import { PortalStandardPageHeader, PortalStandardPageRoot } from "@/components/portal/portal-standard-page"
@@ -108,9 +109,7 @@ function StatsPageContent({ teamId, canEdit }: { teamId: string; canEdit: boolea
   const pathname = usePathname()
   const canonicalTeamFromPath = parseCanonicalDashboardTeamPath(pathname ?? "")
   const searchParams = useSearchParams()
-  const [players, setPlayers] = useState<PlayerStatsRow[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const queryClient = useQueryClient()
 
   const [season, setSeason] = useState(searchParams.get("season") ?? "")
   const [positionFilter, setPositionFilter] = useState(searchParams.get("position") ?? "")
@@ -123,13 +122,6 @@ function StatsPageContent({ teamId, canEdit }: { teamId: string; canEdit: boolea
   const [gameFilter, setGameFilter] = useState("")
   const [opponentFilter, setOpponentFilter] = useState("")
   const [dateFilter, setDateFilter] = useState("")
-
-  const [weeklyEntries, setWeeklyEntries] = useState<WeeklyStatEntryApi[]>([])
-  const [weeklyLoading, setWeeklyLoading] = useState(false)
-  const [weeklyError, setWeeklyError] = useState<string | null>(null)
-  const [scheduleGames, setScheduleGames] = useState<
-    Array<{ id: string; opponent: string; gameDate: string; seasonYear: number | null }>
-  >([])
 
   const [selectedRowKeys, setSelectedRowKeys] = useState<Set<string>>(new Set())
   const [addWeeklyOpen, setAddWeeklyOpen] = useState(false)
@@ -144,13 +136,11 @@ function StatsPageContent({ teamId, canEdit }: { teamId: string; canEdit: boolea
   const [previewResult, setPreviewResult] = useState<ImportResult | null>(null)
   const [importResult, setImportResult] = useState<ImportResult | null>(null)
   const [lastImportNote, setLastImportNote] = useState<string | null>(null)
-  const [refreshTrigger, setRefreshTrigger] = useState(0)
   const [showImportPanel, setShowImportPanel] = useState(false)
   const importPanelRef = useRef<HTMLDivElement | null>(null)
   const [editWeeklyEntry, setEditWeeklyEntry] = useState<WeeklyStatEntryApi | null>(null)
   const [tableViewMode, setTableViewMode] = useState<"full" | "position">("full")
   const [bulkEditOpen, setBulkEditOpen] = useState(false)
-  const [weeklyEntriesAll, setWeeklyEntriesAll] = useState<WeeklyStatEntryApi[]>([])
   const [allStatsPageSize, setAllStatsPageSize] = useState<10 | 25 | 50>(25)
   const [allStatsPage, setAllStatsPage] = useState(1)
 
@@ -161,6 +151,120 @@ function StatsPageContent({ teamId, canEdit }: { teamId: string; canEdit: boolea
     getFileKey(selectedFile) === previewedFileKey
   )
 
+  const seasonKey = season.trim()
+  const weekKey = weekFilter.trim()
+  const gameKey = gameFilter.trim()
+  const opponentKey = opponentFilter.trim()
+  const dateKey = dateFilter.trim()
+
+  const bumpStatsRefresh = () => {
+    setAllStatsPage(1)
+    void queryClient.invalidateQueries({ queryKey: ["stats", teamId] })
+  }
+
+  const playersQuery = useQuery({
+    queryKey: ["stats", teamId, "players"],
+    queryFn: async () => {
+      const res = await fetch(`/api/stats?teamId=${encodeURIComponent(teamId)}`)
+      if (!res.ok) throw new Error(res.status === 403 ? "Access denied" : "Failed to load stats")
+      const data = (await res.json()) as { players?: PlayerStatsRow[] }
+      return Array.isArray(data?.players) ? data.players : []
+    },
+    enabled: Boolean(teamId),
+    staleTime: 60_000,
+    gcTime: 300_000,
+  })
+
+  const gamesQuery = useQuery({
+    queryKey: ["stats", teamId, "games", seasonKey],
+    queryFn: async () => {
+      const gamesQ = new URLSearchParams({ teamId })
+      if (season.trim()) gamesQ.set("seasonYear", season.trim())
+      const res = await fetch(`/api/stats/games?${gamesQ.toString()}`)
+      if (!res.ok) {
+        return [] as Array<{ id: string; opponent: string; gameDate: string; seasonYear: number | null }>
+      }
+      const data = (await res.json()) as {
+        games?: Array<{ id: string; opponent: string; gameDate: string; seasonYear: number | null }>
+      }
+      return Array.isArray(data?.games) ? data.games : []
+    },
+    enabled: Boolean(teamId),
+    staleTime: 60_000,
+    gcTime: 300_000,
+  })
+
+  const weeklyAllQuery = useQuery({
+    queryKey: ["stats", teamId, "weekly-all", seasonKey],
+    queryFn: async () => {
+      try {
+        const params = new URLSearchParams({ teamId })
+        if (season.trim()) params.set("seasonYear", season.trim())
+        const res = await fetch(`/api/stats/weekly?${params.toString()}`)
+        if (!res.ok) return [] as WeeklyStatEntryApi[]
+        const data = (await res.json()) as { entries?: WeeklyStatEntryApi[] }
+        return Array.isArray(data?.entries) ? data.entries : []
+      } catch {
+        return [] as WeeklyStatEntryApi[]
+      }
+    },
+    enabled: Boolean(teamId),
+    staleTime: 60_000,
+    gcTime: 300_000,
+  })
+
+  const weeklyFilteredQuery = useQuery({
+    queryKey: [
+      "stats",
+      teamId,
+      "weekly-filtered",
+      statsTab,
+      seasonKey,
+      weekKey,
+      gameKey,
+      opponentKey,
+      dateKey,
+    ],
+    queryFn: async () => {
+      const params = new URLSearchParams({ teamId })
+      if (season.trim()) params.set("seasonYear", season.trim())
+      if (weekKey) params.set("week", weekKey)
+      if (gameKey) params.set("gameId", gameKey)
+      if (opponentKey) params.set("opponent", opponentKey)
+      if (dateKey) {
+        params.set("dateFrom", dateKey)
+        params.set("dateTo", dateKey)
+      }
+      const res = await fetch(`/api/stats/weekly?${params.toString()}`)
+      if (!res.ok) throw new Error(res.status === 403 ? "Access denied" : "Failed to load weekly stats")
+      const data = (await res.json()) as { entries?: WeeklyStatEntryApi[] }
+      return Array.isArray(data?.entries) ? data.entries : []
+    },
+    enabled: Boolean(teamId) && statsTab === "weekly",
+    staleTime: 60_000,
+    gcTime: 300_000,
+  })
+
+  const players = playersQuery.data ?? []
+  const loading = playersQuery.isFetching
+  const error =
+    playersQuery.error != null
+      ? playersQuery.error instanceof Error
+        ? playersQuery.error.message
+        : "Failed to load stats"
+      : null
+
+  const scheduleGames = gamesQuery.data ?? []
+  const weeklyEntriesAll = weeklyAllQuery.data ?? []
+  const weeklyEntries = weeklyFilteredQuery.data ?? []
+  const weeklyLoading = statsTab === "weekly" && weeklyFilteredQuery.isFetching
+  const weeklyError =
+    weeklyFilteredQuery.error != null
+      ? weeklyFilteredQuery.error instanceof Error
+        ? weeklyFilteredQuery.error.message
+        : "Failed to load weekly stats"
+      : null
+
   useEffect(() => {
     if (teamId) {
       trackProductEvent(BRAIK_EVENTS.stats.viewed, { teamId })
@@ -168,115 +272,12 @@ function StatsPageContent({ teamId, canEdit }: { teamId: string; canEdit: boolea
   }, [teamId])
 
   useEffect(() => {
-    let cancelled = false
-    setLoading(true)
-    setError(null)
-    fetch(`/api/stats?teamId=${encodeURIComponent(teamId)}`)
-      .then((res) => {
-        if (!res.ok) throw new Error(res.status === 403 ? "Access denied" : "Failed to load stats")
-        return res.json()
-      })
-      .then((data: { players?: PlayerStatsRow[] }) => {
-        if (!cancelled && Array.isArray(data?.players)) {
-          setPlayers(data.players)
-        }
-      })
-      .catch((err) => {
-        if (!cancelled) setError(err instanceof Error ? err.message : "Failed to load stats")
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false)
-      })
-    return () => { cancelled = true }
-  }, [teamId, refreshTrigger])
-
-  useEffect(() => {
     setSelectedRowKeys(new Set())
   }, [statsTab])
 
   useEffect(() => {
-    if (!teamId) return
-    let cancelled = false
-    const gamesQ = new URLSearchParams({ teamId })
-    if (season.trim()) gamesQ.set("seasonYear", season.trim())
-    fetch(`/api/stats/games?${gamesQ.toString()}`)
-      .then(async (res) => {
-        if (!res.ok) return { games: [] as typeof scheduleGames }
-        return res.json() as Promise<{ games?: typeof scheduleGames }>
-      })
-      .then((data) => {
-        if (!cancelled && Array.isArray(data?.games)) setScheduleGames(data.games)
-      })
-      .catch(() => {
-        if (!cancelled) setScheduleGames([])
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [teamId, season, refreshTrigger])
-
-  useEffect(() => {
-    if (!teamId) return
-    let cancelled = false
-    const params = new URLSearchParams({ teamId })
-    if (season.trim()) params.set("seasonYear", season.trim())
-    fetch(`/api/stats/weekly?${params.toString()}`)
-      .then((res) => {
-        if (!res.ok) throw new Error("Failed")
-        return res.json() as Promise<{ entries?: WeeklyStatEntryApi[] }>
-      })
-      .then((data) => {
-        if (!cancelled && Array.isArray(data?.entries)) setWeeklyEntriesAll(data.entries)
-      })
-      .catch(() => {
-        if (!cancelled) setWeeklyEntriesAll([])
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [teamId, season, refreshTrigger])
-
-  useEffect(() => {
     setAllStatsPage(1)
-  }, [season, searchQuery, positionFilter, sideFilter, allStatsPageSize, refreshTrigger])
-
-  // Weekly tab: filtered weekly entries (games + unfiltered list loaded separately).
-  useEffect(() => {
-    if (statsTab !== "weekly" || !teamId) return
-    let cancelled = false
-    setWeeklyLoading(true)
-    setWeeklyError(null)
-    const params = new URLSearchParams({ teamId })
-    if (season.trim()) params.set("seasonYear", season.trim())
-    if (weekFilter.trim()) params.set("week", weekFilter.trim())
-    if (gameFilter.trim()) params.set("gameId", gameFilter.trim())
-    if (opponentFilter.trim()) params.set("opponent", opponentFilter.trim())
-    if (dateFilter.trim()) {
-      params.set("dateFrom", dateFilter.trim())
-      params.set("dateTo", dateFilter.trim())
-    }
-
-    fetch(`/api/stats/weekly?${params.toString()}`)
-      .then((res) => {
-        if (!res.ok) throw new Error(res.status === 403 ? "Access denied" : "Failed to load weekly stats")
-        return res.json() as Promise<{ entries?: WeeklyStatEntryApi[] }>
-      })
-      .then((weeklyData) => {
-        if (cancelled) return
-        if (Array.isArray(weeklyData?.entries)) setWeeklyEntries(weeklyData.entries)
-      })
-      .catch((err) => {
-        if (!cancelled) {
-          setWeeklyError(err instanceof Error ? err.message : "Failed to load weekly stats")
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setWeeklyLoading(false)
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [teamId, statsTab, season, weekFilter, gameFilter, opponentFilter, dateFilter, refreshTrigger])
+  }, [season, searchQuery, positionFilter, sideFilter, allStatsPageSize])
 
   useEffect(() => {
     if (showImportPanel && importPanelRef.current) {
@@ -430,7 +431,7 @@ function StatsPageContent({ teamId, canEdit }: { teamId: string; canEdit: boolea
         if (selectedFile) setPreviewedFileKey(getFileKey(selectedFile))
       } else {
         setImportResult(result)
-        if (data.summary?.updated > 0) setRefreshTrigger((t) => t + 1)
+        if (data.summary?.updated > 0) bumpStatsRefresh()
         const updated = data.summary?.updated ?? 0
         const errCount = data.summary?.errors ?? data.rowErrors?.length ?? 0
         setLastImportNote(
@@ -535,7 +536,7 @@ function StatsPageContent({ teamId, canEdit }: { teamId: string; canEdit: boolea
       }
       setSelectedRowKeys(new Set())
       setDeleteConfirmOpen(false)
-      setRefreshTrigger((t) => t + 1)
+      bumpStatsRefresh()
     } catch (e) {
       console.error(e)
       setDeleteError(e instanceof Error ? e.message : "Delete failed.")
@@ -652,7 +653,7 @@ function StatsPageContent({ teamId, canEdit }: { teamId: string; canEdit: boolea
         games={scheduleGames}
         editEntry={editWeeklyEntry}
         weeklyEntriesForHints={weeklyEntriesAll}
-        onSaved={() => setRefreshTrigger((t) => t + 1)}
+        onSaved={() => bumpStatsRefresh()}
       />
 
       <BulkEditWeeklyStatsDialog
@@ -662,7 +663,7 @@ function StatsPageContent({ teamId, canEdit }: { teamId: string; canEdit: boolea
         selectedEntryIds={[...selectedRowKeys]}
         filteredEntryIds={filteredWeeklyTableRows.map((r) => r.rowKey)}
         onSuccess={() => {
-          setRefreshTrigger((t) => t + 1)
+          bumpStatsRefresh()
           setSelectedRowKeys(new Set())
         }}
       />

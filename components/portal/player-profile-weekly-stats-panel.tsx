@@ -1,6 +1,7 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useMemo, useState } from "react"
+import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { AddWeeklyStatsDialog } from "@/components/portal/add-weekly-stats-dialog"
@@ -77,10 +78,7 @@ export function PlayerProfileWeeklyStatsPanel({
   /** Narrow table to these `PlayerStatsRow` keys (excl. week/game columns); full schema when omitted. */
   visibleStatColumnKeys?: readonly (keyof PlayerStatsRow)[] | null
 }) {
-  const [entries, setEntries] = useState<WeeklyStatEntryApi[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [games, setGames] = useState<GameOption[]>([])
+  const queryClient = useQueryClient()
   const [addOpen, setAddOpen] = useState(false)
   const [editEntry, setEditEntry] = useState<WeeklyStatEntryApi | null>(null)
   const [deleteOpen, setDeleteOpen] = useState(false)
@@ -95,42 +93,46 @@ export function PlayerProfileWeeklyStatsPanel({
     [visibleStatColumnKeys]
   )
 
-  const loadWeekly = useCallback(() => {
-    if (!teamId || !playerId) return
-    setLoading(true)
-    setError(null)
-    const q = new URLSearchParams({ teamId, playerId })
-    fetch(`/api/stats/weekly?${q.toString()}`)
-      .then((res) => {
-        if (!res.ok) throw new Error(res.status === 403 ? "Access denied" : "Failed to load weekly stats")
-        return res.json()
-      })
-      .then((data: { entries?: WeeklyStatEntryApi[] }) => {
-        setEntries(Array.isArray(data?.entries) ? data.entries : [])
-      })
-      .catch((e) => setError(e instanceof Error ? e.message : "Failed to load"))
-      .finally(() => setLoading(false))
-  }, [teamId, playerId])
+  const weeklyQuery = useQuery({
+    queryKey: ["stats", teamId, "weekly-by-player", playerId],
+    queryFn: async () => {
+      const q = new URLSearchParams({ teamId, playerId })
+      const res = await fetch(`/api/stats/weekly?${q.toString()}`)
+      if (!res.ok) throw new Error(res.status === 403 ? "Access denied" : "Failed to load weekly stats")
+      const data = (await res.json()) as { entries?: WeeklyStatEntryApi[] }
+      return Array.isArray(data?.entries) ? data.entries : []
+    },
+    enabled: Boolean(teamId) && Boolean(playerId),
+    staleTime: 60_000,
+    gcTime: 300_000,
+  })
 
-  useEffect(() => {
-    loadWeekly()
-  }, [loadWeekly])
+  const gamesQuery = useQuery({
+    queryKey: ["stats", teamId, "games", ""],
+    queryFn: async () => {
+      const res = await fetch(`/api/stats/games?teamId=${encodeURIComponent(teamId)}`)
+      if (!res.ok) return [] as GameOption[]
+      const data = (await res.json()) as { games?: GameOption[] }
+      return Array.isArray(data?.games) ? data.games : []
+    },
+    enabled: Boolean(teamId) && canManage,
+    staleTime: 60_000,
+    gcTime: 300_000,
+  })
 
-  useEffect(() => {
-    if (!canManage || !teamId) return
-    let cancelled = false
-    fetch(`/api/stats/games?teamId=${encodeURIComponent(teamId)}`)
-      .then((res) => (res.ok ? res.json() : Promise.reject(new Error("games"))))
-      .then((data: { games?: GameOption[] }) => {
-        if (!cancelled && Array.isArray(data?.games)) setGames(data.games)
-      })
-      .catch(() => {
-        if (!cancelled) setGames([])
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [teamId, canManage])
+  const entries = weeklyQuery.data ?? []
+  const loading = weeklyQuery.isFetching
+  const error =
+    weeklyQuery.error != null
+      ? weeklyQuery.error instanceof Error
+        ? weeklyQuery.error.message
+        : "Failed to load"
+      : null
+  const games = gamesQuery.data ?? []
+
+  const invalidatePlayerWeeklyStats = () => {
+    void queryClient.invalidateQueries({ queryKey: ["stats", teamId] })
+  }
 
   const rosterOne: PlayerStatsRow[] = useMemo(() => {
     return [
@@ -173,7 +175,7 @@ export function PlayerProfileWeeklyStatsPanel({
       }
       setDeleteOpen(false)
       setPendingDeleteEntry(null)
-      loadWeekly()
+      invalidatePlayerWeeklyStats()
       onAfterMutation()
     } finally {
       setDeleteBusy(false)
@@ -181,7 +183,7 @@ export function PlayerProfileWeeklyStatsPanel({
   }
 
   const handleSaved = () => {
-    loadWeekly()
+    invalidatePlayerWeeklyStats()
     onAfterMutation()
   }
 

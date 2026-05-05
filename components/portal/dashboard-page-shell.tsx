@@ -1,14 +1,8 @@
 "use client"
 
-/**
- * Performance: `sessionStillLoading` uses the same identity rule as `app/(portal)/dashboard/(team)/page.tsx`
- * (`useDashboardShellIdentity`) so shell + home do not disagree on when to show skeletons.
- * See PERFORMANCE_GUIDELINES.md (first render / bootstrap).
- */
-
 import { Suspense, useEffect } from "react"
 import { useSession } from "@/lib/auth/client-auth"
-import { useSearchParams } from "next/navigation"
+import { useSearchParams, useRouter } from "next/navigation"
 import { ConnectToTeam } from "@/components/portal/connect-to-team"
 import { useEffectiveTeamId } from "@/components/portal/portal-team-context"
 import { useDashboardShellIdentity } from "@/lib/hooks/use-dashboard-shell-identity"
@@ -16,28 +10,18 @@ import { devDashboardHandoffLog } from "@/lib/debug/dashboard-handoff-dev"
 import { LoadingState } from "@/components/ui/loading-state"
 import { AppLoader } from "@/components/ui/app-loader"
 
-/** Pulse placeholders while search params / session hydrate — avoids a full-page spinner. */
 export function DashboardPageShellSkeleton() {
   return <LoadingState label="Loading page" className="px-4 pb-4 pt-2 md:px-6" minHeightClassName="min-h-[36vh]" size="lg" />
 }
 
-/**
- * Internal component that uses useSearchParams - must be wrapped in Suspense
- */
-function DashboardPageShellContent({
-  children,
-  requireTeam = true,
-}: {
-  children: (props: { teamId: string; userRole: string; userId: string; canEdit: boolean }) => React.ReactNode
-  requireTeam?: boolean
-}) {
+function DashboardPageShellContent({ children, requireTeam = true }) {
   const identity = useDashboardShellIdentity()
   const { data: session, status } = useSession()
+  const router = useRouter()
   const searchParams = useSearchParams()
   const teamIdFromQuery = searchParams.get("teamId")
   const sessionTeamHint = identity.sessionUser?.teamId
   const effectiveTeamId = useEffectiveTeamId(teamIdFromQuery, sessionTeamHint)
-  // Use only context-resolved or URL teamId; never fall back to session.teamId so we never send a stale/deleted team id to APIs
   const teamId = effectiveTeamId || teamIdFromQuery || ""
   const userRole = identity.roleUpper
 
@@ -48,10 +32,10 @@ function DashboardPageShellContent({
       resolvedPageTeamId: teamId,
     })
   }, [teamIdFromQuery, effectiveTeamId, teamId])
+
   const userId = identity.userId
   const canEdit = userRole === "HEAD_COACH" || userRole === "ASSISTANT_COACH"
 
-  /** Prefer shell/bootstrap identity; do not block the whole shell on session query if user id is already known. */
   const sessionStillLoading = !identity.hasIdentity && status === "loading" && !session?.user?.id
 
   if (sessionStillLoading) {
@@ -61,16 +45,15 @@ function DashboardPageShellContent({
   if (!identity.hasIdentity) {
     return (
       <div className="flex min-h-[40vh] items-center justify-center p-6">
-        <div className="rounded-lg border bg-white p-6 text-center shadow-sm" style={{ borderColor: "rgb(var(--border))" }}>
-          <h2 className="text-base font-semibold" style={{ color: "rgb(var(--text))" }}>Session data is incomplete</h2>
-          <p className="mt-2 text-sm" style={{ color: "rgb(var(--muted))" }}>
-            This can happen after a temporary connection issue. Refresh the page to try again, or sign out and back in if it persists.
+        <div className="rounded-lg border bg-white p-6 text-center shadow-sm">
+          <h2 className="text-base font-semibold">Session data is incomplete</h2>
+          <p className="mt-2 text-sm">
+            This can happen after a temporary connection issue. Refresh the page to try again.
           </p>
           <button
             type="button"
-            onClick={() => window.location.reload()}
+            onClick={() => router.refresh()}
             className="mt-4 rounded-md border px-3 py-2 text-sm font-medium"
-            style={{ borderColor: "rgb(var(--border))", color: "rgb(var(--text))" }}
           >
             Refresh page
           </button>
@@ -86,15 +69,7 @@ function DashboardPageShellContent({
   return (
     <>
       {identity.bootstrapLoading && identity.hasIdentity ? (
-        <div
-          className="mb-2 flex items-center justify-center gap-2 rounded-md border px-3 py-1.5 text-center text-xs"
-          style={{
-            borderColor: "rgb(var(--border))",
-            backgroundColor: "rgb(var(--platinum))",
-            color: "rgb(var(--muted))",
-          }}
-          role="status"
-        >
+        <div className="mb-2 flex items-center justify-center gap-2 rounded-md border px-3 py-1.5 text-xs" role="status">
           <AppLoader size="sm" label="Refreshing team data" />
           Refreshing team menu and badges…
         </div>
@@ -104,18 +79,7 @@ function DashboardPageShellContent({
   )
 }
 
-/**
- * Resolves teamId and session for dashboard child pages.
- * Shows loading or ConnectToTeam when needed; otherwise renders children with resolved props.
- * Wraps content in Suspense to handle useSearchParams() requirement.
- */
-export function DashboardPageShell({
-  children,
-  requireTeam = true,
-}: {
-  children: (props: { teamId: string; userRole: string; userId: string; canEdit: boolean }) => React.ReactNode
-  requireTeam?: boolean
-}) {
+export function DashboardPageShell({ children, requireTeam = true }) {
   return (
     <Suspense fallback={<DashboardPageShellSkeleton />}>
       <DashboardPageShellContent requireTeam={requireTeam}>

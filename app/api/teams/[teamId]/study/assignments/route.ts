@@ -37,6 +37,7 @@ export async function GET(
   _request: Request,
   { params }: { params: Promise<{ teamId: string }> }
 ) {
+  const start = performance.now()
   try {
     const { teamId } = await params
     if (!teamId) return NextResponse.json({ error: "teamId required" }, { status: 400 })
@@ -45,8 +46,10 @@ export async function GET(
     if (!canEditRoster(membership.role)) {
       return NextResponse.json({ error: "Coach access only" }, { status: 403 })
     }
+    console.log("after auth (requireTeamAccess)", performance.now() - start)
 
     const supabase = getSupabaseServer()
+    const queryStart = performance.now()
     const { data: assigns, error } = await supabase
       .from("study_assignments")
       .select(
@@ -62,11 +65,20 @@ export async function GET(
       )
       .eq("team_id", teamId)
       .order("created_at", { ascending: false })
+    console.log("DB query time:", performance.now() - queryStart)
+    console.log("after main DB query", performance.now() - start)
 
     if (error) return NextResponse.json({ error: "Failed" }, { status: 500 })
 
     const list = (assigns ?? []) as AssignmentListRow[]
-    if (list.length === 0) return NextResponse.json({ assignments: [] })
+    if (list.length === 0) {
+      const assignments: unknown[] = []
+      console.log("after data transformation", performance.now() - start)
+      console.log("assignments count:", assignments.length)
+      console.log("response size approx:", JSON.stringify(assignments).length)
+      console.log("before response return", performance.now() - start)
+      return NextResponse.json({ assignments: [] })
+    }
 
     const now = Date.now()
     const enriched = list.map((row) => {
@@ -113,7 +125,12 @@ export async function GET(
         avgScore,
       }
     })
+    console.log("after data transformation", performance.now() - start)
 
+    const assignments = enriched
+    console.log("assignments count:", assignments.length)
+    console.log("response size approx:", JSON.stringify(assignments).length)
+    console.log("before response return", performance.now() - start)
     return NextResponse.json({ assignments: enriched })
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Error"

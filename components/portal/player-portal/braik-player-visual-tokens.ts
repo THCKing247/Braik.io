@@ -1,5 +1,5 @@
 /**
- * Logo-aligned Braik athlete portal palette — cyan/sky blue → amber/gold → orange/red.
+ * Logo-aligned Braik athlete portal palette — deep navy to Braik orange accents.
  * Use via Tailwind arbitrary classes or compose in components.
  */
 import { braikBrand, braikPlayerTheme } from "@/components/portal/portal-brand-tokens"

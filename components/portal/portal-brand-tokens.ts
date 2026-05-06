@@ -15,8 +15,8 @@ export const braikBrand = {
 
 export const braikPortalTheme = {
   shell: "bg-[#081838] bg-gradient-to-b from-[#081848] via-[#081838] to-[#050f2f]",
-  header: "border-[#1f2f63] bg-[#081838]/95",
-  nav: "border-[#1f2f63] bg-[#081838]/98",
+  header: "border-[#1f2f63] bg-[#081838]/97",
+  nav: "border-[#2a3a70] bg-[#060f2d]/99",
   textPrimary: "text-[#F8F8F8]",
   textWarm: "text-[#F8F8E8]",
   textSecondary: "text-[#c6cfe4]",
@@ -31,7 +31,7 @@ export const braikPortalTheme = {
   accentBgHover: "hover:bg-[#D83808]",
   accentRing: "ring-[#F85808]/55",
   activeTab: "bg-[#F85808] text-[#F8F8F8] shadow-lg shadow-[#D83808]/35 ring-1 ring-[#F85808]/65",
-  inactiveTab: "text-[#c6cfe4] hover:bg-[#10265f]",
+  inactiveTab: "text-[#d2dbec] hover:bg-[#10265f]",
   heroBadge: "bg-gradient-to-br from-[#F85808] to-[#D83808] text-[#F8F8F8]",
 } as const
 

@@ -3,7 +3,7 @@
 import Image from "next/image"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Calendar, Home, LogOut, MessageSquare, Shield, UserRound } from "lucide-react"
+import { Calendar, Home, LogOut, MessageSquare, Settings, Shield, UserRound } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { SuspensionBanner } from "@/components/marketing/suspension-banner"
 import { signOut } from "@/lib/auth/client-auth"
@@ -18,7 +18,7 @@ function navLinkClass(active: boolean) {
     "flex flex-col items-center gap-0.5 rounded-xl px-2 py-2 text-[10px] font-semibold uppercase tracking-wide transition-colors min-w-[3.5rem]",
     active
       ? cn(braikPlayerTheme.activeTab, "[&_svg]:text-[#F8F8F8]")
-      : cn(braikPlayerTheme.inactiveTab, "[&_svg]:text-[#c6cfe4]")
+      : cn(braikPlayerTheme.inactiveTab, "[&_svg]:text-[#d2dbec]")
   )
 }
 
@@ -85,7 +85,7 @@ export function PlayerPortalChrome({
 
       <nav
         className={cn(
-          "fixed bottom-0 left-0 right-0 z-30 border-t px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 shadow-[0_-12px_40px_-18px_rgba(0,0,0,0.72)] backdrop-blur-sm",
+          "fixed bottom-0 left-0 right-0 z-30 border-t px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 shadow-[0_-12px_40px_-18px_rgba(0,0,0,0.72)] backdrop-blur-[2px]",
           braikPlayerTheme.nav
         )}
         aria-label="Player portal primary navigation"
@@ -123,17 +123,27 @@ function PlayerPortalHeaderInner() {
   const { teamName, sport, accountSegment } = usePlayerPortal()
   const base = `/player/${encodeURIComponent(accountSegment)}`
   const eyebrow = playerPortalSectionEyebrow(pathname, base)
+  const settingsHref = `${base}/profile?panel=settings`
 
   return (
-    <div className="mx-auto flex max-w-3xl items-start justify-between gap-2">
+    <div className="mx-auto flex max-w-3xl items-start justify-between gap-3">
       <div className="min-w-0 flex-1">
-        <p className={cn("text-[11px] font-bold uppercase tracking-[0.2em]", braikPlayerTheme.textSecondary)}>{eyebrow}</p>
+        <div className="mb-1 flex items-center gap-2.5">
+          <Image
+            src={braikLogo.webp}
+            alt="Braik"
+            width={braikLogo.width}
+            height={braikLogo.height}
+            className="h-7 w-auto max-w-[92px] object-contain drop-shadow-md"
+          />
+          <p className={cn("text-[11px] font-bold uppercase tracking-[0.2em]", braikPlayerTheme.textSecondary)}>{eyebrow}</p>
+        </div>
         <h1 className="truncate bg-gradient-to-r from-[#F8F8F8] via-[#F8F8E8] to-[#F85808] bg-clip-text text-xl font-black text-transparent drop-shadow-sm">
           {teamName}
         </h1>
         {sport?.trim() ? <p className={cn("text-sm font-medium", braikPlayerTheme.textMuted)}>{sport}</p> : null}
       </div>
-      <div className="flex shrink-0 flex-col items-end gap-2 sm:flex-row sm:items-center">
+      <div className="flex shrink-0 flex-col items-end gap-1.5">
         <button
           type="button"
           onClick={() => void signOut({ callbackUrl: "/login" })}
@@ -143,13 +153,15 @@ function PlayerPortalHeaderInner() {
           <span className="hidden sm:inline">Sign out</span>
           <span className="sm:hidden">Out</span>
         </button>
-        <Image
-          src={braikLogo.webp}
-          alt="Braik"
-          width={braikLogo.width}
-          height={braikLogo.height}
-          className="h-9 w-auto max-w-[120px] object-contain drop-shadow-md"
-        />
+        <Link
+          href={settingsHref}
+          prefetch={false}
+          className="flex h-9 w-9 items-center justify-center rounded-xl border border-[#2a3152] bg-[#0c1739]/80 text-[#d2dbec] transition hover:bg-[#101f4d] hover:text-[#F8F8F8] active:scale-[0.98]"
+          aria-label="Portal settings"
+          title="Portal settings"
+        >
+          <Settings className="h-4 w-4 text-[#F85808]" aria-hidden />
+        </Link>
       </div>
     </div>
   )

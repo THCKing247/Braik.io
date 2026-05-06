@@ -101,7 +101,10 @@ Also tracked in `.github/pull_request_template.md`.
 | `npm run perf:audit:strict` | Same with strict exit codes (CI opt-in) |
 | `npm run prod:checklists` | Print pointers to deploy / observability markdown |
 | `npm run prod:audit` | `perf:audit` + checklist pointers (Phase 9) |
+| `npm run dev:perf` | `NEXT_PUBLIC_BRAIK_PERF=1` + `next dev` — nav/shell/bootstrap/messaging perf logs |
 
-See `PERFORMANCE_REGRESSION_CHECKLIST.md`, `PHASE_8_GUARDRAILS_REPORT.md`, and `PHASE_9_DEPLOYMENT_OBSERVABILITY_REPORT.md`.
+See `PERFORMANCE_REGRESSION_CHECKLIST.md`, `PHASE_8_GUARDRAILS_REPORT.md`, `PHASE_9_DEPLOYMENT_OBSERVABILITY_REPORT.md`, and `PHASE_10_RELEASE_READINESS_REPORT.md`.
 
 **Production API tracing:** server-only `BRAIK_API_DEBUG=1` enables `braikApiDebug()` in selected routes (`lib/debug/braik-api-debug.ts`).
+
+**Client perf bundle:** `NEXT_PUBLIC_BRAIK_PERF=1` enables grouped console hooks (`lib/debug/braik-client-perf-master.ts`); do not set in production unless diagnosing.

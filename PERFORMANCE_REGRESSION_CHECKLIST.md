@@ -19,7 +19,7 @@ Use before/after comparisons when landing performance-sensitive PRs. Pair with `
 
 1. **Chrome DevTools → Performance** — record interaction (open dashboard, switch thread, open modal). Watch long tasks & layout thrash.
 2. **Network** — throttle to Fast 3G for mobile-shaped loads; verify no accidental eager media.
-3. **`NEXT_PUBLIC_BRAIK_PERF=1`** — when supported in code (see `lib/debug/*`), enables lightweight shell/nav timing logs in dev; use to compare route transitions before/after.
+3. **`NEXT_PUBLIC_BRAIK_PERF=1`** (`npm run dev:perf`) — enables client perf bundle: `[braik-nav-perf]`, `[braik-dashboard-perf]`, `[braik-bootstrap-client]`, `[braik-auth-timing]` (client), messaging thread markers, etc. See `lib/debug/braik-client-perf-master.ts`. Not set in production by default.
 
 ## Bundle analysis
 

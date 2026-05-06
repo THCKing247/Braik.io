@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:perf": "cross-env NEXT_PUBLIC_BRAIK_PERF=1 npm run dev",
     "dev:optimized": "next dev",
     "prebuild": "tsx scripts/verify-env.ts && npm run typecheck",
     "build": "next build",

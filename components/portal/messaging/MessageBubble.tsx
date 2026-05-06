@@ -5,6 +5,7 @@ import { format } from "date-fns"
 import { Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { MessageAttachmentList } from "@/components/portal/messaging/MessageAttachmentList"
+import type { ThreadMessageAttachment } from "@/lib/messaging/attachment-display-types"
 import type { Message } from "@/components/portal/messaging/types"
 
 export const MessageBubble = memo(function MessageBubble({
@@ -37,7 +38,11 @@ export const MessageBubble = memo(function MessageBubble({
         }
       >
         <p className={`whitespace-pre-wrap text-sm ${removed ? "italic opacity-90" : ""}`}>{message.body}</p>
-        <MessageAttachmentList attachments={Array.isArray(message.attachments) ? message.attachments : []} />
+        <MessageAttachmentList
+          attachments={
+            (Array.isArray(message.attachments) ? message.attachments : []) as ThreadMessageAttachment[]
+          }
+        />
         <div className={`mt-2 flex items-center justify-between gap-2 ${isOwnMessage ? "opacity-80" : ""}`}>
           <p className="text-xs">
             {message.creator.name || message.creator.email} • {format(new Date(message.createdAt), "h:mm a")}

@@ -58,18 +58,22 @@ export async function GET(
       }
     }
 
-    // TODO: Serve file from Supabase Storage or file system
-    // For now, return file info (actual file serving would use Storage API)
-    // In production: const { data, error } = await supabase.storage.from('message-attachments').download(attachment.file_url)
-
-    return NextResponse.json({
-      id: attachment.id,
-      fileName: attachment.file_name,
-      fileUrl: attachment.file_url,
-      fileSize: attachment.file_size,
-      mimeType: attachment.mime_type,
-      // Note: Actual file serving requires Storage integration
-    })
+    // TODO: Stream bytes from Supabase Storage / filesystem with Range support for large media.
+    // Metadata-only response today — avoid caching recipient-specific payloads on shared caches.
+    return NextResponse.json(
+      {
+        id: attachment.id,
+        fileName: attachment.file_name,
+        fileUrl: attachment.file_url,
+        fileSize: attachment.file_size,
+        mimeType: attachment.mime_type,
+      },
+      {
+        headers: {
+          "Cache-Control": "private, no-store, max-age=0",
+        },
+      }
+    )
   } catch (error: any) {
     console.error("[GET /api/messages/attachments/[attachmentId]]", error)
   return NextResponse.json(

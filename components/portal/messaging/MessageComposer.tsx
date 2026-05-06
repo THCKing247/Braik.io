@@ -30,7 +30,7 @@ export function MessageComposer({
         <div className="mb-2 flex flex-wrap gap-2">
           {attachments.map((att, idx) => (
             <div
-              key={idx}
+              key={att?.id ?? `${att?.fileName ?? "file"}-${idx}`}
               className="flex items-center gap-1 rounded border-2 px-2 py-1 text-xs"
               style={{ backgroundColor: "rgb(var(--platinum))", borderColor: "#0B2A5B" }}
             >

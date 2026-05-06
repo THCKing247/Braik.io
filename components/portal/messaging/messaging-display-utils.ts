@@ -49,7 +49,11 @@ export function messageDaySeparatorLabel(input: Date | string): string {
   return format(new Date(input), "EEEE, MMM d")
 }
 
-export function messageAttachmentIsImage(att: { fileName?: string; mimeType?: string; fileUrl?: string }): boolean {
+export function messageAttachmentIsImage(att: {
+  fileName?: string
+  mimeType?: string
+  fileUrl?: string
+}): boolean {
   const mime = String(att?.mimeType || "").toLowerCase()
   if (mime.startsWith("image/")) return true
   const fileName = String(att?.fileName || att?.fileUrl || "").toLowerCase()

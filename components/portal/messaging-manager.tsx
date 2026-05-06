@@ -88,6 +88,7 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
   const [showParticipantsModal, setShowParticipantsModal] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
   const optimisticMessageIdRef = useRef<string | null>(null)
+  const attachmentUploadInFlightRef = useRef(false)
   const refreshIntervalRef = useRef<NodeJS.Timeout | null>(null)
   const isRefreshingRef = useRef<boolean>(false)
   const [refreshing, setRefreshing] = useState(false)
@@ -488,6 +489,7 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
+    if (attachmentUploadInFlightRef.current) return
 
     // Validate file type and size
     const allowedTypes = [
@@ -518,11 +520,15 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
       return
     }
 
+    attachmentUploadInFlightRef.current = true
     setLoading(true)
     try {
       const formData = new FormData()
       formData.append("file", file)
       formData.append("teamId", teamId)
+      if (selectedThread?.id) {
+        formData.append("threadId", selectedThread.id)
+      }
 
       const response = await fetch("/api/messages/attachments", {
         method: "POST",
@@ -534,19 +540,21 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
       }
 
       const data = await response.json()
-      setAttachments([...attachments, data])
+      setAttachments((prev) => [...prev, data])
       setError(null)
     } catch (error: any) {
       const errorMessage = error.message || "Error uploading file"
       setError(errorMessage)
       alert(errorMessage)
     } finally {
+      attachmentUploadInFlightRef.current = false
       setLoading(false)
+      e.target.value = ""
     }
   }
 
   const removeAttachment = (index: number) => {
-    setAttachments(attachments.filter((_, i) => i !== index))
+    setAttachments((prev) => prev.filter((_, i) => i !== index))
   }
 
   const handleSelectThread = useCallback((thread: Thread) => {

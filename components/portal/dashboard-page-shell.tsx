@@ -1,7 +1,6 @@
 "use client"
 
 import { Suspense, useEffect } from "react"
-import { useSession } from "@/lib/auth/client-auth"
 import { useSearchParams } from "next/navigation"
 import { ConnectToTeam } from "@/components/portal/connect-to-team"
 import { useEffectiveTeamId } from "@/components/portal/portal-team-context"
@@ -30,7 +29,6 @@ function DashboardPageShellContent({
   requireTeam?: boolean
 }) {
   const identity = useDashboardShellIdentity()
-  const { data: session, status } = useSession()
   const searchParams = useSearchParams()
   const teamIdFromQuery = searchParams.get("teamId")
   const sessionTeamHint = identity.sessionUser?.teamId
@@ -50,7 +48,7 @@ function DashboardPageShellContent({
   const canEdit = userRole === "HEAD_COACH" || userRole === "ASSISTANT_COACH"
 
   /** Prefer shell/bootstrap identity; do not block the whole shell on session query if user id is already known. */
-  const sessionStillLoading = !identity.hasIdentity && status === "loading" && !session?.user?.id
+  const sessionStillLoading = !identity.hasIdentity && identity.sessionStatus === "loading"
 
   if (sessionStillLoading) {
     return <DashboardPageShellSkeleton />

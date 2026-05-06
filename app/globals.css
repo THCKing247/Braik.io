@@ -238,6 +238,7 @@
   /* Momentum scrolling for dashboard sidebar / main (iOS) */
   .touch-scroll {
     -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
   }
 
   .font-athletic {

@@ -99,19 +99,22 @@ export function DashboardLayoutClient({
             <BiometricEnablePrompt />
             <div className={cn("flex w-full min-w-0 flex-col", className)}>
             <div className="flex w-full min-w-0 flex-col lg:flex-row lg:items-start">
-              <aside
-                className={cn(
-                  "z-40 hidden w-full shrink-0 flex-col overflow-hidden border-border lg:flex lg:w-64",
-                  "lg:sticky lg:top-14 lg:max-h-[calc(100dvh-3.75rem)] lg:border-b-0 lg:border-r lg:self-start"
-                )}
-                style={{
-                  background: "linear-gradient(180deg, #0B2A5B 0%, #0f172a 100%)",
-                  boxShadow: "2px 0 10px rgba(0,0,0,0.05)",
-                }}
-                aria-label="Dashboard navigation"
-              >
-                <DashboardSidebar teams={shellTeams} />
-              </aside>
+              {/* Mount sidebar only at lg+ — avoids heavy DashboardSidebar hooks/DOM on phones */}
+              {isLgUp ? (
+                <aside
+                  className={cn(
+                    "z-40 flex w-full shrink-0 flex-col overflow-hidden border-border lg:w-64",
+                    "lg:sticky lg:top-14 lg:max-h-[calc(100dvh-3.75rem)] lg:border-b-0 lg:border-r lg:self-start"
+                  )}
+                  style={{
+                    background: "linear-gradient(180deg, #0B2A5B 0%, #0f172a 100%)",
+                    boxShadow: "2px 0 10px rgba(0,0,0,0.05)",
+                  }}
+                  aria-label="Dashboard navigation"
+                >
+                  <DashboardSidebar teams={shellTeams} />
+                </aside>
+              ) : null}
 
               <main
                 className={cn(

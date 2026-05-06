@@ -77,7 +77,7 @@ export function DashboardMobileTabBar() {
     <nav
       className={cn(
         "fixed inset-x-0 bottom-0 z-40 lg:hidden",
-        "border-t border-border bg-background/95 pb-[max(0px,env(safe-area-inset-bottom,0px))] shadow-[0_-2px_12px_rgba(0,0,0,0.04)] backdrop-blur-sm"
+        "border-t border-border bg-background pb-[max(0px,env(safe-area-inset-bottom,0px))] shadow-[0_-2px_8px_rgba(0,0,0,0.06)] lg:bg-background/95 lg:shadow-[0_-2px_12px_rgba(0,0,0,0.04)] lg:backdrop-blur-sm"
       )}
       aria-label="Primary"
     >

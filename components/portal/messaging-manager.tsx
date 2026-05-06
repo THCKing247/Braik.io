@@ -595,6 +595,10 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
     return { starred, rest }
   }, [threads, searchQuery, starredThreadIds, userId])
 
+  /** Narrow screens: mount only one pane — avoids React work for the hidden column (CSS display:none still reconciles children). */
+  const showInboxPane = isWide || mobileShowList || !selectedThread
+  const showThreadPane = isWide || (!!selectedThread && !mobileShowList)
+
   const getFilteredContacts = () => {
     if (!threadType) return contacts
 
@@ -660,8 +664,14 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
 
   if (initialLoading) {
     return (
-      <div className="flex h-[calc(100vh-200px)] items-center justify-center rounded-lg border" style={{ backgroundColor: "#FFFFFF", borderColor: "rgb(var(--accent))" }}>
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-[rgb(var(--accent))] border-t-transparent" />
+      <div
+        className="flex min-h-[280px] flex-col items-center justify-center gap-4 rounded-lg border px-6 py-12 lg:h-[calc(100vh-200px)]"
+        style={{ backgroundColor: "#FFFFFF", borderColor: "rgb(var(--accent))" }}
+        aria-busy="true"
+        aria-label="Loading messages"
+      >
+        <div className="hidden h-3 w-56 max-w-full rounded-md bg-[rgb(var(--platinum))] max-lg:block motion-reduce:block" />
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-[rgb(var(--accent))] border-t-transparent max-lg:hidden motion-reduce:hidden" />
       </div>
     )
   }
@@ -679,11 +689,9 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
         </div>
       )}
 
+      {showInboxPane ? (
       <div
-        className={cn(
-          "flex min-h-0 flex-col border-b lg:h-full lg:w-[min(100%,22rem)] lg:max-w-md lg:flex-none lg:border-b-0 lg:border-r",
-          !isWide && selectedThread && !mobileShowList ? "hidden" : "flex-1 lg:flex-none"
-        )}
+        className="flex min-h-0 flex-1 flex-col border-b lg:h-full lg:w-[min(100%,22rem)] lg:max-w-md lg:flex-none lg:border-b-0 lg:border-r"
         style={{ borderColor: "rgb(var(--border))", backgroundColor: "#FFFFFF" }}
       >
         <div
@@ -920,7 +928,7 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
           </div>
         )}
 
-        <div className="messages-thread-list min-h-0 flex-1 overflow-y-auto py-3 md:py-4">
+        <div className="messages-thread-list touch-scroll min-h-0 flex-1 overflow-y-auto overscroll-contain py-3 md:py-4">
           {threads.length === 0 ? (
             <div className="mx-4 rounded-2xl border border-dashed border-[rgb(var(--border))] bg-[rgb(var(--platinum))]/40 px-4 py-10 text-center">
               <MessageSquare className="mx-auto mb-3 h-10 w-10 text-[rgb(var(--accent))]" aria-hidden />
@@ -946,13 +954,10 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
           )}
         </div>
       </div>
+      ) : null}
 
-      <div
-        className={cn(
-          "flex min-h-0 flex-1 flex-col overflow-hidden",
-          !isWide && (!selectedThread || mobileShowList) ? "hidden" : ""
-        )}
-      >
+      {showThreadPane ? (
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
         {selectedThread ? (
           <>
             <div className="flex-shrink-0 border-b px-3 py-3 md:px-5 md:py-4" style={{ borderBottomColor: "rgb(var(--border))" }}>
@@ -1050,6 +1055,7 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
           </div>
         )}
       </div>
+      ) : null}
 
       <Dialog
         open={showParticipantsModal}
@@ -1058,7 +1064,7 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
           if (!open) setParticipantsModalPurpose("pick")
         }}
       >
-        <DialogContent className="max-h-[85vh] overflow-y-auto bg-white">
+        <DialogContent className="max-h-[85vh] touch-scroll overflow-y-auto overscroll-contain bg-white">
           <DialogHeader>
             <DialogTitle>
               {participantsModalPurpose === "view"
@@ -1072,7 +1078,7 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
           </DialogHeader>
           <div className="mt-4 space-y-4">
             {participantsModalPurpose === "view" && selectedThread ? (
-              <div className="messages-thread-list max-h-96 space-y-2 overflow-y-auto">
+              <div className="messages-thread-list touch-scroll max-h-96 space-y-2 overflow-y-auto overscroll-contain">
                 {selectedThread.participants.map((p) => {
                   const name = displayNameForParticipantUser(p.user)
                   const initials = initialsFromDisplayName(name)
@@ -1103,7 +1109,7 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
                 })}
               </div>
             ) : (
-              <div className="messages-thread-list max-h-96 space-y-2 overflow-y-auto">
+              <div className="messages-thread-list touch-scroll max-h-96 space-y-2 overflow-y-auto overscroll-contain">
                 {getFilteredContacts().length === 0 ? (
                   <p className="py-4 text-center text-sm" style={{ color: "rgb(var(--muted))" }}>
                     {threadType ? `No ${threadType}s available` : "No contacts available"}

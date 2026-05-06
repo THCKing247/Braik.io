@@ -11,7 +11,7 @@ export function DashboardMainSkeleton({
   return (
     <div
       className={cn(
-        "min-h-[50vh] w-full max-w-full animate-pulse rounded-xl border border-[#E5E7EB] bg-white p-6 shadow-sm",
+        "min-h-[50vh] w-full max-w-full animate-pulse rounded-xl border border-[#E5E7EB] bg-white p-6 shadow-sm max-lg:animate-none",
         className
       )}
       aria-busy="true"
@@ -31,7 +31,7 @@ export function DashboardMainSkeleton({
 export function DashboardMessagesSkeleton() {
   return (
     <div
-      className="flex min-h-[50vh] w-full max-w-full gap-0 overflow-hidden rounded-xl border border-[#E5E7EB] bg-white shadow-sm animate-pulse lg:gap-px"
+      className="flex min-h-[50vh] w-full max-w-full gap-0 overflow-hidden rounded-xl border border-[#E5E7EB] bg-white shadow-sm animate-pulse max-lg:animate-none lg:gap-px"
       aria-busy="true"
       aria-label="Loading messages"
     >
@@ -56,7 +56,7 @@ export function DashboardMessagesSkeleton() {
 
 export function DashboardCalendarSkeleton() {
   return (
-    <div className="min-h-[60vh] w-full animate-pulse space-y-4" aria-busy="true" aria-label="Loading calendar">
+    <div className="min-h-[60vh] w-full animate-pulse space-y-4 max-lg:animate-none" aria-busy="true" aria-label="Loading calendar">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="h-9 w-48 rounded-lg bg-[rgb(var(--platinum))]" />
         <div className="flex gap-2">
@@ -80,7 +80,10 @@ export function ScheduleGameListSkeleton({ rows = 8 }: { rows?: number }) {
   return (
     <div className="space-y-3 px-4 pb-4 md:px-0" aria-busy="true" aria-label="Loading games">
       {Array.from({ length: rows }).map((_, i) => (
-        <div key={i} className="h-16 w-full animate-pulse rounded-lg bg-[rgb(var(--platinum))]" />
+        <div
+          key={i}
+          className="h-16 w-full animate-pulse rounded-lg bg-[rgb(var(--platinum))] max-lg:animate-none"
+        />
       ))}
     </div>
   )
@@ -88,7 +91,7 @@ export function ScheduleGameListSkeleton({ rows = 8 }: { rows?: number }) {
 
 export function DashboardScheduleSkeleton() {
   return (
-    <div className="min-h-[50vh] w-full animate-pulse space-y-4" aria-busy="true" aria-label="Loading schedule">
+    <div className="min-h-[50vh] w-full animate-pulse space-y-4 max-lg:animate-none" aria-busy="true" aria-label="Loading schedule">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="h-8 w-56 rounded-lg bg-[rgb(var(--platinum))]" />
         <div className="flex gap-2">
@@ -107,7 +110,7 @@ export function DashboardScheduleSkeleton() {
 
 export function DashboardStatsSkeleton() {
   return (
-    <div className="min-h-[50vh] w-full animate-pulse space-y-6" aria-busy="true" aria-label="Loading stats">
+    <div className="min-h-[50vh] w-full animate-pulse space-y-6 max-lg:animate-none" aria-busy="true" aria-label="Loading stats">
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {Array.from({ length: 4 }).map((_, i) => (
           <div key={i} className="h-24 rounded-xl border border-border bg-white shadow-sm">

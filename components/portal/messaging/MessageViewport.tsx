@@ -31,10 +31,21 @@ export function MessageViewport({
   // TODO(phase-3): swap list rendering to react-virtual once message row measurement is stabilized.
   return (
     <div className="relative flex min-h-0 flex-1 flex-col">
-      <div ref={containerRef} className="messages-container min-h-0 flex-1 space-y-4 overflow-y-auto p-4 md:p-5">
+      <div
+        ref={containerRef}
+        className="messages-container touch-scroll min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain p-4 md:p-5"
+      >
         {messagesLoading ? (
-          <div className="flex h-full items-center justify-center">
-            <div className="h-6 w-6 animate-spin rounded-full border-2 border-[rgb(var(--accent))] border-t-transparent" />
+          <div className="flex h-full min-h-[120px] flex-col items-center justify-center gap-3 px-4">
+            {/* Narrow viewports: static bar avoids continuous spin repaint */}
+            <div
+              className="hidden h-3 w-48 max-w-[85%] rounded-md bg-[rgb(var(--platinum))] max-lg:block motion-reduce:block"
+              aria-busy="true"
+            />
+            <div
+              className="h-6 w-6 animate-spin rounded-full border-2 border-[rgb(var(--accent))] border-t-transparent max-lg:hidden motion-reduce:hidden"
+              aria-hidden
+            />
           </div>
         ) : messages.length === 0 ? (
           <div className="flex h-full items-center justify-center">
@@ -59,7 +70,7 @@ export function MessageViewport({
             type="button"
             onClick={onJumpToNewest}
             size="sm"
-            className="pointer-events-auto rounded-full px-4 py-2 shadow-lg"
+            className="pointer-events-auto rounded-full px-4 py-2 shadow-md max-lg:shadow-sm md:shadow-lg"
             style={{ backgroundColor: "rgb(var(--accent))", color: "white" }}
           >
             <ArrowDown className="mr-2 inline h-4 w-4 align-middle" />

@@ -99,5 +99,9 @@ Also tracked in `.github/pull_request_template.md`.
 | `npm run perf:bundle` | Chunk size report vs `performance-budget.config.json` |
 | `npm run perf:audit` | use-client scan + heavy imports + bundle budget (needs `.next` for budget) |
 | `npm run perf:audit:strict` | Same with strict exit codes (CI opt-in) |
+| `npm run prod:checklists` | Print pointers to deploy / observability markdown |
+| `npm run prod:audit` | `perf:audit` + checklist pointers (Phase 9) |
 
-See `PERFORMANCE_REGRESSION_CHECKLIST.md` and `PHASE_8_GUARDRAILS_REPORT.md`.
+See `PERFORMANCE_REGRESSION_CHECKLIST.md`, `PHASE_8_GUARDRAILS_REPORT.md`, and `PHASE_9_DEPLOYMENT_OBSERVABILITY_REPORT.md`.
+
+**Production API tracing:** server-only `BRAIK_API_DEBUG=1` enables `braikApiDebug()` in selected routes (`lib/debug/braik-api-debug.ts`).

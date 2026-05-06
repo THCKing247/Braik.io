@@ -11,6 +11,8 @@
     "perf:bundle": "node scripts/check-bundle-budget.mjs",
     "perf:audit": "node scripts/audit-use-client.mjs && node scripts/audit-heavy-client-imports.mjs && node scripts/check-bundle-budget.mjs",
     "perf:audit:strict": "cross-env USE_CLIENT_AUDIT_STRICT=1 HEAVY_IMPORT_AUDIT_STRICT=1 PERF_BUDGET_STRICT=1 npm run perf:audit",
+    "prod:checklists": "node scripts/print-production-checklists.mjs",
+    "prod:audit": "npm run perf:audit && node scripts/print-production-checklists.mjs",
     "typecheck": "tsc --noEmit",
     "start": "next start",
     "lint": "next lint",

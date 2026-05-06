@@ -13,6 +13,7 @@ import { logEventAction } from "@/lib/audit/structured-logger"
 import { auditImpersonatedActionFromRequest } from "@/lib/admin/impersonation"
 import { TeamOperationBlockedError, requireTeamOperationAccess, toStructuredTeamAccessError } from "@/lib/enforcement/team-operation-guard"
 import { revalidateTeamCalendar, revalidateTeamDashboardBootstrap } from "@/lib/cache/lightweight-get-cache"
+import { braikApiDebug } from "@/lib/debug/braik-api-debug"
 
 /** Ensures this route is always run as a serverless function (e.g. on Netlify). */
 export const dynamic = "force-dynamic"
@@ -36,7 +37,7 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   let stage = "entry"
   try {
-    console.log("[api/events] POST start")
+    braikApiDebug("[api/events] POST start")
     stage = "body_parse"
 
     let rawBody: unknown
@@ -44,7 +45,7 @@ export async function POST(req: NextRequest) {
       rawBody = await req.json()
     } catch (e) {
       const message = e instanceof Error ? e.message : "Invalid JSON"
-      console.log("[api/events] error", { stage: "body_parse", message })
+      braikApiDebug("[api/events] error", { stage: "body_parse", message })
       return NextResponse.json(
         { error: "Event creation failed", stage: "body_parse", message },
         { status: 400 }
@@ -58,7 +59,7 @@ export async function POST(req: NextRequest) {
     const hasStartAt = body.startAt !== undefined && body.startAt !== null
     const hasEnd = body.end !== undefined && body.end !== null
     const hasEndAt = body.endAt !== undefined && body.endAt !== null
-    console.log("[api/events] body parsed", {
+    braikApiDebug("[api/events] body parsed", {
       bodyKeysPresent: Object.keys(body),
       required: {
         teamId: hasTeamId,
@@ -79,7 +80,7 @@ export async function POST(req: NextRequest) {
     const startVal = body.start ?? body.startAt
     const endVal = body.end ?? body.endAt
     if (!teamId) {
-      console.log("[api/events] returning 400", { reason: "TEAM_ID_REQUIRED", stage: "validation" })
+      braikApiDebug("[api/events] returning 400", { reason: "TEAM_ID_REQUIRED", stage: "validation" })
       return NextResponse.json(
         {
           error: {
@@ -92,21 +93,21 @@ export async function POST(req: NextRequest) {
       )
     }
     if (!title) {
-      console.log("[api/events] returning 400", { reason: "title_required", stage: "validation", teamId })
+      braikApiDebug("[api/events] returning 400", { reason: "title_required", stage: "validation", teamId })
       return NextResponse.json(
         { error: "Event creation failed", stage: "validation", message: "title is required" },
         { status: 400 }
       )
     }
     if (!startVal || (typeof startVal !== "string" && typeof startVal !== "number")) {
-      console.log("[api/events] returning 400", { reason: "start_required", stage: "validation", teamId })
+      braikApiDebug("[api/events] returning 400", { reason: "start_required", stage: "validation", teamId })
       return NextResponse.json(
         { error: "Event creation failed", stage: "validation", message: "start or startAt is required" },
         { status: 400 }
       )
     }
     if (!endVal || (typeof endVal !== "string" && typeof endVal !== "number")) {
-      console.log("[api/events] returning 400", { reason: "end_required", stage: "validation", teamId })
+      braikApiDebug("[api/events] returning 400", { reason: "end_required", stage: "validation", teamId })
       return NextResponse.json(
         { error: "Event creation failed", stage: "validation", message: "end or endAt is required" },
         { status: 400 }
@@ -133,7 +134,7 @@ export async function POST(req: NextRequest) {
     }
     const visibility = visibilityMap[audienceStr] || "TEAM"
 
-    console.log("[api/events] normalized payload", {
+    braikApiDebug("[api/events] normalized payload", {
       teamId,
       title,
       start: startStr,
@@ -145,7 +146,7 @@ export async function POST(req: NextRequest) {
     stage = "auth"
     const session = await getServerSession()
     if (!session?.user?.id) {
-      console.log("[api/events] returning 401", { reason: "unauthorized", stage: "auth", teamId })
+      braikApiDebug("[api/events] returning 401", { reason: "unauthorized", stage: "auth", teamId })
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
     const userId = session.user.id
@@ -158,7 +159,7 @@ export async function POST(req: NextRequest) {
       .eq("id", teamId)
       .maybeSingle()
     const teamFound = !!teamRow
-    console.log("[api/events] debug", {
+    braikApiDebug("[api/events] debug", {
       userId,
       submittedTeamId: teamId,
       teamFound,
@@ -172,10 +173,10 @@ export async function POST(req: NextRequest) {
       await auditImpersonatedActionFromRequest(req, "event_create", { teamId })
       await requireBillingPermission(teamId, "editEvents")
       accessPassed = true
-      console.log("[api/events] debug", { userId, submittedTeamId: teamId, teamFound, accessPassed: true })
+      braikApiDebug("[api/events] debug", { userId, submittedTeamId: teamId, teamFound, accessPassed: true })
     } catch (e) {
       const message = e instanceof Error ? e.message : "Unknown error"
-      console.log("[api/events] debug", {
+      braikApiDebug("[api/events] debug", {
         userId,
         submittedTeamId: teamId,
         teamFound,
@@ -229,16 +230,16 @@ export async function POST(req: NextRequest) {
 
     if (eventError || !event) {
       const message = eventError?.message ?? "no event returned"
-      console.log("[api/events] error", { stage: "insert", message })
+      console.error("[api/events] insert failed", { stage: "insert", message })
       return NextResponse.json(
         { error: "Event creation failed", stage: "insert", message },
         { status: 500 }
       )
     }
-    console.log("[api/events] insert ok")
+    braikApiDebug("[api/events] insert ok")
 
     stage = "notifying"
-    console.log("[api/events] notifying")
+    braikApiDebug("[api/events] notifying")
     try {
       const { writeAuditLog } = await import("@/lib/audit/write-audit-log")
       await writeAuditLog({
@@ -277,16 +278,16 @@ export async function POST(req: NextRequest) {
       })
     } catch (e) {
       const message = e instanceof Error ? e.message : "Unknown error"
-      console.log("[api/events] error", { stage: "notifying", message })
+      console.warn("[api/events] post-insert side effects failed (non-fatal)", { stage: "notifying", message })
       // Event was inserted; do not fail the request
     }
     revalidateTeamCalendar(teamId)
     revalidateTeamDashboardBootstrap(teamId)
-    console.log("[api/events] success")
+    braikApiDebug("[api/events] success")
     return NextResponse.json(event, { status: 201 })
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Unknown error"
-    console.log("[api/events] error", { stage, message })
+    console.error("[api/events] unhandled error", { stage, message })
     return NextResponse.json(
       {
         error: "Event creation failed",

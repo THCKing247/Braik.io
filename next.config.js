@@ -1,5 +1,18 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  async headers() {
+    return [
+      {
+        source: "/api/:path*",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "private, no-store, must-revalidate",
+          },
+        ],
+      },
+    ]
+  },
   eslint: {
     // Allow production builds while lint issues are addressed incrementally
     ignoreDuringBuilds: true,

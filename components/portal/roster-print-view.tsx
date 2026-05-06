@@ -69,12 +69,6 @@ export function RosterPrintView({ teamId, onClose }: RosterPrintViewProps) {
         const response = await fetch(`/api/roster/print?teamId=${teamId}`)
         if (response.ok) {
           const data = await response.json()
-          console.log("[roster-print-view] API response payload", {
-            hasTeam: !!data?.team,
-            hasTemplate: !!data?.template,
-            playerCount: data?.players?.length ?? 0,
-            teamName: data?.team?.name,
-          })
           setRosterData(data)
         } else {
           const body = await response.json().catch(() => ({}))
@@ -93,18 +87,10 @@ export function RosterPrintView({ teamId, onClose }: RosterPrintViewProps) {
 
   const handlePrint = () => {
     const el = printRef.current
-    const players = rosterData?.players ?? []
-    console.log("[roster-print-view] handlePrint", {
-      printRefExists: !!el,
-      playerCount: players.length,
-      templateExists: !!rosterData?.template,
-    })
     if (!el) {
-      console.warn("[roster-print-view] Print aborted: printable container ref not mounted")
       return
     }
     if (!rosterData) {
-      console.warn("[roster-print-view] Print aborted: no roster data")
       return
     }
     requestAnimationFrame(() => {

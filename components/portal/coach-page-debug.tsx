@@ -38,6 +38,8 @@ export function CoachPageDebug({ session, teamIds, accessAllowed }: CoachPageDeb
     if (logged.current === key) return
     logged.current = key
 
+    if (process.env.NODE_ENV === "production") return
+
     const payload = {
       pathname,
       sessionUserId: session?.user?.id ?? null,

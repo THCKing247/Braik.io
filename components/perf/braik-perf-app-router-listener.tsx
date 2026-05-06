@@ -3,11 +3,12 @@
 import { usePathname } from "next/navigation"
 import { useEffect, useRef } from "react"
 import { braikPerfClientEnabled } from "@/lib/perf/braik-perf-config"
-import { perfLogClient } from "@/lib/perf/braik-perf-client"
+import { consumeBraikRouteIntent, perfLogClient } from "@/lib/perf/braik-perf-client"
 
 /**
- * Measures App Router client navigations (pathname commit → pathname commit).
- * See Network tab for server work; this covers client-side transition latency.
+ * Measures App Router client navigations.
+ * - `route_transition`: pathname commit -> pathname commit.
+ * - `route_transition.intent_to_commit`: user click intent -> pathname commit when links call markBraikRouteIntent().
  */
 export function BraikPerfAppRouterListener() {
   const pathname = usePathname()
@@ -17,6 +18,10 @@ export function BraikPerfAppRouterListener() {
   useEffect(() => {
     if (!braikPerfClientEnabled()) return
     const path = pathname ?? ""
+    const intentMs = consumeBraikRouteIntent(path)
+    if (intentMs != null) {
+      perfLogClient("route_transition.intent_to_commit", { to: path, ms: intentMs })
+    }
     if (prev.current === null) {
       prev.current = path
       navStart.current = performance.now()

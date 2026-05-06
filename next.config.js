@@ -37,4 +37,13 @@ const nextConfig = {
   },
 }
 
-module.exports = nextConfig
+let exportedConfig = nextConfig
+
+if (process.env.ANALYZE === "true") {
+  const withBundleAnalyzer = require("@next/bundle-analyzer")({
+    enabled: true,
+  })
+  exportedConfig = withBundleAnalyzer(nextConfig)
+}
+
+module.exports = exportedConfig

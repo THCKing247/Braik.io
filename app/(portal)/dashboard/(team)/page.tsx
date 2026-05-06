@@ -1,6 +1,6 @@
 "use client"
 
-import { Suspense, useEffect } from "react"
+import { useEffect } from "react"
 import { useSession } from "@/lib/auth/client-auth"
 import { useRouter } from "next/navigation"
 import {
@@ -44,23 +44,21 @@ export default function DashboardPage() {
   }
 
   return (
-    <Suspense fallback={<DashboardPageShellSkeleton />}>
-      <AdPortalLandingGate>
-        <DashboardPageShell>
-          {({ teamId, canEdit }) =>
-            waitForSession ? (
-              <DashboardPageShellSkeleton />
-            ) : (
-              <TeamDashboard
-                key={teamId || "no-team"}
-                session={session}
-                teamId={teamId}
-                canAddCalendarEvents={canEdit}
-              />
-            )
-          }
-        </DashboardPageShell>
-      </AdPortalLandingGate>
-    </Suspense>
+    <AdPortalLandingGate>
+      <DashboardPageShell>
+        {({ teamId, canEdit }) =>
+          waitForSession ? (
+            <DashboardPageShellSkeleton />
+          ) : (
+            <TeamDashboard
+              key={teamId || "no-team"}
+              session={session}
+              teamId={teamId}
+              canAddCalendarEvents={canEdit}
+            />
+          )
+        }
+      </DashboardPageShell>
+    </AdPortalLandingGate>
   )
 }

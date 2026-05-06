@@ -13,7 +13,6 @@ import { mapTeamAnnouncementsToFeedPosts } from "@/components/portal/player-port
 import { mapTeamHighlightPostsToFeedPosts } from "@/components/portal/player-portal/feed/map-team-highlight-posts-to-feed-posts"
 import { PlayerFeedList } from "@/components/portal/player-portal/feed/player-feed-list"
 import { PlayerTeamHero } from "@/components/portal/player-portal/feed/player-team-hero"
-import { QuickToolsStrip } from "@/components/portal/player-portal/feed/quick-tools-strip"
 import {
   HIGHLIGHT_POSTS_QUERY_KEY,
   PlayerHighlightComposer,
@@ -69,18 +68,14 @@ export function PlayerPortalHome() {
   }, [announcementPosts, playerHighlightPosts, basePath])
 
   return (
-    <div className="player-portal-feed-root mx-auto w-full max-w-lg pb-4 lg:max-w-2xl">
+    <div className="player-portal-feed-root mx-auto w-full max-w-lg space-y-4 pb-4 lg:max-w-2xl">
       <PlayerTeamHero firstName={firstName} teamName={teamName} sport={sport} basePath={basePath} />
 
-      <div className="mt-6 hidden lg:block">
-        <QuickToolsStrip basePath={basePath} />
-      </div>
-
-      <div className="mt-4">
+      <div>
         <PlayerHighlightComposer teamId={teamId} />
       </div>
 
-      <div className="mt-6">
+      <div>
         <PlayerFeedList
           posts={feedPosts}
           accountBasePath={basePath}

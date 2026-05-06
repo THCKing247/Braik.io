@@ -11,9 +11,9 @@ import { braikLogo } from "@/lib/marketing/landing-images"
 
 function navLinkClass(active: boolean) {
   return cn(
-    "flex flex-col items-center gap-0.5 rounded-xl px-2 py-2 text-[10px] font-semibold uppercase tracking-wide transition-colors min-w-[3.25rem]",
+    "flex min-w-[3.25rem] flex-col items-center gap-0.5 rounded-xl px-2 py-2 text-[10px] font-semibold uppercase tracking-wide transition-colors",
     active
-      ? "bg-white text-orange-900 shadow-lg shadow-orange-500/25 ring-1 ring-white/70 [&_svg]:text-orange-600 lg:bg-slate-900 lg:text-white lg:shadow-md lg:shadow-slate-900/15 lg:ring-0 lg:[&_svg]:text-white"
+      ? "bg-amber-300/95 text-[#1c1406] shadow-lg shadow-amber-600/25 ring-1 ring-amber-200/80 [&_svg]:text-[#6f4a00] lg:bg-slate-900 lg:text-white lg:shadow-md lg:shadow-slate-900/15 lg:ring-0 lg:[&_svg]:text-white"
       : "text-white/85 hover:bg-white/10 [&_svg]:text-white lg:text-slate-600 lg:hover:bg-slate-100 lg:[&_svg]:text-slate-500"
   )
 }
@@ -89,15 +89,31 @@ export function ParentPortalChrome({
 }
 
 function ParentPortalHeaderInner() {
-  const { teamName, sport, parentDisplayName } = useParentPortal()
+  const pathname = usePathname() ?? ""
+  const { linkCodeSegment, teamName, sport, parentDisplayName } = useParentPortal()
+  const base = `/parent/${encodeURIComponent(linkCodeSegment)}`
   const sub =
     parentDisplayName?.trim() ||
     null
+  const p = pathname.split("?")[0] ?? pathname
+  const eyebrow = p === base || p === `${base}/`
+    ? "Feed"
+    : p.startsWith(`${base}/calendar`)
+      ? "Calendar"
+      : p.startsWith(`${base}/messages`)
+        ? "Messages"
+        : p.startsWith(`${base}/profile`) || p.startsWith(`${base}/documents`)
+          ? "Player"
+          : p.startsWith(`${base}/reminders`)
+            ? "Profile"
+            : "Feed"
 
   return (
     <div className="mx-auto flex max-w-3xl items-start justify-between gap-3">
       <div className="min-w-0">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-sky-300/95 lg:text-slate-500">Parent portal</p>
+        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-sky-300/95 lg:text-slate-500">
+          {eyebrow}
+        </p>
         <h1 className="truncate bg-gradient-to-r from-sky-100 via-amber-100 to-orange-100 bg-clip-text text-xl font-black text-transparent">
           {teamName}
         </h1>

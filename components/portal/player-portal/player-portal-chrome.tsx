@@ -16,7 +16,7 @@ function navLinkClass(active: boolean) {
   return cn(
     "flex flex-col items-center gap-0.5 rounded-xl px-2 py-2 text-[10px] font-semibold uppercase tracking-wide transition-colors min-w-[3.5rem]",
     active
-      ? "bg-white text-orange-900 shadow-lg shadow-orange-500/25 ring-1 ring-white/70 [&_svg]:text-orange-600"
+      ? "bg-amber-300/95 text-[#1c1406] shadow-lg shadow-amber-600/25 ring-1 ring-amber-200/80 [&_svg]:text-[#6f4a00]"
       : "text-white/85 hover:bg-white/10 [&_svg]:text-white"
   )
 }
@@ -73,7 +73,7 @@ export function PlayerPortalChrome({
         aria-hidden
       />
 
-      <header className="relative z-20 shrink-0 border-b border-sky-500/15 bg-black/25 px-4 py-3.5 backdrop-blur-xl">
+      <header className="relative z-20 shrink-0 border-b border-sky-500/15 bg-black/25 px-4 py-3 backdrop-blur-xl">
         <PlayerPortalHeaderInner />
       </header>
 

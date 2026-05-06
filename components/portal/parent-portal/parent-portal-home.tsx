@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { useMemo } from "react"
-import { Bell, Calendar, Megaphone, MessageSquare, UserRound } from "lucide-react"
+import { Bell, Calendar, ChevronRight, Clock3, Megaphone, MessageSquare, UserRound } from "lucide-react"
 import { useDashboardBootstrapQuery } from "@/lib/dashboard/dashboard-bootstrap-query"
 import { feedRelativeTime } from "@/lib/portal/feed-relative-time"
 import { useParentPortal } from "@/components/portal/parent-portal/parent-portal-context"
@@ -15,7 +15,7 @@ type ParentFeedPost = {
   title: string
   body: string
   timeLabel: string
-  label: "Announcement" | "Game Result" | "Team Update"
+  label: "Announcement" | "Game Result" | "Team Update" | "Film" | "Coach Info"
   href: string
 }
 
@@ -60,6 +60,16 @@ export function ParentPortalHome() {
         timeLabel: "Yesterday",
         label: "Team Update",
         href: `${base}/profile`,
+      },
+      {
+        id: "parent-film",
+        author: "Defensive Coordinator",
+        role: "Defensive Coordinator",
+        title: "Family film note posted after semifinal",
+        body: "Coach-shared film notes are available for parent-visible review tied to your linked athlete's team.",
+        timeLabel: "Yesterday",
+        label: "Film",
+        href: `${base}/announcements`,
       },
     ]
 
@@ -111,18 +121,34 @@ export function ParentPortalHome() {
   ]
 
   return (
-    <div className="mx-auto w-full max-w-lg space-y-4 pb-4">
-      <section className="rounded-2xl border border-white/10 bg-white/5 px-3.5 py-3 backdrop-blur-md lg:hidden">
+    <div className="mx-auto w-full max-w-lg space-y-3.5 pb-4">
+      <section className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2.5 backdrop-blur-md lg:hidden">
         <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-sky-300/85">Feed</p>
-        <p className="mt-1 text-base font-black text-white">{teamName}</p>
-        <p className="text-xs font-medium text-white/70">
+        <p className="mt-1 text-[15px] font-black text-white">{teamName}</p>
+        <p className="text-[11px] font-medium text-white/70">
           Family updates and coach posts relevant to {athleteHint}.
         </p>
       </section>
 
+      <Link
+        href={`${base}/calendar`}
+        prefetch={false}
+        className="group flex items-center gap-2.5 rounded-2xl border border-sky-400/25 bg-black/30 px-3 py-2.5 shadow-inner backdrop-blur-md transition active:scale-[0.99] lg:hidden"
+      >
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-sky-600/40 to-orange-600/30">
+          <Clock3 className="h-4 w-4 text-amber-200" aria-hidden />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-sky-300/90">Next game</p>
+          <p className="truncate text-sm font-bold text-white">Friday · 7:00 PM · vs Central Eagles</p>
+          <p className="text-[11px] font-medium text-white/55">Home · Gates open 5:30 · family access open</p>
+        </div>
+        <ChevronRight className="h-5 w-5 shrink-0 text-white/40 transition group-hover:text-white/70" aria-hidden />
+      </Link>
+
       <ul className="space-y-3 lg:hidden">
         {posts.map((post) => (
-          <li key={post.id} className="rounded-2xl border border-white/10 bg-white px-4 py-3.5 shadow-[0_8px_28px_-16px_rgba(15,23,42,0.35)]">
+          <li key={post.id} className="rounded-2xl border border-black/[0.06] bg-white px-4 py-3.5 shadow-[0_8px_30px_-12px_rgba(15,23,42,0.35)] ring-1 ring-black/[0.03]">
             <div className="flex flex-wrap items-center gap-2">
               <p className="font-bold text-slate-900">{post.author}</p>
               <span className="rounded-full bg-slate-900 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
@@ -135,10 +161,16 @@ export function ParentPortalHome() {
             <p className="mt-1 text-xs font-semibold uppercase tracking-wide text-slate-400">{post.timeLabel}</p>
             <h3 className="mt-2 text-base font-black text-slate-900">{post.title}</h3>
             <p className="mt-1.5 text-sm leading-relaxed text-slate-600">{post.body}</p>
-            <div className="mt-3 border-t border-slate-100 pt-2.5">
+            <div className="mt-3 flex items-center gap-4 border-t border-slate-100 pt-2.5">
               <Link href={post.href} prefetch={false} className="text-sm font-semibold text-slate-700 hover:text-slate-900">
                 Details
               </Link>
+              <button type="button" className="text-sm font-semibold text-orange-600" aria-label="React soon">
+                React
+              </button>
+              <button type="button" className="text-sm font-semibold text-slate-500" aria-label="Reply soon">
+                Reply
+              </button>
             </div>
           </li>
         ))}

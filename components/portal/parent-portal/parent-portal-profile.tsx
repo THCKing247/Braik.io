@@ -19,7 +19,16 @@ type ProfilePayload = {
 
 /** Linked athlete snapshot — data is scoped to the roster player; session remains the signed-in parent. */
 export function ParentPortalProfile() {
-  const { linkedPlayerAccountSegment, teamId } = useParentPortal()
+  const {
+    linkedPlayerAccountSegment,
+    linkedPlayerFirstName,
+    linkedPlayerLastName,
+    linkedPlayerPreferredName,
+    parentDisplayName,
+    parentEmail,
+    linkCodeSegment,
+    teamId,
+  } = useParentPortal()
   const [data, setData] = useState<ProfilePayload | null>(null)
   const [loading, setLoading] = useState(true)
 
@@ -86,6 +95,27 @@ export function ParentPortalProfile() {
             </dl>
           </>
         )}
+      </section>
+
+      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <h2 className="text-xs font-semibold uppercase tracking-widest text-slate-500">Parent link</h2>
+        <dl className="mt-3 grid grid-cols-1 gap-3 text-sm">
+          <div className="rounded-xl border border-slate-100 bg-slate-50 px-4 py-3">
+            <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-600">Linked athlete</dt>
+            <dd className="mt-1 font-semibold text-slate-900">
+              {[linkedPlayerPreferredName, linkedPlayerFirstName, linkedPlayerLastName].filter(Boolean).join(" ").trim() ||
+                "Athlete"}
+            </dd>
+          </div>
+          <div className="rounded-xl border border-slate-100 bg-slate-50 px-4 py-3">
+            <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-600">Parent account</dt>
+            <dd className="mt-1 font-semibold text-slate-900">{parentDisplayName?.trim() || parentEmail || "Parent user"}</dd>
+          </div>
+          <div className="rounded-xl border border-slate-100 bg-slate-50 px-4 py-3">
+            <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-600">Portal link key</dt>
+            <dd className="mt-1 font-mono text-xs font-semibold text-slate-700">{linkCodeSegment}</dd>
+          </div>
+        </dl>
       </section>
 
       <section>

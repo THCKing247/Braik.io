@@ -12,6 +12,7 @@ import { DashboardEngagementHints } from "@/components/portal/dashboard-engageme
 import { BiometricEnablePrompt } from "@/components/native/biometric-enable-prompt"
 import { useMinWidthLg } from "@/lib/hooks/use-min-width-lg"
 import { cn } from "@/lib/utils"
+import { dashboardShellPerf } from "@/lib/debug/dashboard-shell-perf"
 
 interface Team {
   id: string
@@ -73,6 +74,10 @@ export function DashboardLayoutClient({
     }
   }, [])
 
+  useEffect(() => {
+    dashboardShellPerf("dashboard.shell_mounted")
+  }, [])
+
   // RSC passes a new `teams` array every navigation; keep referential stability when id+name are unchanged
   // so the sidebar subtree skips useless updates during soft route changes.
   const shellTeamsRef = useRef<{ sig: string; teams: Team[] } | null>(null)
@@ -101,7 +106,7 @@ export function DashboardLayoutClient({
                 )}
                 style={{
                   background: "linear-gradient(180deg, #0B2A5B 0%, #0f172a 100%)",
-                  boxShadow: "4px 0 24px rgba(0,0,0,0.08)",
+                  boxShadow: "2px 0 10px rgba(0,0,0,0.05)",
                 }}
                 aria-label="Dashboard navigation"
               >
@@ -138,7 +143,7 @@ export function DashboardLayoutClient({
                   <div
                     className={cn(
                       "min-w-0 w-full max-w-full rounded-none border-0 bg-transparent shadow-none",
-                      "lg:rounded-xl lg:border lg:border-[#E5E7EB] lg:bg-white lg:p-6 lg:shadow-sm",
+                      "lg:rounded-xl lg:border lg:border-[#E5E7EB] lg:bg-white lg:p-6 lg:shadow-[0_1px_3px_rgba(0,0,0,0.04)]",
                       isPlayEditorRoute && "max-lg:!rounded-none max-lg:!border-0",
                       isSchedulePage &&
                         "flex min-h-0 flex-1 flex-col overflow-hidden lg:[scrollbar-gutter:stable]"

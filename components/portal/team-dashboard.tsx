@@ -18,7 +18,10 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import Link from "next/link"
-import { useAppBootstrapOptional } from "@/components/portal/app-bootstrap-context"
+import {
+  useAppBootstrapCoreOptional,
+  useAppBootstrapUnreadOptional,
+} from "@/components/portal/app-bootstrap-context"
 import {
   useNotificationPollIntervalMs,
   useNotificationsPollingActive,
@@ -72,6 +75,7 @@ import {
   useDashboardBootstrapQuery,
 } from "@/lib/dashboard/dashboard-bootstrap-query"
 import { devDashboardHandoffLog } from "@/lib/debug/dashboard-handoff-dev"
+import { dashboardShellPerf } from "@/lib/debug/dashboard-shell-perf"
 import { DashboardHomeDeferredBootstrapTrigger } from "@/components/portal/dashboard-home-deferred-bootstrap-trigger"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -367,9 +371,10 @@ function NotificationsCard({
   initialNotifications?: DashNotification[]
 }) {
   const router = useRouter()
-  const shell = useAppBootstrapOptional()
-  const shellRef = useRef(shell)
-  shellRef.current = shell
+  const bootstrapUnread = useAppBootstrapUnreadOptional()
+  const bootstrapCore = useAppBootstrapCoreOptional()
+  const unreadRef = useRef(bootstrapUnread)
+  unreadRef.current = bootstrapUnread
 
   const [notifications, setNotifications] = useState<DashNotification[]>([])
   const [loading, setLoading] = useState(true)
@@ -390,7 +395,7 @@ function NotificationsCard({
       const list = raw.filter((n) => NOTIFICATION_TYPES_ROSTER_MESSAGES_SCHEDULE.has(n.type))
       setNotifications(list)
       if (typeof data.unreadCount === "number") {
-        shellRef.current?.syncUnreadFromServerCount(data.unreadCount)
+        unreadRef.current?.syncUnreadFromServerCount(data.unreadCount)
       }
     } catch {
       /* ignore */
@@ -434,15 +439,15 @@ function NotificationsCard({
     if (!n.read) {
       const prev = notifications
       setNotifications((p) => p.map((x) => (x.id === n.id ? { ...x, read: true } : x)))
-      shell?.applyUnreadDelta(-1)
+      bootstrapUnread?.applyUnreadDelta(-1)
       try {
         const res = await fetch(`/api/notifications/${n.id}`, { method: "PATCH" })
         if (!res.ok) throw new Error("mark read failed")
         void load()
       } catch {
         setNotifications(prev)
-        shell?.applyUnreadDelta(1)
-        void shell?.refetch()
+        bootstrapUnread?.applyUnreadDelta(1)
+        void bootstrapCore?.refetch()
       }
     }
     const route = buildNotificationRoute(n.linkType, n.linkId, n.linkUrl, teamId)
@@ -467,7 +472,7 @@ function NotificationsCard({
     if (unreadBefore === 0) return
     setMarkBusy(true)
     setNotifications([])
-    shell?.applyUnreadDelta(-unreadBefore)
+    bootstrapUnread?.applyUnreadDelta(-unreadBefore)
     try {
       const res = await fetch("/api/notifications/mark-all-read", {
         method: "POST",
@@ -478,8 +483,8 @@ function NotificationsCard({
       void load()
     } catch {
       setNotifications(prev)
-      shell?.applyUnreadDelta(unreadBefore)
-      void shell?.refetch()
+      bootstrapUnread?.applyUnreadDelta(unreadBefore)
+      void bootstrapCore?.refetch()
     } finally {
       setMarkBusy(false)
     }
@@ -858,9 +863,9 @@ export function TeamDashboard({ session, teamId, canAddCalendarEvents }: TeamDas
 
   const tid = teamId?.trim() ?? ""
   /** Same team id as `AppBootstrapProvider` (must share one React Query cache). */
-  const shell = useAppBootstrapOptional()
+  const shellCore = useAppBootstrapCoreOptional()
   const queryClient = useQueryClient()
-  const bootstrapQueryTeamId = (shell?.teamId?.trim() || tid).trim()
+  const bootstrapQueryTeamId = (shellCore?.teamId?.trim() || tid).trim()
   const dashQ = useDashboardBootstrapQuery(bootstrapQueryTeamId)
   const [scheduleGames, setScheduleGames] = useState<TeamGameRow[]>([])
   const [scheduleGamesLoading, setScheduleGamesLoading] = useState(true)
@@ -876,7 +881,7 @@ export function TeamDashboard({ session, teamId, canAddCalendarEvents }: TeamDas
   useEffect(() => {
     devDashboardHandoffLog("TeamDashboard", {
       teamIdProp: tid,
-      shellTeamId: shell?.teamId ?? null,
+      shellTeamId: shellCore?.teamId ?? null,
       bootstrapQueryTeamId,
       queryStatus: dashQ.status,
       isPending: dashQ.isPending,
@@ -887,7 +892,7 @@ export function TeamDashboard({ session, teamId, canAddCalendarEvents }: TeamDas
     })
   }, [
     tid,
-    shell?.teamId,
+    shellCore?.teamId,
     bootstrapQueryTeamId,
     dashQ.status,
     dashQ.isPending,
@@ -904,6 +909,20 @@ export function TeamDashboard({ session, teamId, canAddCalendarEvents }: TeamDas
     if (dashQ.data?.dashboard) return "ok"
     return "fallback"
   }, [bootstrapQueryTeamId, dashQ.isPending, dashQ.isError, dashQ.data])
+
+  const criticalContentReadyRef = useRef<string | null>(null)
+  useEffect(() => {
+    criticalContentReadyRef.current = null
+  }, [bootstrapQueryTeamId])
+
+  useEffect(() => {
+    const t = bootstrapQueryTeamId.trim()
+    if (!t) return
+    if (criticalContentReadyRef.current === t) return
+    if (dashboardBootstrapState !== "ok" || !bootstrapAligned) return
+    criticalContentReadyRef.current = t
+    dashboardShellPerf("dashboard.critical_content_ready", { teamId: t })
+  }, [bootstrapQueryTeamId, dashboardBootstrapState, bootstrapAligned])
 
   const loadScheduleGames = useCallback(() => {
     const gid = bootstrapQueryTeamId.trim()

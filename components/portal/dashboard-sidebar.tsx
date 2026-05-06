@@ -1,11 +1,11 @@
 "use client"
 
-import { memo, useMemo } from "react"
+import { memo, useEffect, useMemo } from "react"
 import Link from "next/link"
 import Image from "next/image"
 import { usePathname, useSearchParams } from "next/navigation"
 import { signOut } from "@/lib/auth/client-auth"
-import { useAppBootstrapOptional } from "@/components/portal/app-bootstrap-context"
+import { useAppBootstrapCoreOptional } from "@/components/portal/app-bootstrap-context"
 import { useDashboardShellIdentity } from "@/lib/hooks/use-dashboard-shell-identity"
 import { useCoachB } from "@/components/portal/coach-b-context"
 import { getQuickActionsForRole, type QuickAction } from "@/config/quickActions"
@@ -13,6 +13,9 @@ import { cn } from "@/lib/utils"
 import { canUseCoachB, type Role } from "@/lib/auth/roles"
 import { useCoachBRotatingCopy } from "@/lib/hooks/use-coach-b-rotating-copy"
 import { LayoutDashboard, LogOut, MessageSquare, Sparkles } from "lucide-react"
+import { isQuickActionPathActive } from "@/lib/dashboard/quick-action-active"
+import { DashboardNotificationUnreadBadge } from "@/components/portal/dashboard-notification-unread-badge"
+import { dashboardShellPerf } from "@/lib/debug/dashboard-shell-perf"
 
 const SIDEBAR_WIDTH = 256
 
@@ -26,9 +29,8 @@ interface Team {
 
 export function DashboardSidebar({ teams }: { teams: Team[] }) {
   const identity = useDashboardShellIdentity()
-  const shell = useAppBootstrapOptional()
-  const shellUnread = shell?.effectiveUnreadNotifications ?? 0
-  const pathname = usePathname()
+  const shellCore = useAppBootstrapCoreOptional()
+  const pathname = usePathname() ?? ""
   const searchParams = useSearchParams()
   const coachB = useCoachB()
   const userRole = identity.roleUpper || undefined
@@ -38,13 +40,17 @@ export function DashboardSidebar({ teams }: { teams: Team[] }) {
     userRole === "HEAD_COACH" && teams.length > 0 && (currentTeamId || teams[0]?.id)
       ? `/dashboard?teamId=${encodeURIComponent(currentTeamId || teams[0].id)}`
       : "/dashboard"
-  const videoNav = shell?.payload?.videoClips?.navVisible
+  const videoNav = shellCore?.payload?.videoClips?.navVisible
   const quickActions = useMemo(
     () => getQuickActionsForRole(userRole, { videoClipsNavVisible: videoNav }),
     [userRole, videoNav]
   )
   const showCoachB = userRole && canUseCoachB(userRole as Role)
   const coachCopy = useCoachBRotatingCopy()
+
+  useEffect(() => {
+    dashboardShellPerf("dashboard.sidebar_mounted")
+  }, [])
 
   const roleLabel = userRole
     ? userRole.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase())
@@ -95,11 +101,8 @@ export function DashboardSidebar({ teams }: { teams: Team[] }) {
               href={action.href}
               label={action.label}
               icon={action.icon}
-              badgeCount={action.id === "messages" && shellUnread > 0 ? Math.min(shellUnread, 99) : undefined}
-              isActive={
-                pathname === action.href ||
-                (action.href !== "/dashboard" && pathname.startsWith(action.href))
-              }
+              unreadBadgeMode={action.id === "messages" ? "notification-unread" : "none"}
+              isActive={isQuickActionPathActive(pathname, action.href)}
             />
           ))}
         </nav>
@@ -134,7 +137,7 @@ export function DashboardSidebar({ teams }: { teams: Team[] }) {
                 onClick={() => coachB?.open()}
                 className={cn(
                   "flex w-full items-center justify-center gap-2 rounded-lg px-3 py-2.5",
-                  "text-sm font-medium text-white shadow-sm transition-colors",
+                  "text-sm font-medium text-white transition-colors",
                   "bg-[#2563EB] hover:bg-[#3B82F6]",
                   "focus:outline-none focus:ring-2 focus:ring-white/40 focus:ring-offset-2 focus:ring-offset-[#0B2A5B]"
                 )}
@@ -154,7 +157,7 @@ export function DashboardSidebar({ teams }: { teams: Team[] }) {
           onClick={() => signOut({ callbackUrl: "/" })}
           className={cn(
             "flex w-full items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium",
-            "bg-[#EF4444] text-white shadow-md transition-colors hover:bg-[#DC2626]",
+            "bg-[#EF4444] text-white transition-colors hover:bg-[#DC2626]",
             "focus:outline-none focus:ring-2 focus:ring-[#EF4444]/30 focus:ring-offset-2 focus:ring-offset-[#0B2A5B]"
           )}
           aria-label="Sign out"
@@ -173,36 +176,32 @@ const SidebarNavItem = memo(function SidebarNavItem({
   label,
   icon: Icon,
   isActive,
-  badgeCount,
+  unreadBadgeMode = "none",
 }: {
   href: string
   label: string
   icon: QuickAction["icon"]
   isActive: boolean
-  badgeCount?: number
+  /** When set, render isolated unread subscriber (messages tab). */
+  unreadBadgeMode?: "none" | "notification-unread"
 }) {
   return (
     <Link
       href={href}
       prefetch={false}
       className={cn(
-        "flex min-h-[44px] items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200",
+        "flex min-h-[44px] items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium motion-safe:transition-colors motion-safe:duration-200",
         "focus:outline-none focus:ring-2 focus:ring-white/30 focus:ring-offset-2 focus:ring-offset-[#0B2A5B]",
         isActive
-          ? "border border-white/25 bg-[#2563EB] text-white shadow-md"
+          ? "border border-white/25 bg-[#2563EB] text-white"
           : "text-white/[0.88] hover:bg-white/15 hover:text-white"
       )}
       aria-current={isActive ? "page" : undefined}
     >
       <Icon className="h-5 w-5 flex-shrink-0" aria-hidden />
       <span className="min-w-0 flex-1 truncate">{label}</span>
-      {badgeCount != null && badgeCount > 0 ? (
-        <span
-          className="ml-1 flex h-5 min-w-[1.25rem] shrink-0 items-center justify-center rounded-full bg-amber-500 px-1 text-[10px] font-bold text-white"
-          aria-label={`${badgeCount} unread`}
-        >
-          {badgeCount > 9 ? "9+" : badgeCount}
-        </span>
+      {unreadBadgeMode === "notification-unread" ? (
+        <DashboardNotificationUnreadBadge variant="sidebar" />
       ) : null}
     </Link>
   )

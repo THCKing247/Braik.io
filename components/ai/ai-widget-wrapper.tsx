@@ -1,7 +1,7 @@
 "use client"
 
 import dynamic from "next/dynamic"
-import { useAppBootstrapOptional } from "@/components/portal/app-bootstrap-context"
+import { useAppBootstrapCoreOptional } from "@/components/portal/app-bootstrap-context"
 import { canUseCoachB, type Role } from "@/lib/auth/roles"
 
 const AIChatbotWidget = dynamic(
@@ -10,7 +10,7 @@ const AIChatbotWidget = dynamic(
 )
 
 export function AIWidgetWrapper() {
-  const shell = useAppBootstrapOptional()
+  const shell = useAppBootstrapCoreOptional()
   const teamId = shell?.payload?.team.id ?? shell?.teamId ?? ""
   const role = shell?.payload?.user.role
 

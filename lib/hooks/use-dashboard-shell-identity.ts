@@ -1,7 +1,7 @@
 "use client"
 
 import { useSession } from "@/lib/auth/client-auth"
-import { useAppBootstrapOptional } from "@/components/portal/app-bootstrap-context"
+import { useAppBootstrapCoreOptional } from "@/components/portal/app-bootstrap-context"
 
 /**
  * Prefer team `AppBootstrapProvider` payload for display / gating; fall back to
@@ -9,7 +9,7 @@ import { useAppBootstrapOptional } from "@/components/portal/app-bootstrap-conte
  * Does not replace full session for auth-sensitive mutations — use server session there.
  */
 export function useDashboardShellIdentity() {
-  const shell = useAppBootstrapOptional()
+  const shell = useAppBootstrapCoreOptional()
   const { data: session, status } = useSession()
 
   const payload = shell?.phase === "ok" ? shell.payload : null

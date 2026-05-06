@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import { Bell, Check, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { buildNotificationRoute, buildNotificationUrl } from "@/lib/utils/notification-router"
-import { useAppBootstrapOptional } from "@/components/portal/app-bootstrap-context"
+import { useAppBootstrapUnreadOptional } from "@/components/portal/app-bootstrap-context"
 import {
   useNotificationPollIntervalMs,
   useNotificationsPollingActive,
@@ -34,9 +34,9 @@ const notifMemKey = (teamId: string) => `lw-mem:notifications-preview:${teamId.t
 
 export function NotificationsWidget({ teamId }: NotificationsWidgetProps) {
   const router = useRouter()
-  const shell = useAppBootstrapOptional()
-  const shellRef = useRef(shell)
-  shellRef.current = shell
+  const unreadShell = useAppBootstrapUnreadOptional()
+  const shellRef = useRef(unreadShell)
+  shellRef.current = unreadShell
 
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [unreadCount, setUnreadCount] = useState(0)
@@ -103,7 +103,7 @@ export function NotificationsWidget({ teamId }: NotificationsWidgetProps) {
   useOnDocumentForeground(() => void loadRef.current(), Boolean(teamId))
 
   const markAsRead = async (notificationId: string) => {
-    shell?.applyUnreadDelta(-1)
+    unreadShell?.applyUnreadDelta(-1)
     setUnreadCount((prev) => Math.max(0, prev - 1))
     try {
       const response = await fetch(`/api/notifications/${notificationId}`, {
@@ -115,11 +115,11 @@ export function NotificationsWidget({ teamId }: NotificationsWidgetProps) {
         )
         void loadNotifications()
       } else {
-        shell?.applyUnreadDelta(1)
+        unreadShell?.applyUnreadDelta(1)
         setUnreadCount((prev) => prev + 1)
       }
     } catch (error) {
-      shell?.applyUnreadDelta(1)
+      unreadShell?.applyUnreadDelta(1)
       setUnreadCount((prev) => prev + 1)
       console.error("Error marking notification as read:", error)
     }
@@ -130,7 +130,7 @@ export function NotificationsWidget({ teamId }: NotificationsWidgetProps) {
     const unreadBefore = prev.filter((n) => !n.read).length
     if (unreadBefore === 0) return
     setLoading(true)
-    shell?.applyUnreadDelta(-unreadBefore)
+    unreadShell?.applyUnreadDelta(-unreadBefore)
     setUnreadCount(0)
     try {
       const response = await fetch("/api/notifications/mark-all-read", {
@@ -142,12 +142,12 @@ export function NotificationsWidget({ teamId }: NotificationsWidgetProps) {
         setNotifications((p) => p.map((n) => ({ ...n, read: true })))
         void loadNotifications()
       } else {
-        shell?.applyUnreadDelta(unreadBefore)
+        unreadShell?.applyUnreadDelta(unreadBefore)
         setUnreadCount(unreadBefore)
         setNotifications(prev)
       }
     } catch (error) {
-      shell?.applyUnreadDelta(unreadBefore)
+      unreadShell?.applyUnreadDelta(unreadBefore)
       setUnreadCount(unreadBefore)
       setNotifications(prev)
       console.error("Error marking all as read:", error)

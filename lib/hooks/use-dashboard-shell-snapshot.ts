@@ -2,7 +2,7 @@
 
 import { useMemo } from "react"
 import { useSession } from "@/lib/auth/client-auth"
-import { useAppBootstrapOptional } from "@/components/portal/app-bootstrap-context"
+import { useAppBootstrapCoreOptional } from "@/components/portal/app-bootstrap-context"
 import { usePortalTeam } from "@/components/portal/portal-team-context"
 import { useDashboardShellIdentity } from "@/lib/hooks/use-dashboard-shell-identity"
 
@@ -12,7 +12,7 @@ import { useDashboardShellIdentity } from "@/lib/hooks/use-dashboard-shell-ident
  */
 export function useDashboardShellSnapshot() {
   const identity = useDashboardShellIdentity()
-  const shell = useAppBootstrapOptional()
+  const shell = useAppBootstrapCoreOptional()
   const { status } = useSession()
   const portal = usePortalTeam()
 

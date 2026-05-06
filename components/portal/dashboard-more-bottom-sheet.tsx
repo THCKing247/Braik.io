@@ -11,7 +11,7 @@ import { getQuickActionsForRole, isPrimaryMobileTabPath } from "@/config/quickAc
 import { cn } from "@/lib/utils"
 import { LogOut, Shield, Sparkles, X } from "lucide-react"
 import { TeamSwitcher } from "@/components/portal/team-switcher"
-import { useAppBootstrapOptional } from "@/components/portal/app-bootstrap-context"
+import { useAppBootstrapCoreOptional } from "@/components/portal/app-bootstrap-context"
 import { MobileAppCard } from "@/components/mobile/mobile-app-card"
 import { canUseCoachB, type Role } from "@/lib/auth/roles"
 
@@ -42,7 +42,7 @@ export function DashboardMoreBottomSheet({
   const searchParams = useSearchParams()
   const currentTeamId = searchParams.get("teamId") || teams[0]?.id || ""
   const currentTeam = teams.find((t) => t.id === currentTeamId) || teams[0]
-  const videoNav = useAppBootstrapOptional()?.payload?.videoClips?.navVisible
+  const videoNav = useAppBootstrapCoreOptional()?.payload?.videoClips?.navVisible
   const quickActions = useMemo(
     () => getQuickActionsForRole(userRole, { videoClipsNavVisible: videoNav }),
     [userRole, videoNav]

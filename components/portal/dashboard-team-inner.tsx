@@ -2,12 +2,12 @@
 
 import { Suspense, useEffect, useMemo, type ReactNode } from "react"
 import { useSearchParams } from "next/navigation"
-import { useSession } from "@/lib/auth/client-auth"
 import { PortalTeamProvider, useEffectiveTeamId } from "@/components/portal/portal-team-context"
 import { AppBootstrapProvider } from "@/components/portal/app-bootstrap-context"
 import { AdPortalLinkProvider } from "@/components/portal/ad-portal-link-context"
 import { rememberActiveDashboardTeam } from "@/lib/dashboard/active-team-session"
 import { devDashboardHandoffLog } from "@/lib/debug/dashboard-handoff-dev"
+import { useDashboardShellIdentity } from "@/lib/hooks/use-dashboard-shell-identity"
 
 interface Team {
   id: string
@@ -19,9 +19,9 @@ interface Team {
 
 function UrlResolvedTeamBootstrap({ teams, children }: { teams: Team[]; children: ReactNode }) {
   const searchParams = useSearchParams()
-  const { data: session } = useSession()
+  const identity = useDashboardShellIdentity()
   const urlTeamId = searchParams.get("teamId")
-  const effective = useEffectiveTeamId(urlTeamId, session?.user?.teamId)
+  const effective = useEffectiveTeamId(urlTeamId, identity.sessionUser?.teamId)
   /**
    * MUST match `DashboardPageShell`: `effectiveTeamId || teamIdFromQuery || ""`, then shell fallbacks.
    * Previously we used `(effective || teams[0])` only — missing `urlTeamId` caused AppBootstrap to bind to

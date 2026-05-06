@@ -10,6 +10,7 @@ import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { canUseCoachB, type Role } from "@/lib/auth/roles"
 import { trackProductEventServer } from "@/lib/analytics/track-server"
 import { BRAIK_EVENTS } from "@/lib/analytics/event-names"
+import { braikApiDebug } from "@/lib/debug/braik-api-debug"
 
 export async function POST(req: Request) {
   if (!isOpenAIConfigured()) {
@@ -82,12 +83,12 @@ export async function POST(req: Request) {
             const priorResult = await buildContext(teamId, lastUserMsg)
             if (priorResult) {
               resolvedContext = resolveFollowUpContext(message, history, result.context, priorResult.context)
-              console.log("[POST /api/ai/chat] follow-up resolved: reusing prior context")
+              braikApiDebug("[POST /api/ai/chat] follow-up resolved: reusing prior context")
             }
           }
         }
         context = resolvedContext
-        console.log("[POST /api/ai/chat]", {
+        braikApiDebug("[POST /api/ai/chat]", {
           domain: result.summary.domain,
           intent: result.summary.intent,
           rosterCount: result.summary.rosterCount,
@@ -100,14 +101,14 @@ export async function POST(req: Request) {
         })
       } else {
         context = createGenericContext(["Braik context could not be loaded."])
-        console.log("[POST /api/ai/chat] context unavailable, generic mode")
+        braikApiDebug("[POST /api/ai/chat] context unavailable, generic mode")
       }
     } catch (err) {
       console.error("[POST /api/ai/chat] context build failed", err)
       context = createGenericContext(["Context build failed; answering from general knowledge."])
     }
   } else {
-    console.log("[POST /api/ai/chat] no teamId, generic mode")
+    braikApiDebug("[POST /api/ai/chat] no teamId, generic mode")
   }
 
   const coordinatorAnalysis = runCoordinatorTool(context, message)

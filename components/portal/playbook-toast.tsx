@@ -76,7 +76,7 @@ export function usePlaybookToast() {
   if (!ctx) {
     return {
       showToast: (message: string, _variant?: ToastVariant) => {
-        if (typeof window !== "undefined") {
+        if (typeof window !== "undefined" && process.env.NODE_ENV === "development") {
           // Fallback if used outside provider (e.g. in tests)
           console.info("[playbook toast]", message)
         }

@@ -51,3 +51,6 @@ android/.idea
 ios/App/Pods
 ios/DerivedData
 
+
+# Local Netlify folder
+.netlify

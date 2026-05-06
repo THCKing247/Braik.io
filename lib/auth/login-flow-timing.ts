@@ -1,3 +1,5 @@
+import { braikClientPerfBundleEnabled } from "@/lib/debug/braik-client-perf-master"
+
 /**
  * Opt-in auth/login performance logging (console).
  *
@@ -25,6 +27,7 @@ export function authTimingServer(label: string, detail?: Record<string, unknown>
 
 export function authTimingClientEnabled(): boolean {
   if (typeof window === "undefined") return false
+  if (braikClientPerfBundleEnabled()) return true
   if ((window as unknown as { __BRAIK_AUTH_TIMING__?: boolean }).__BRAIK_AUTH_TIMING__ === true) return true
   return process.env.NEXT_PUBLIC_BRAIK_AUTH_TIMING === "1"
 }

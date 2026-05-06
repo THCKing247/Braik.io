@@ -5,6 +5,7 @@ import { requireTeamAccess } from "@/lib/auth/rbac"
 import { createNotifications } from "@/lib/utils/notifications"
 import { trackProductEventServer } from "@/lib/analytics/track-server"
 import { BRAIK_EVENTS } from "@/lib/analytics/event-names"
+import { braikApiDebug } from "@/lib/debug/braik-api-debug"
 
 /**
  * POST /api/messages/send
@@ -68,47 +69,56 @@ export async function POST(request: Request) {
     }
 
     if (!participant) {
-      // Debug: Get all participants to see what's in the thread
-      const { data: allParticipants, error: allParticipantsError } = await supabase
-        .from("message_thread_participants")
-        .select("user_id")
-        .eq("thread_id", threadId)
-      
-      if (allParticipantsError) {
-        console.error("[POST /api/messages/send] Error fetching all participants:", allParticipantsError)
+      // Optional: extra participant list for troubleshooting (extra query — only when BRAIK_API_DEBUG=1)
+      let allParticipants: { user_id: string }[] | undefined
+      if (process.env.BRAIK_API_DEBUG === "1") {
+        const { data: ap, error: allParticipantsError } = await supabase
+          .from("message_thread_participants")
+          .select("user_id")
+          .eq("thread_id", threadId)
+        if (allParticipantsError) {
+          console.error("[POST /api/messages/send] Error fetching all participants:", allParticipantsError)
+        } else {
+          allParticipants = ap ?? undefined
+        }
+        braikApiDebug("[POST /api/messages/send] User not a participant. Debug info:", {
+          currentUserId: session.user.id,
+          threadId,
+          teamId: thread.team_id,
+          participantsInThread: allParticipants?.map((p) => p.user_id) ?? [],
+        })
       }
-
-      console.log("[POST /api/messages/send] User not a participant. Debug info:", {
-        currentUserId: session.user.id,
-        threadId,
-        teamId: thread.team_id,
-        participantsInThread: allParticipants?.map(p => p.user_id) || []
-      })
 
       // If not a participant, check team access as fallback
       try {
         await requireTeamAccess(thread.team_id)
-        console.log("[POST /api/messages/send] Team access granted as fallback")
+        braikApiDebug("[POST /api/messages/send] Team access granted as fallback")
       } catch (error: any) {
         console.error("[POST /api/messages/send] Team access check failed:", {
           message: error.message,
           stack: error.stack,
           name: error.name
         })
-        return NextResponse.json({ 
-          error: "Access denied: You are not a participant in this thread and not a team member",
-          debug: process.env.NODE_ENV === "development" ? {
-            currentUserId: session.user.id,
-            threadId,
-            participantsInThread: allParticipants?.map(p => p.user_id) || [],
-            teamId: thread.team_id
-          } : undefined
-        }, { status: 403 })
+        return NextResponse.json(
+          {
+            error: "Access denied: You are not a participant in this thread and not a team member",
+            debug:
+              process.env.NODE_ENV === "development" || process.env.BRAIK_API_DEBUG === "1"
+                ? {
+                    currentUserId: session.user.id,
+                    threadId,
+                    participantsInThread: allParticipants?.map((p) => p.user_id) ?? [],
+                    teamId: thread.team_id,
+                  }
+                : undefined,
+          },
+          { status: 403 }
+        )
       }
     } else {
-      console.log("[POST /api/messages/send] User is a participant, allowing message send:", {
+      braikApiDebug("[POST /api/messages/send] User is a participant, allowing message send:", {
         userId: session.user.id,
-        threadId
+        threadId,
       })
     }
 
@@ -132,10 +142,10 @@ export async function POST(request: Request) {
     }
 
     // Create message
-    console.log("[POST /api/messages/send] Inserting message:", {
+    braikApiDebug("[POST /api/messages/send] Inserting message:", {
       threadId,
       senderId: session.user.id,
-      contentLength: messageBody.trim().length
+      contentLength: messageBody.trim().length,
     })
 
     const { data: message, error: messageError } = await supabase
@@ -168,7 +178,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Failed to send message: no data returned" }, { status: 500 })
     }
 
-    console.log("[POST /api/messages/send] Message created successfully:", message.id)
+    braikApiDebug("[POST /api/messages/send] Message created successfully:", message.id)
 
     trackProductEventServer({
       eventName: BRAIK_EVENTS.messaging.message_sent,

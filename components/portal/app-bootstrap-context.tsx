@@ -19,13 +19,16 @@ import {
 
 type Phase = "idle" | "loading" | "ok" | "error"
 
-export type AppBootstrapContextValue = {
+export type AppBootstrapCoreContextValue = {
   teamId: string
   phase: Phase
   payload: AppBootstrapPayload | null
+  refetch: () => Promise<void>
+}
+
+export type AppBootstrapUnreadContextValue = {
   /** Server unread + client optimistic delta (for badges / shell). */
   effectiveUnreadNotifications: number
-  refetch: () => Promise<void>
   /** Negative values reduce displayed unread until next refetch. */
   applyUnreadDelta: (delta: number) => void
   /**
@@ -35,19 +38,39 @@ export type AppBootstrapContextValue = {
   syncUnreadFromServerCount: (count: number) => void
 }
 
-const AppBootstrapContext = createContext<AppBootstrapContextValue | null>(null)
+export type AppBootstrapContextValue = AppBootstrapCoreContextValue & AppBootstrapUnreadContextValue
+
+const AppBootstrapCoreContext = createContext<AppBootstrapCoreContextValue | null>(null)
+const AppBootstrapUnreadContext = createContext<AppBootstrapUnreadContextValue | null>(null)
 
 export function useAppBootstrap(): AppBootstrapContextValue {
-  const ctx = useContext(AppBootstrapContext)
-  if (!ctx) {
+  const core = useContext(AppBootstrapCoreContext)
+  const unread = useContext(AppBootstrapUnreadContext)
+  if (!core || !unread) {
     throw new Error("useAppBootstrap must be used within AppBootstrapProvider")
   }
-  return ctx
+  return { ...core, ...unread }
 }
 
-/** Safe for components that may render outside the team shell. */
+/** Subscribes to core bootstrap only (payload, phase, refetch). Unread changes will not rerender. */
+export function useAppBootstrapCoreOptional(): AppBootstrapCoreContextValue | null {
+  return useContext(AppBootstrapCoreContext)
+}
+
+/** Subscribes to unread badge state only. Payload / phase updates will not rerender. */
+export function useAppBootstrapUnreadOptional(): AppBootstrapUnreadContextValue | null {
+  return useContext(AppBootstrapUnreadContext)
+}
+
+/**
+ * @deprecated Prefer `useAppBootstrapCoreOptional` / `useAppBootstrapUnreadOptional` to avoid
+ * rerendering on unrelated bootstrap fields. Subscribes to both layers.
+ */
 export function useAppBootstrapOptional(): AppBootstrapContextValue | null {
-  return useContext(AppBootstrapContext)
+  const core = useContext(AppBootstrapCoreContext)
+  const unread = useContext(AppBootstrapUnreadContext)
+  if (!core || !unread) return null
+  return { ...core, ...unread }
 }
 
 export function AppBootstrapProvider({
@@ -117,26 +140,28 @@ export function AppBootstrapProvider({
     (payload?.unreadNotifications ?? 0) + pendingUnreadDelta
   )
 
-  const value = useMemo<AppBootstrapContextValue>(
+  const coreValue = useMemo<AppBootstrapCoreContextValue>(
     () => ({
       teamId,
       phase,
       payload,
-      effectiveUnreadNotifications,
       refetch,
+    }),
+    [teamId, phase, payload, refetch]
+  )
+
+  const unreadValue = useMemo<AppBootstrapUnreadContextValue>(
+    () => ({
+      effectiveUnreadNotifications,
       applyUnreadDelta,
       syncUnreadFromServerCount,
     }),
-    [
-      teamId,
-      phase,
-      payload,
-      effectiveUnreadNotifications,
-      refetch,
-      applyUnreadDelta,
-      syncUnreadFromServerCount,
-    ]
+    [effectiveUnreadNotifications, applyUnreadDelta, syncUnreadFromServerCount]
   )
 
-  return <AppBootstrapContext.Provider value={value}>{children}</AppBootstrapContext.Provider>
+  return (
+    <AppBootstrapCoreContext.Provider value={coreValue}>
+      <AppBootstrapUnreadContext.Provider value={unreadValue}>{children}</AppBootstrapUnreadContext.Provider>
+    </AppBootstrapCoreContext.Provider>
+  )
 }

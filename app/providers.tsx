@@ -16,6 +16,10 @@ export function Providers({ children }: { children: React.ReactNode }) {
           queries: {
             staleTime: DASHBOARD_BOOTSTRAP_STALE_MS,
             refetchOnWindowFocus: false,
+            /** Dashboard bootstrap + shell data are invalidated explicitly; avoid reconnect storms. */
+            refetchOnReconnect: false,
+            /** Default was 3; two attempts limit duplicate work on flaky networks. */
+            retry: 2,
           },
         },
       })

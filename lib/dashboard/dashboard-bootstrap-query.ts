@@ -283,6 +283,7 @@ export function useDashboardBootstrapQuery(teamId: string) {
     staleTime: DASHBOARD_BOOTSTRAP_STALE_MS,
     gcTime: 30 * 60 * 1000,
     refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
     initialData: peekInit.initialData,
     initialDataUpdatedAt: peekInit.initialDataUpdatedAt,
   })

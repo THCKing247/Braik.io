@@ -56,15 +56,21 @@ export async function GET(request: Request) {
       }
     }
 
-    // TODO: Serve file from Supabase Storage or file system
-    // For now, return file info
-    return NextResponse.json({
-      id: attachment.id,
-      fileName: attachment.file_name,
-      fileUrl: attachment.file_url,
-      fileSize: attachment.file_size,
-      mimeType: attachment.mime_type,
-    })
+    // TODO: Stream bytes from storage with auth checks (same participant gate as above).
+    return NextResponse.json(
+      {
+        id: attachment.id,
+        fileName: attachment.file_name,
+        fileUrl: attachment.file_url,
+        fileSize: attachment.file_size,
+        mimeType: attachment.mime_type,
+      },
+      {
+        headers: {
+          "Cache-Control": "private, no-store, max-age=0",
+        },
+      }
+    )
   } catch (error: any) {
     console.error("[GET /api/messages/attachments/serve]", error)
   return NextResponse.json(

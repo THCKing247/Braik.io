@@ -1,11 +1,12 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useRef } from "react"
 import Link from "next/link"
 import { ClipboardCheck } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import type { DashboardBootstrapPayload } from "@/lib/dashboard/dashboard-bootstrap-types"
+import { dashboardShellPerf } from "@/lib/debug/dashboard-shell-perf"
 
 /** Coalesce concurrent summaryOnly fetches (duplicate mounts, Strict Mode, fast remounts). */
 const readinessSummaryInFlight = new Map<
@@ -73,6 +74,20 @@ export default function ReadinessSummaryCard({
     return dashboardBootstrapState === "fallback"
   })
   const [forbidden, setForbidden] = useState(false)
+  const widgetDeferredReadySentRef = useRef<string | null>(null)
+
+  useEffect(() => {
+    widgetDeferredReadySentRef.current = null
+  }, [teamId])
+
+  useEffect(() => {
+    const t = teamId.trim()
+    if (!t) return
+    if (widgetDeferredReadySentRef.current === t) return
+    if (dashboardBootstrapState === "loading" || loading || forbidden || okSkipped) return
+    widgetDeferredReadySentRef.current = t
+    dashboardShellPerf("dashboard.widget_deferred_ready", { widget: "readiness_summary", teamId: t })
+  }, [teamId, dashboardBootstrapState, loading, forbidden, okSkipped])
 
   useEffect(() => {
     setSummary(null)

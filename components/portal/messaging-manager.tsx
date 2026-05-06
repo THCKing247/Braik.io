@@ -1,6 +1,14 @@
 "use client"
 
-import { useState, useEffect, useLayoutEffect, useRef, useMemo } from "react"
+import {
+  useState,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useMemo,
+  useCallback,
+  type MouseEvent,
+} from "react"
 import Link from "next/link"
 import { useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
@@ -32,69 +40,26 @@ import { canPostAnnouncements } from "@/lib/auth/roles"
 import { formatAnnouncementDateTime, type TeamAnnouncementRow } from "@/lib/team-announcements"
 import { supabaseClient } from "@/src/lib/supabaseClient"
 import { cn } from "@/lib/utils"
-
-interface Message {
-  id: string
-  body: string
-  attachments: any
-  createdAt: Date
-  creator: { id: string; name: string | null; email: string }
-  isRemoved?: boolean
-}
-
-type ParticipantKind = "player" | "coach" | "parent" | "staff"
-
-interface ThreadParticipant {
-  id: string
-  userId: string
-  readOnly: boolean
-  participantKind?: ParticipantKind
-  user: { id: string; name: string | null; email: string; displayName?: string }
-}
-
-interface Thread {
-  id: string
-  subject: string | null
-  threadType: string
-  createdAt: Date
-  updatedAt: Date
-  creator: { id: string; name: string | null; email: string }
-  participants: ThreadParticipant[]
-  messages: Message[]
-  unreadCount?: number
-  _count: { messages: number }
-  isReadOnly?: boolean
-  canReply?: boolean
-  canModerate?: boolean
-}
-
-function displayNameForParticipantUser(u: ThreadParticipant["user"]) {
-  return (u.displayName || u.name || u.email || "Member").trim()
-}
-
-function initialsFromDisplayName(name: string) {
-  const parts = name.trim().split(/\s+/).filter(Boolean)
-  if (parts.length === 0) return "?"
-  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase()
-  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
-}
+import type { Contact, Message, ParticipantKind, Thread } from "@/components/portal/messaging/types"
+import {
+  displayNameForParticipantUser,
+  getThreadDisplayName,
+  initialsFromDisplayName,
+  isNearBottomEl,
+  threadCategoryLabel,
+} from "@/components/portal/messaging/messaging-display-utils"
+import { avatarClassForKind } from "@/components/portal/messaging/messaging-row-utils"
+import { ThreadInboxList } from "@/components/portal/messaging/ThreadInboxList"
+import { MessageViewport } from "@/components/portal/messaging/MessageViewport"
+import { MessageComposer } from "@/components/portal/messaging/MessageComposer"
+import { useMessageScrollController } from "@/components/portal/messaging/use-message-scroll-controller"
+import { useMessageRealtime } from "@/components/portal/messaging/use-message-realtime"
+import { useThreadReadState } from "@/components/portal/messaging/use-thread-read-state"
+import { useOptimisticMessageSend } from "@/components/portal/messaging/use-optimistic-message-send"
+import { navPerfDev } from "@/lib/debug/nav-perf-dev"
 
 function starredStorageKey(uid: string, tid: string) {
   return `braik-msg-starred:${uid}:${tid}`
-}
-
-function isNearBottomEl(el: HTMLElement, thresholdPx = 56) {
-  const { scrollTop, scrollHeight, clientHeight } = el
-  return scrollHeight - scrollTop - clientHeight <= thresholdPx
-}
-
-interface Contact {
-  id: string
-  name: string
-  email: string
-  image: string | null
-  role: string
-  type: string
 }
 
 interface MessagingManagerProps {
@@ -122,17 +87,11 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
   const [selectedContacts, setSelectedContacts] = useState<string[]>([])
   const [showParticipantsModal, setShowParticipantsModal] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
-  const messagesEndRef = useRef<HTMLDivElement>(null)
-  const messagesContainerRef = useRef<HTMLDivElement>(null)
-  const realtimeSubscriptionRef = useRef<any>(null)
   const optimisticMessageIdRef = useRef<string | null>(null)
+  const attachmentUploadInFlightRef = useRef(false)
   const refreshIntervalRef = useRef<NodeJS.Timeout | null>(null)
   const isRefreshingRef = useRef<boolean>(false)
   const [refreshing, setRefreshing] = useState(false)
-  const [showJumpToNewest, setShowJumpToNewest] = useState(false)
-  const [unreadCount, setUnreadCount] = useState(0)
-  const isUserScrollingRef = useRef<boolean>(false)
-  const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const urlThreadIdProcessedRef = useRef<boolean>(false)
   const [starredThreadIds, setStarredThreadIds] = useState<Set<string>>(new Set())
   const [isWide, setIsWide] = useState(false)
@@ -140,13 +99,22 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
   const [composeGroupFilter, setComposeGroupFilter] = useState<null | "staff">(null)
   const [participantsModalPurpose, setParticipantsModalPurpose] = useState<"pick" | "view">("pick")
   const [priorityCollapsed, setPriorityCollapsed] = useState(false)
-  const messageIngressRef = useRef<"idle" | "full-load" | "poll" | "realtime" | "user-send" | "optimistic">("idle")
-  const scrollIntentAfterNextMessagesRef = useRef<"bottom" | "keep">("keep")
-  const lastMessageCountRef = useRef<number>(0)
+  const {
+    messagesContainerRef,
+    messagesEndRef,
+    showJumpToNewest,
+    unreadCount,
+    setIngress,
+    setScrollIntentToBottomIfNearBottom,
+    forceScrollIntentBottom,
+    scrollToBottom,
+    resetOnThreadOpen,
+  } = useMessageScrollController(messages.length, selectedThread?.id)
 
   const permissions = getMessagingPermissions(userRole as any)
   const canCreateThread = permissions.canCreateThread()
   const [announcementPreview, setAnnouncementPreview] = useState<TeamAnnouncementRow[]>([])
+  const { markThreadRead } = useThreadReadState({ setThreads, setSelectedThread })
 
   useEffect(() => {
     let cancelled = false
@@ -214,7 +182,8 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
   useEffect(() => {
     const threadId = selectedThread?.id
     if (threadId) {
-      lastMessageCountRef.current = 0
+      resetOnThreadOpen()
+      navPerfDev("messages.thread_open.start", { threadId })
       loadMessages(threadId)
       
       // Set up automatic refresh every 10 seconds
@@ -227,18 +196,9 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
       }, 15000)
     } else {
       setMessages([])
-      // Cleanup subscription when no thread selected
-      if (realtimeSubscriptionRef.current) {
-        realtimeSubscriptionRef.current.unsubscribe()
-        realtimeSubscriptionRef.current = null
-      }
     }
-    // Cleanup: unsubscribe from previous thread's realtime and clear interval
+    // Cleanup: clear interval
     return () => {
-      if (realtimeSubscriptionRef.current) {
-        realtimeSubscriptionRef.current.unsubscribe()
-        realtimeSubscriptionRef.current = null
-      }
       if (refreshIntervalRef.current) {
         clearInterval(refreshIntervalRef.current)
         refreshIntervalRef.current = null
@@ -246,110 +206,6 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedThread?.id]) // Only depend on threadId, not the whole object
-
-  useLayoutEffect(() => {
-    const ingress = messageIngressRef.current
-    messageIngressRef.current = "idle"
-    const container = messagesContainerRef.current
-    const curr = messages.length
-    const prev = lastMessageCountRef.current
-
-    const scrollToEndInstant = () => {
-      messagesEndRef.current?.scrollIntoView({ behavior: "auto", block: "end" })
-    }
-
-    if (ingress === "full-load") {
-      if (curr > 0) scrollToEndInstant()
-      setShowJumpToNewest(false)
-      setUnreadCount(0)
-      lastMessageCountRef.current = curr
-      scrollIntentAfterNextMessagesRef.current = "keep"
-      return
-    }
-
-    if (ingress === "idle" || curr <= prev) {
-      lastMessageCountRef.current = curr
-      return
-    }
-
-    const delta = curr - prev
-    const intent = scrollIntentAfterNextMessagesRef.current
-    scrollIntentAfterNextMessagesRef.current = "keep"
-
-    if (ingress === "user-send" || ingress === "optimistic") {
-      if (intent === "bottom" || (container && isNearBottomEl(container))) {
-        scrollToEndInstant()
-        setShowJumpToNewest(false)
-        setUnreadCount(0)
-      } else {
-        setShowJumpToNewest(true)
-        setUnreadCount((u) => u + delta)
-      }
-      lastMessageCountRef.current = curr
-      return
-    }
-
-    if (ingress === "poll" || ingress === "realtime") {
-      if (intent === "bottom") {
-        scrollToEndInstant()
-        setShowJumpToNewest(false)
-        setUnreadCount(0)
-      } else {
-        setShowJumpToNewest(true)
-        setUnreadCount((u) => u + delta)
-      }
-      lastMessageCountRef.current = curr
-      return
-    }
-
-    lastMessageCountRef.current = curr
-  }, [messages])
-
-  // Monitor scroll position to hide/show jump button
-  useEffect(() => {
-    const container = messagesContainerRef.current
-    if (!container) return
-    
-    const handleScroll = () => {
-      if (isNearBottomEl(container)) {
-        setShowJumpToNewest(false)
-        setUnreadCount(0)
-      }
-      
-      // Track if user is actively scrolling
-      isUserScrollingRef.current = true
-      if (scrollTimeoutRef.current) {
-        clearTimeout(scrollTimeoutRef.current)
-      }
-      scrollTimeoutRef.current = setTimeout(() => {
-        isUserScrollingRef.current = false
-      }, 150)
-    }
-    
-    container.addEventListener('scroll', handleScroll, { passive: true })
-    
-    return () => {
-      container.removeEventListener('scroll', handleScroll)
-      if (scrollTimeoutRef.current) {
-        clearTimeout(scrollTimeoutRef.current)
-      }
-    }
-  }, [selectedThread?.id])
-
-  const scrollToBottom = () => {
-    // Use both smooth and instant scroll as fallback
-    if (messagesEndRef.current) {
-      try {
-        messagesEndRef.current.scrollIntoView({ behavior: "smooth", block: "end" })
-      } catch {
-        // Fallback to instant scroll if smooth fails
-        messagesEndRef.current.scrollIntoView({ behavior: "auto", block: "end" })
-      }
-    }
-    // Hide jump button when manually scrolling to bottom
-    setShowJumpToNewest(false)
-    setUnreadCount(0)
-  }
   
   const handleJumpToNewest = () => {
     scrollToBottom()
@@ -449,7 +305,7 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
         return aTime - bTime
       })
       if (showLoading) {
-        messageIngressRef.current = "full-load"
+        setIngress("full-load")
       }
       setMessages(sortedMessages)
       
@@ -470,14 +326,11 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
       
       // Mark thread as read when messages are loaded
       if (showLoading) {
-        // Mark as read in background (non-blocking)
-        fetch(`/api/messages/threads/${threadId}/read`, { method: "POST" })
-          .catch(err => console.error("Error marking thread as read:", err))
-      }
-      
-      // Setup realtime subscription for this thread (only on initial load)
-      if (showLoading) {
-        setupRealtimeSubscription(threadId)
+        void markThreadRead(threadId)
+        navPerfDev("messages.thread_open.fetch_complete", { threadId, count: sortedMessages.length })
+        requestAnimationFrame(() => {
+          navPerfDev("messages.thread_open.render_complete", { threadId })
+        })
       }
     } catch (error: any) {
       console.error("Error loading messages:", error)
@@ -492,11 +345,7 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
   const refreshMessages = async (threadId: string) => {
     if (isRefreshingRef.current) return // Prevent concurrent refreshes
     isRefreshingRef.current = true
-    {
-      const c = messagesContainerRef.current
-      scrollIntentAfterNextMessagesRef.current =
-        c && isNearBottomEl(c) ? "bottom" : "keep"
-    }
+    setScrollIntentToBottomIfNearBottom()
     try {
       // Fetch latest messages without showing loading spinner
       const response = await fetch(`/api/messages/threads/${threadId}`)
@@ -518,7 +367,7 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
               })
           }
 
-          messageIngressRef.current = "poll"
+          setIngress("poll")
 
           const merged = [...prev, ...newMessages]
           return merged.sort((a, b) => {
@@ -551,190 +400,33 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
     }
   }
 
-  const setupRealtimeSubscription = (threadId: string) => {
-    // Cleanup existing subscription
-    if (realtimeSubscriptionRef.current) {
-      realtimeSubscriptionRef.current.unsubscribe()
-      realtimeSubscriptionRef.current = null
-    }
+  useMessageRealtime({
+    activeThreadId: selectedThread?.id,
+    setMessages,
+    optimisticMessageIdRef,
+    setIngressRealtime: () => setIngress("realtime"),
+    setScrollIntentToBottomIfNearBottom,
+  })
 
-    // Subscribe to new messages for this thread
-    const subscription = supabaseClient
-      .channel(`messages:${threadId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'messages',
-          filter: `thread_id=eq.${threadId}`
-        },
-        async (payload) => {
-          const newMessageId = payload.new.id as string
-
-          if (optimisticMessageIdRef.current === newMessageId) {
-            optimisticMessageIdRef.current = null
-            return
-          }
-
-          const senderId = payload.new.sender_id as string
-          const content = payload.new.content as string
-          const createdAt = payload.new.created_at as string
-
-          {
-            const c = messagesContainerRef.current
-            scrollIntentAfterNextMessagesRef.current =
-              c && isNearBottomEl(c) ? "bottom" : "keep"
-          }
-
-          const appendRealtimeMessage = (newMessage: Message) => {
-            messageIngressRef.current = "realtime"
-            setMessages((prev) => {
-              const existingIds = new Set(prev.map((m) => m.id))
-              if (existingIds.has(newMessageId)) return prev
-              return [...prev, newMessage].sort((a, b) => {
-                const aTime = new Date(a.createdAt).getTime()
-                const bTime = new Date(b.createdAt).getTime()
-                return aTime - bTime
-              })
-            })
-          }
-
-          try {
-            const senderResponse = await fetch(`/api/messages/sender/${senderId}`)
-            const senderData = senderResponse.ok ? await senderResponse.json() : null
-
-            const newMessage: Message = {
-              id: newMessageId,
-              body: content,
-              attachments: [],
-              createdAt: new Date(createdAt),
-              creator: senderData || { id: senderId, name: null, email: "" },
-            }
-
-            appendRealtimeMessage(newMessage)
-          } catch (err) {
-            console.error("Error fetching sender info for realtime message:", err)
-            appendRealtimeMessage({
-              id: newMessageId,
-              body: content,
-              attachments: [],
-              createdAt: new Date(createdAt),
-              creator: { id: senderId, name: null, email: "" },
-            })
-          }
-        }
-      )
-      .subscribe()
-
-    realtimeSubscriptionRef.current = subscription
-  }
-
-  const handleSendMessage = async () => {
-    if (!selectedThread || !messageBody.trim()) return
-
-    if (selectedThread.isReadOnly) {
-      alert("You have read-only access to this thread")
-      return
-    }
-
-    const messageText = messageBody.trim()
-    const messageAttachments = attachments.length > 0 ? attachments : []
-    
-    // Create optimistic message
-    const tempId = `temp-${Date.now()}-${Math.random()}`
-    // Try to get user info from contacts or use placeholder
-    const currentUserContact = contacts.find(c => c.id === userId)
-    const optimisticMessage: Message = {
-      id: tempId,
-      body: messageText,
-      attachments: messageAttachments,
-      createdAt: new Date(),
-      creator: {
-        id: userId,
-        name: currentUserContact?.name || null,
-        email: currentUserContact?.email || ""
-      }
-    }
-
-    scrollIntentAfterNextMessagesRef.current = "bottom"
-    messageIngressRef.current = "optimistic"
-    // Add optimistic message immediately
-    setMessages(prev => [...prev, optimisticMessage])
-    setMessageBody("")
-    setAttachments([])
-    setError(null)
-
-    setLoading(true)
-    try {
-      const response = await fetch("/api/messages/send", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          threadId: selectedThread.id,
-          body: messageText,
-          attachments: messageAttachments,
-        }),
-      })
-
-      const responseData = await response.json()
-
-      if (!response.ok) {
-        // Remove optimistic message on error
-        setMessages(prev => prev.filter(m => m.id !== tempId))
-        const errorMessage = responseData.error || responseData.details || "Failed to send message"
-        const fullError = responseData.details || responseData.code 
-          ? `${errorMessage}${responseData.details ? ` (${responseData.details})` : ''}${responseData.code ? ` [${responseData.code}]` : ''}`
-          : errorMessage
-        console.error("[handleSendMessage] API error:", {
-          status: response.status,
-          error: responseData,
-          fullError
-        })
-        throw new Error(fullError)
-      }
-
-      // Replace optimistic message with real message
-      const newMessage = responseData
-      optimisticMessageIdRef.current = newMessage.id
-
-      scrollIntentAfterNextMessagesRef.current = "bottom"
-      messageIngressRef.current = "user-send"
-
-      // Update messages state atomically
-      setMessages(prev => {
-        // Remove optimistic message
-        const filtered = prev.filter(m => m.id !== tempId)
-        
-        // Check if message already exists (from realtime or previous update)
-        const exists = filtered.some(m => m.id === newMessage.id)
-        if (exists) {
-          // Message already exists, just ensure it's properly formatted
-          return filtered.map(m => 
-            m.id === newMessage.id ? newMessage : m
-          )
-        }
-        
-        // Add new message and sort
-        const updated = [...filtered, newMessage]
-        return updated.sort((a, b) => {
-          const aTime = new Date(a.createdAt).getTime()
-          const bTime = new Date(b.createdAt).getTime()
-          return aTime - bTime
-        })
-      })
-
-      // Refresh thread list to update last message (non-blocking)
-      loadThreads().catch(err => console.error("Error refreshing threads:", err))
-    } catch (error: any) {
-      const errorMessage = error.message || "Error sending message"
-      setError(errorMessage)
-      // Also show alert for immediate feedback
-      alert(errorMessage)
-    } finally {
-      setLoading(false)
-    }
-  }
+  const { sendMessage: handleSendMessage } = useOptimisticMessageSend({
+    selectedThread,
+    userId,
+    contacts,
+    attachments,
+    messageBody,
+    setMessages,
+    setMessageBody,
+    setAttachments,
+    setError,
+    setLoading,
+    optimisticMessageIdRef,
+    setIngressOptimistic: () => setIngress("optimistic"),
+    setIngressUserSend: () => setIngress("user-send"),
+    forceScrollIntentBottom,
+    onAfterSuccessfulSend: () => {
+      void loadThreads()
+    },
+  })
 
   const handleCreateThread = async () => {
     // Validation
@@ -797,6 +489,7 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
+    if (attachmentUploadInFlightRef.current) return
 
     // Validate file type and size
     const allowedTypes = [
@@ -827,11 +520,15 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
       return
     }
 
+    attachmentUploadInFlightRef.current = true
     setLoading(true)
     try {
       const formData = new FormData()
       formData.append("file", file)
       formData.append("teamId", teamId)
+      if (selectedThread?.id) {
+        formData.append("threadId", selectedThread.id)
+      }
 
       const response = await fetch("/api/messages/attachments", {
         method: "POST",
@@ -843,52 +540,29 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
       }
 
       const data = await response.json()
-      setAttachments([...attachments, data])
+      setAttachments((prev) => [...prev, data])
       setError(null)
     } catch (error: any) {
       const errorMessage = error.message || "Error uploading file"
       setError(errorMessage)
       alert(errorMessage)
     } finally {
+      attachmentUploadInFlightRef.current = false
       setLoading(false)
+      e.target.value = ""
     }
   }
 
   const removeAttachment = (index: number) => {
-    setAttachments(attachments.filter((_, i) => i !== index))
+    setAttachments((prev) => prev.filter((_, i) => i !== index))
   }
 
-  const getThreadDisplayName = (thread: Thread) => {
-    if (thread.threadType === "GENERAL") {
-      return "General Chat"
-    }
-    if (thread.subject) {
-      return thread.subject
-    }
-    const otherParticipants = thread.participants
-      .filter((p) => p.user.id !== userId)
-      .map((p) => displayNameForParticipantUser(p.user))
-    return otherParticipants.join(", ") || "New Thread"
-  }
+  const handleSelectThread = useCallback((thread: Thread) => {
+    setSelectedThread(thread)
+    setMobileShowList(false)
+  }, [])
 
-  const threadCategoryLabel = (thread: Thread) => {
-    const t = thread.threadType
-    if (t === "GENERAL") return "Team"
-    if (t === "GROUP" || t === "group") return "Group"
-    const other = thread.participants.find((p) => p.user.id !== userId)
-    if (other?.participantKind === "player") return "Player"
-    if (other?.participantKind === "parent") return "Parent"
-    if (other?.participantKind === "coach" || other?.participantKind === "staff") return "Staff"
-    return "Chat"
-  }
-
-  const primaryThreadPeer = (thread: Thread) => {
-    const others = thread.participants.filter((p) => p.user.id !== userId)
-    if (others.length === 1) return others[0]
-    return null
-  }
-
-  const toggleThreadStar = (threadId: string, e: React.MouseEvent) => {
+  const handleToggleThreadStar = useCallback((threadId: string, e: MouseEvent) => {
     e.stopPropagation()
     setStarredThreadIds((prev) => {
       const next = new Set(prev)
@@ -901,13 +575,13 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
       }
       return next
     })
-  }
+  }, [userId, teamId])
 
   const sortedThreadSections = useMemo(() => {
     const q = searchQuery.trim().toLowerCase()
     const base = q
       ? threads.filter((thread) => {
-          const displayName = getThreadDisplayName(thread).toLowerCase()
+          const displayName = getThreadDisplayName(thread, userId).toLowerCase()
           const lastMessage = thread.messages[0]?.body?.toLowerCase() || ""
           return displayName.includes(q) || lastMessage.includes(q)
         })
@@ -919,7 +593,11 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
     const starred = base.filter((t) => starredThreadIds.has(t.id)).sort(byUpdated)
     const rest = base.filter((t) => !starredThreadIds.has(t.id)).sort(byUpdated)
     return { starred, rest }
-  }, [threads, searchQuery, starredThreadIds])
+  }, [threads, searchQuery, starredThreadIds, userId])
+
+  /** Narrow screens: mount only one pane — avoids React work for the hidden column (CSS display:none still reconciles children). */
+  const showInboxPane = isWide || mobileShowList || !selectedThread
+  const showThreadPane = isWide || (!!selectedThread && !mobileShowList)
 
   const getFilteredContacts = () => {
     if (!threadType) return contacts
@@ -984,120 +662,16 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
     setNewThreadSubject("")
   }
 
-  const avatarClassForKind = (kind?: ParticipantKind) => {
-    switch (kind) {
-      case "player":
-        return "bg-emerald-100 text-emerald-800 ring-1 ring-emerald-200/80"
-      case "parent":
-        return "bg-violet-100 text-violet-800 ring-1 ring-violet-200/80"
-      case "coach":
-      case "staff":
-        return "bg-orange-100 text-orange-900 ring-1 ring-orange-200/80"
-      default:
-        return "bg-slate-100 text-slate-700 ring-1 ring-slate-200/80"
-    }
-  }
-
-  const renderThreadCard = (thread: Thread) => {
-    const isSelected = selectedThread?.id === thread.id
-    const lastMessage = thread.messages[0]
-    const isReadOnly = thread.isReadOnly || false
-    const peer = primaryThreadPeer(thread)
-    const peerName = peer ? displayNameForParticipantUser(peer.user) : getThreadDisplayName(thread)
-    const peerKind = peer?.participantKind
-    const initials = initialsFromDisplayName(peerName)
-    const starred = starredThreadIds.has(thread.id)
-    const unread = (thread.unreadCount ?? 0) > 0
-
-    return (
-      <div
-        key={thread.id}
-        role="button"
-        tabIndex={0}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" || e.key === " ") {
-            e.preventDefault()
-            setSelectedThread(thread)
-            setMobileShowList(false)
-          }
-        }}
-        onClick={() => {
-          setSelectedThread(thread)
-          setMobileShowList(false)
-        }}
-        className={cn(
-          "relative mx-3 mb-3 cursor-pointer rounded-2xl border p-4 text-left shadow-sm transition-all md:mx-4 md:mb-3 md:p-4 lg:rounded-2xl lg:p-4",
-          isSelected ? "border-[rgb(var(--accent))] bg-[rgb(var(--platinum))] ring-1 ring-[rgb(var(--accent))]/25" : "border-[rgb(var(--border))] bg-white hover:border-[rgb(var(--accent))]/40"
-        )}
-        style={{ borderColor: isSelected ? undefined : "rgb(var(--border))" }}
-      >
-        <button
-          type="button"
-          aria-label={starred ? "Remove from priority" : "Mark as priority"}
-          className="absolute right-3 top-3 rounded-full p-1.5 text-[rgb(var(--muted))] transition hover:bg-black/5 hover:text-[rgb(var(--accent))]"
-          onClick={(e) => toggleThreadStar(thread.id, e)}
-        >
-          <Star
-            className={cn("h-5 w-5", starred && "fill-amber-400 text-amber-500")}
-            strokeWidth={starred ? 0 : 1.75}
-          />
-        </button>
-        <div className="flex gap-3 pr-10">
-          <div
-            className={cn(
-              "flex h-12 w-12 shrink-0 items-center justify-center rounded-xl text-sm font-semibold",
-              avatarClassForKind(peerKind)
-            )}
-          >
-            {initials}
-          </div>
-          <div className="min-w-0 flex-1">
-            <div className="flex items-start justify-between gap-2">
-              <h3 className="truncate pr-2 text-[15px] font-semibold leading-tight text-[rgb(var(--text))]">
-                {getThreadDisplayName(thread)}
-              </h3>
-            </div>
-            {lastMessage ? (
-              <p className="mt-1 line-clamp-2 text-sm leading-snug text-[rgb(var(--text2))]">
-                <span className="font-medium text-[rgb(var(--text))]">
-                  {lastMessage.creator.name || lastMessage.creator.email}:
-                </span>{" "}
-                {lastMessage.body}
-              </p>
-            ) : (
-              <p className="mt-1 text-sm italic text-[rgb(var(--muted))]">No messages yet</p>
-            )}
-            <div className="mt-3 flex flex-wrap items-center gap-2">
-              <span
-                className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium uppercase tracking-wide text-slate-600"
-              >
-                {threadCategoryLabel(thread)}
-              </span>
-              {isReadOnly && (
-                <span className="inline-flex items-center gap-0.5 text-[11px] text-[rgb(var(--muted))]">
-                  <Lock className="h-3 w-3" /> Read-only
-                </span>
-              )}
-              {unread && (
-                <span className="ml-auto inline-flex min-w-[1.25rem] items-center justify-center rounded-full bg-[rgb(var(--accent))] px-2 py-0.5 text-[11px] font-semibold text-white">
-                  {(thread.unreadCount ?? 0) > 9 ? "9+" : thread.unreadCount}
-                </span>
-              )}
-            </div>
-            <div className="mt-2 flex items-center justify-between gap-2 text-xs text-[rgb(var(--muted))]">
-              <span className="truncate font-medium text-[rgb(var(--text2))]">{peerName}</span>
-              <time className="shrink-0 tabular-nums">{format(new Date(thread.updatedAt), "MMM d, h:mm a")}</time>
-            </div>
-          </div>
-        </div>
-      </div>
-    )
-  }
-
   if (initialLoading) {
     return (
-      <div className="flex h-[calc(100vh-200px)] items-center justify-center rounded-lg border" style={{ backgroundColor: "#FFFFFF", borderColor: "rgb(var(--accent))" }}>
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-[rgb(var(--accent))] border-t-transparent" />
+      <div
+        className="flex min-h-[280px] flex-col items-center justify-center gap-4 rounded-lg border px-6 py-12 lg:h-[calc(100vh-200px)]"
+        style={{ backgroundColor: "#FFFFFF", borderColor: "rgb(var(--accent))" }}
+        aria-busy="true"
+        aria-label="Loading messages"
+      >
+        <div className="hidden h-3 w-56 max-w-full rounded-md bg-[rgb(var(--platinum))] max-lg:block motion-reduce:block" />
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-[rgb(var(--accent))] border-t-transparent max-lg:hidden motion-reduce:hidden" />
       </div>
     )
   }
@@ -1115,11 +689,9 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
         </div>
       )}
 
+      {showInboxPane ? (
       <div
-        className={cn(
-          "flex min-h-0 flex-col border-b lg:h-full lg:w-[min(100%,22rem)] lg:max-w-md lg:flex-none lg:border-b-0 lg:border-r",
-          !isWide && selectedThread && !mobileShowList ? "hidden" : "flex-1 lg:flex-none"
-        )}
+        className="flex min-h-0 flex-1 flex-col border-b lg:h-full lg:w-[min(100%,22rem)] lg:max-w-md lg:flex-none lg:border-b-0 lg:border-r"
         style={{ borderColor: "rgb(var(--border))", backgroundColor: "#FFFFFF" }}
       >
         <div
@@ -1356,7 +928,7 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
           </div>
         )}
 
-        <div className="messages-thread-list min-h-0 flex-1 overflow-y-auto py-3 md:py-4">
+        <div className="messages-thread-list touch-scroll min-h-0 flex-1 overflow-y-auto overscroll-contain py-3 md:py-4">
           {threads.length === 0 ? (
             <div className="mx-4 rounded-2xl border border-dashed border-[rgb(var(--border))] bg-[rgb(var(--platinum))]/40 px-4 py-10 text-center">
               <MessageSquare className="mx-auto mb-3 h-10 w-10 text-[rgb(var(--accent))]" aria-hidden />
@@ -1368,41 +940,24 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
               </p>
             </div>
           ) : (
-            <>
-              {sortedThreadSections.starred.length > 0 && (
-                <div className="mb-1">
-                  <button
-                    type="button"
-                    onClick={() => setPriorityCollapsed((c) => !c)}
-                    className="sticky top-0 z-[1] mb-2 flex w-full items-center justify-between bg-white/95 px-4 py-2 text-left backdrop-blur-sm md:px-5"
-                  >
-                    <span className="text-[11px] font-bold uppercase tracking-wider text-[rgb(var(--muted))]">
-                      Priority · Starred
-                    </span>
-                    <span className="text-xs text-[rgb(var(--accent))]">{priorityCollapsed ? "Show" : "Hide"}</span>
-                  </button>
-                  {!priorityCollapsed && sortedThreadSections.starred.map((t) => renderThreadCard(t))}
-                </div>
-              )}
-              <div className="mt-1">
-                {sortedThreadSections.rest.length > 0 && (
-                  <h3 className="sticky top-0 z-[1] mb-2 bg-white/95 px-4 py-2 text-[11px] font-bold uppercase tracking-wider text-[rgb(var(--muted))] backdrop-blur-sm md:px-5">
-                    All threads
-                  </h3>
-                )}
-                {sortedThreadSections.rest.map((t) => renderThreadCard(t))}
-              </div>
-            </>
+            <ThreadInboxList
+              starred={sortedThreadSections.starred}
+              rest={sortedThreadSections.rest}
+              priorityCollapsed={priorityCollapsed}
+              onTogglePriorityCollapsed={() => setPriorityCollapsed((c) => !c)}
+              selectedThreadId={selectedThread?.id}
+              userId={userId}
+              starredThreadIds={starredThreadIds}
+              onSelectThread={handleSelectThread}
+              onToggleStar={handleToggleThreadStar}
+            />
           )}
         </div>
       </div>
+      ) : null}
 
-      <div
-        className={cn(
-          "flex min-h-0 flex-1 flex-col overflow-hidden",
-          !isWide && (!selectedThread || mobileShowList) ? "hidden" : ""
-        )}
-      >
+      {showThreadPane ? (
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
         {selectedThread ? (
           <>
             <div className="flex-shrink-0 border-b px-3 py-3 md:px-5 md:py-4" style={{ borderBottomColor: "rgb(var(--border))" }}>
@@ -1423,7 +978,7 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
                 )}
                 <div className="min-w-0 flex-1">
                   <h2 className="text-lg font-semibold leading-tight" style={{ color: "rgb(var(--text))" }}>
-                    {getThreadDisplayName(selectedThread)}
+                    {getThreadDisplayName(selectedThread, userId)}
                     {selectedThread.isReadOnly && (
                       <span className="ml-2 text-xs font-normal" style={{ color: "rgb(var(--muted))" }}>
                         (Read-only)
@@ -1434,7 +989,7 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
                     <span
                       className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium uppercase tracking-wide text-slate-600"
                     >
-                      {threadCategoryLabel(selectedThread)}
+                      {threadCategoryLabel(selectedThread, userId)}
                     </span>
                     <p className="text-xs" style={{ color: "rgb(var(--muted))" }}>
                       {selectedThread.participants.length} participant
@@ -1469,174 +1024,30 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
               </div>
             </div>
 
-            {/* Messages */}
-            <div className="relative flex min-h-0 flex-1 flex-col">
-              <div
-                ref={messagesContainerRef}
-                className="messages-container min-h-0 flex-1 space-y-4 overflow-y-auto p-4 md:p-5"
-              >
-              {messagesLoading ? (
-                <div className="flex items-center justify-center h-full">
-                  <div className="h-6 w-6 animate-spin rounded-full border-2 border-[rgb(var(--accent))] border-t-transparent" />
-                </div>
-              ) : messages.length === 0 ? (
-                <div className="flex items-center justify-center h-full">
-                  <p style={{ color: "rgb(var(--muted))" }}>No messages yet. Start the conversation!</p>
-                </div>
-              ) : (
-                messages.map((message) => {
-                const isOwnMessage = message.creator.id === userId
-                const removed = message.isRemoved === true
-                return (
-                  <div
-                    key={message.id}
-                    className={`flex ${isOwnMessage ? "justify-end" : "justify-start"}`}
-                  >
-                    <div
-                      className={`max-w-[78%] rounded-2xl p-3 ${
-                        isOwnMessage
-                          ? ""
-                          : ""
-                      }`}
-                      style={
-                        isOwnMessage
-                          ? {
-                              backgroundColor: "#0B2A5B",
-                              color: "#FFFFFF",
-                            }
-                          : {
-                              backgroundColor: "#FFFFFF",
-                              borderColor: "#3B82F6",
-                              borderWidth: "2px",
-                              borderStyle: "solid",
-                              color: "rgb(var(--text))",
-                            }
-                      }
-                    >
-                      <p className={`text-sm whitespace-pre-wrap ${removed ? "italic opacity-90" : ""}`}>{message.body}</p>
-                      {message.attachments && Array.isArray(message.attachments) && message.attachments.length > 0 && (
-                        <div className="mt-2 space-y-1">
-                          {message.attachments.map((att: any, idx: number) => {
-                            // Use secure endpoint for file access
-                            const secureUrl = att.id 
-                              ? `/api/messages/attachments/${att.id}`
-                              : `/api/messages/attachments/serve?fileUrl=${encodeURIComponent(att.fileUrl)}`
-                            return (
-                              <a
-                                key={idx}
-                                href={secureUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-xs underline block"
-                              >
-                                📎 {att.fileName}
-                              </a>
-                            )
-                          })}
-                        </div>
-                      )}
-                      <div className={`mt-2 flex items-center justify-between gap-2 ${isOwnMessage ? "opacity-80" : ""}`}>
-                        <p className="text-xs">
-                          {message.creator.name || message.creator.email} • {format(new Date(message.createdAt), "h:mm a")}
-                        </p>
-                        {selectedThread?.canModerate && !removed && (
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="ghost"
-                            className="h-7 px-2 text-xs shrink-0"
-                            onClick={() => handleModerateMessage(message.id)}
-                            title="Remove message"
-                            style={isOwnMessage ? { color: "rgba(255,255,255,0.9)" } : { color: "rgb(var(--accent))" }}
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </Button>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                )
-              }))}
-              <div ref={messagesEndRef} />
-            </div>
-            {showJumpToNewest && (
-              <div className="pointer-events-none absolute bottom-3 right-4 z-20 md:bottom-4 md:right-5">
-                <Button
-                  type="button"
-                  onClick={handleJumpToNewest}
-                  size="sm"
-                  className="pointer-events-auto rounded-full px-4 py-2 shadow-lg"
-                  style={{
-                    backgroundColor: "rgb(var(--accent))",
-                    color: "white",
-                  }}
-                >
-                  <ArrowDown className="mr-2 inline h-4 w-4 align-middle" />
-                  {unreadCount > 0
-                    ? `${unreadCount} new message${unreadCount !== 1 ? "s" : ""}`
-                    : "Jump to latest"}
-                </Button>
-              </div>
-            )}
-            </div>
+            <MessageViewport
+              messages={messages}
+              messagesLoading={messagesLoading}
+              userId={userId}
+              canModerate={selectedThread?.canModerate === true}
+              onModerateMessage={handleModerateMessage}
+              containerRef={messagesContainerRef}
+              endRef={messagesEndRef}
+              showJumpToNewest={showJumpToNewest}
+              unreadCount={unreadCount}
+              onJumpToNewest={handleJumpToNewest}
+            />
 
             {/* Message Input */}
-            {!selectedThread.isReadOnly && (
-              <div className="flex-shrink-0 border-t bg-white p-4 pb-[max(1rem,env(safe-area-inset-bottom,0px))]" style={{ borderTopColor: "rgb(var(--border))" }}>
-                {attachments.length > 0 && (
-                  <div className="mb-2 flex flex-wrap gap-2">
-                    {attachments.map((att, idx) => (
-                      <div
-                        key={idx}
-                        className="text-xs px-2 py-1 rounded border-2 flex items-center gap-1"
-                        style={{
-                          backgroundColor: "rgb(var(--platinum))",
-                          borderColor: "#0B2A5B",
-                        }}
-                      >
-                        <span>{att.fileName}</span>
-                        <button
-                          onClick={() => removeAttachment(idx)}
-                          className="text-red-500 hover:text-red-700"
-                        >
-                          ×
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                <div className="flex items-end gap-2">
-                  <label className="cursor-pointer p-2 rounded hover:bg-opacity-50" style={{ backgroundColor: "rgb(var(--platinum))" }}>
-                    <Paperclip className="h-4 w-4" style={{ color: "rgb(var(--text))" }} />
-                    <input
-                      type="file"
-                      onChange={handleFileUpload}
-                      className="hidden"
-                      accept=".pdf,.jpg,.jpeg,.png,.gif,.webp,.doc,.docx,.xls,.xlsx,.txt,.csv,.mp4,.mov,.avi"
-                    />
-                  </label>
-                  <textarea
-                    value={messageBody}
-                    onChange={(e) => setMessageBody(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" && !e.shiftKey) {
-                        e.preventDefault()
-                        handleSendMessage()
-                      }
-                    }}
-                    placeholder="Type a message..."
-                    className="mobile-textarea max-h-40 min-h-[44px] flex-1 resize-none"
-                  />
-                  <Button 
-                    onClick={handleSendMessage} 
-                    disabled={loading || !messageBody.trim()}
-                    className="h-11 min-w-[44px] rounded-xl"
-                  >
-                    <Send className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-            )}
+            <MessageComposer
+              disabled={selectedThread.isReadOnly}
+              loading={loading}
+              messageBody={messageBody}
+              attachments={attachments}
+              onMessageBodyChange={setMessageBody}
+              onFileUpload={handleFileUpload}
+              onRemoveAttachment={removeAttachment}
+              onSend={handleSendMessage}
+            />
           </>
         ) : (
           <div className="flex-1 flex items-center justify-center">
@@ -1644,6 +1055,7 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
           </div>
         )}
       </div>
+      ) : null}
 
       <Dialog
         open={showParticipantsModal}
@@ -1652,7 +1064,7 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
           if (!open) setParticipantsModalPurpose("pick")
         }}
       >
-        <DialogContent className="max-h-[85vh] overflow-y-auto bg-white">
+        <DialogContent className="max-h-[85vh] touch-scroll overflow-y-auto overscroll-contain bg-white">
           <DialogHeader>
             <DialogTitle>
               {participantsModalPurpose === "view"
@@ -1666,7 +1078,7 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
           </DialogHeader>
           <div className="mt-4 space-y-4">
             {participantsModalPurpose === "view" && selectedThread ? (
-              <div className="messages-thread-list max-h-96 space-y-2 overflow-y-auto">
+              <div className="messages-thread-list touch-scroll max-h-96 space-y-2 overflow-y-auto overscroll-contain">
                 {selectedThread.participants.map((p) => {
                   const name = displayNameForParticipantUser(p.user)
                   const initials = initialsFromDisplayName(name)
@@ -1697,7 +1109,7 @@ export function MessagingManager({ teamId, userRole, userId, initialThreads = []
                 })}
               </div>
             ) : (
-              <div className="messages-thread-list max-h-96 space-y-2 overflow-y-auto">
+              <div className="messages-thread-list touch-scroll max-h-96 space-y-2 overflow-y-auto overscroll-contain">
                 {getFilteredContacts().length === 0 ? (
                   <p className="py-4 text-center text-sm" style={{ color: "rgb(var(--muted))" }}>
                     {threadType ? `No ${threadType}s available` : "No contacts available"}

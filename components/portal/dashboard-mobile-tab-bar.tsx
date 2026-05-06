@@ -9,7 +9,8 @@ import { useMobileDashboardNav } from "@/components/portal/mobile-dashboard-nav-
 import { getQuickActionsForRole, isPrimaryMobileTabPath } from "@/config/quickActions"
 import { useDashboardShellIdentity } from "@/lib/hooks/use-dashboard-shell-identity"
 import { usePortalTeam } from "@/components/portal/portal-team-context"
-import { useAppBootstrapOptional } from "@/components/portal/app-bootstrap-context"
+import { useAppBootstrapCoreOptional } from "@/components/portal/app-bootstrap-context"
+import { DashboardNotificationUnreadBadge } from "@/components/portal/dashboard-notification-unread-badge"
 
 const tabs = [
   {
@@ -53,9 +54,8 @@ export function DashboardMobileTabBar() {
   const searchParams = useSearchParams()
   const portal = usePortalTeam()
   const identity = useDashboardShellIdentity()
-  const bootstrap = useAppBootstrapOptional()
-  const shellUnread = bootstrap?.effectiveUnreadNotifications ?? 0
-  const videoClipsNavVisible = bootstrap?.payload?.videoClips?.navVisible
+  const bootstrapCore = useAppBootstrapCoreOptional()
+  const videoClipsNavVisible = bootstrapCore?.payload?.videoClips?.navVisible
   const { openMoreSheet, moreSheetOpen } = useMobileDashboardNav()
   const contextTeamId =
     searchParams.get("teamId") || portal?.currentTeamId || portal?.teamIds?.[0] || ""
@@ -77,7 +77,7 @@ export function DashboardMobileTabBar() {
     <nav
       className={cn(
         "fixed inset-x-0 bottom-0 z-40 lg:hidden",
-        "border-t border-border bg-background/95 pb-[max(0px,env(safe-area-inset-bottom,0px))] shadow-[0_-4px_24px_rgba(0,0,0,0.06)] backdrop-blur-md"
+        "border-t border-border bg-background pb-[max(0px,env(safe-area-inset-bottom,0px))] shadow-[0_-2px_8px_rgba(0,0,0,0.06)] lg:bg-background/95 lg:shadow-[0_-2px_12px_rgba(0,0,0,0.04)] lg:backdrop-blur-sm"
       )}
       aria-label="Primary"
     >
@@ -85,7 +85,7 @@ export function DashboardMobileTabBar() {
         {tabs.map(({ href, label, icon: Icon, match }) => {
           const active = match(pathname)
           const resolvedHref = href === "/dashboard" ? homeDashboardHref : href
-          const showMsgBadge = href === "/dashboard/messages" && shellUnread > 0
+          const showMsgBadge = href === "/dashboard/messages"
           return (
             <Link
               key={href}
@@ -100,14 +100,7 @@ export function DashboardMobileTabBar() {
             >
               <span className="relative">
                 <Icon className={cn("h-5 w-5 shrink-0", active && "stroke-[2.25px]")} aria-hidden />
-                {showMsgBadge ? (
-                  <span
-                    className="absolute -right-1.5 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-500 px-0.5 text-[9px] font-bold text-white"
-                    aria-label={`${Math.min(shellUnread, 99)} unread notifications`}
-                  >
-                    {shellUnread > 9 ? "9+" : shellUnread}
-                  </span>
-                ) : null}
+                {showMsgBadge ? <DashboardNotificationUnreadBadge variant="mobile-tab" /> : null}
               </span>
               <span className="max-w-full truncate text-[10px] font-semibold leading-tight sm:text-[11px]">
                 {label}

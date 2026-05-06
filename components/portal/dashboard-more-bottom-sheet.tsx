@@ -11,7 +11,7 @@ import { getQuickActionsForRole, isPrimaryMobileTabPath } from "@/config/quickAc
 import { cn } from "@/lib/utils"
 import { LogOut, Shield, Sparkles, X } from "lucide-react"
 import { TeamSwitcher } from "@/components/portal/team-switcher"
-import { useAppBootstrapOptional } from "@/components/portal/app-bootstrap-context"
+import { useAppBootstrapCoreOptional } from "@/components/portal/app-bootstrap-context"
 import { MobileAppCard } from "@/components/mobile/mobile-app-card"
 import { canUseCoachB, type Role } from "@/lib/auth/roles"
 
@@ -42,7 +42,7 @@ export function DashboardMoreBottomSheet({
   const searchParams = useSearchParams()
   const currentTeamId = searchParams.get("teamId") || teams[0]?.id || ""
   const currentTeam = teams.find((t) => t.id === currentTeamId) || teams[0]
-  const videoNav = useAppBootstrapOptional()?.payload?.videoClips?.navVisible
+  const videoNav = useAppBootstrapCoreOptional()?.payload?.videoClips?.navVisible
   const quickActions = useMemo(
     () => getQuickActionsForRole(userRole, { videoClipsNavVisible: videoNav }),
     [userRole, videoNav]
@@ -104,7 +104,7 @@ export function DashboardMoreBottomSheet({
       />
       <div
         className={cn(
-          "absolute inset-x-0 bottom-0 z-50 flex max-h-[80vh] min-h-[40vh] flex-col rounded-t-3xl border-t border-border bg-background shadow-2xl transition-transform duration-300 ease-out",
+          "absolute inset-x-0 bottom-0 z-50 flex max-h-[80vh] min-h-[40vh] flex-col rounded-t-3xl border-t border-border bg-background shadow-xl transition-transform duration-200 ease-out lg:shadow-2xl lg:duration-300",
           visible ? "translate-y-0" : "translate-y-full"
         )}
         role="dialog"
@@ -140,10 +140,7 @@ export function DashboardMoreBottomSheet({
           </button>
         </div>
 
-        <div
-          className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4 md:mx-auto md:max-w-2xl md:w-full md:px-8"
-          style={{ WebkitOverflowScrolling: "touch" }}
-        >
+        <div className="touch-scroll min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4 md:mx-auto md:max-w-2xl md:w-full md:px-8">
           <MobileAppCard className="mb-6 lg:rounded-xl lg:shadow-sm">
             <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
               {userRole

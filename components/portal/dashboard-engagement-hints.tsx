@@ -5,7 +5,7 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useDashboardShellIdentity } from "@/lib/hooks/use-dashboard-shell-identity"
 import { buildEngagementHints } from "@/lib/engagement/dashboard-hints-data"
-import { useAppBootstrapOptional } from "@/components/portal/app-bootstrap-context"
+import { useAppBootstrapCoreOptional } from "@/components/portal/app-bootstrap-context"
 import { X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { readLightweightMemoryRaw, writeLightweightMemory } from "@/lib/api-client/lightweight-fetch-memory"
@@ -35,7 +35,7 @@ function storageKey(teamId: string, hintId: string) {
 export function DashboardEngagementHints({ currentTeamId }: { currentTeamId: string }) {
   const pathname = usePathname()
   const identity = useDashboardShellIdentity()
-  const shell = useAppBootstrapOptional()
+  const shell = useAppBootstrapCoreOptional()
   const [hints, setHints] = useState<Hint[]>([])
   const [loading, setLoading] = useState(false)
   const [dismissTick, setDismissTick] = useState(0)

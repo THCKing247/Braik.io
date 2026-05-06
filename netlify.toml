@@ -8,4 +8,5 @@
   package = "@netlify/plugin-nextjs"
 
 [build.environment]
-  NODE_VERSION = "20"
+  # Align with `.github/workflows/deploy-guard.yml` (Node 22) for consistent native ABI / tooling.
+  NODE_VERSION = "22"

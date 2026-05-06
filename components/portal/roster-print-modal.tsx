@@ -110,22 +110,13 @@ export function RosterPrintModal({ teamId, onClose }: RosterPrintModalProps) {
 
   const handlePrint = () => {
     const el = printRef.current
-    const players = rosterData?.players ?? []
-    console.log("[roster-print-modal] handlePrint", {
-      printRefExists: !!el,
-      playerCount: players.length,
-      templateExists: !!rosterData?.template,
-    })
     if (!el) {
-      console.warn("[roster-print-modal] Print aborted: printable container ref not mounted")
       return
     }
     if (!rosterData) {
-      console.warn("[roster-print-modal] Print aborted: no roster data")
       return
     }
     if (!previewVisible) {
-      console.warn("[roster-print-modal] Print aborted: preview not shown yet")
       return
     }
     // Wait for layout/paint so printable content is in the DOM before opening print dialog

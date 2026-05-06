@@ -1,7 +1,7 @@
 "use client"
 
 import { DashboardPageShell } from "@/components/portal/dashboard-page-shell"
-import { useAppBootstrapOptional } from "@/components/portal/app-bootstrap-context"
+import { useAppBootstrapCoreOptional } from "@/components/portal/app-bootstrap-context"
 import { Video } from "lucide-react"
 
 /**
@@ -17,7 +17,7 @@ export default function GameVideoPage() {
 }
 
 function GameVideoBody({ teamId }: { teamId: string }) {
-  const vc = useAppBootstrapOptional()?.payload?.videoClips
+  const vc = useAppBootstrapCoreOptional()?.payload?.videoClips
 
   if (!vc?.navVisible) {
     const productOff = vc != null && !vc.productEnabled

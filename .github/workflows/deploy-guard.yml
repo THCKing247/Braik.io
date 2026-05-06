@@ -22,5 +22,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build (includes Prisma generate via prebuild)
+      - name: Build (prebuild runs typecheck via package.json)
         run: npm run build
+
+      # Warning-first: does not fail CI unless budgets are tightened later (see PHASE_8_GUARDRAILS_REPORT.md).
+      - name: Performance audit (informational)
+        run: npm run perf:audit

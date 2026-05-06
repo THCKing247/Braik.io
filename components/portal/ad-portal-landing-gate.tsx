@@ -1,30 +1,35 @@
 "use client"
 
-import { useSession } from "@/lib/auth/client-auth"
 import { DashboardPageShellSkeleton } from "@/components/portal/dashboard-page-shell"
+import { useDashboardShellIdentity } from "@/lib/hooks/use-dashboard-shell-identity"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useEffect, useState, type ReactNode } from "react"
 
 /**
  * Varsity head coaches with football AD portal scope enter the athletic department shell first
  * (`/dashboard/ad` or `/dashboard/ad/teams`), not the team dashboard.
+ *
+ * Keep this gate aligned with dashboard shell/bootstrap identity so the home route does not wait
+ * for a second client session pass when the shell already knows the current user.
  */
 export function AdPortalLandingGate({ children }: { children: ReactNode }) {
-  const { data: session, status } = useSession()
+  const identity = useDashboardShellIdentity()
   const searchParams = useSearchParams()
   const router = useRouter()
   const teamId = searchParams.get("teamId")
   const [ready, setReady] = useState(false)
 
   useEffect(() => {
-    if (status !== "authenticated") {
-      if (status === "unauthenticated") setReady(true)
+    if (!identity.hasIdentity) {
+      if (identity.sessionStatus === "unauthenticated") setReady(true)
       return
     }
-    if (session?.user?.role?.toUpperCase() !== "HEAD_COACH") {
+
+    if (identity.roleUpper !== "HEAD_COACH") {
       setReady(true)
       return
     }
+
     if (teamId) {
       setReady(true)
       return
@@ -52,7 +57,7 @@ export function AdPortalLandingGate({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true
     }
-  }, [status, session, teamId, router])
+  }, [identity.hasIdentity, identity.roleUpper, identity.sessionStatus, teamId, router])
 
   if (!ready) {
     return (

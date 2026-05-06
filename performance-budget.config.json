@@ -1,0 +1,24 @@
+{
+  "_meta": "Phase 8 budgets — tune after baseline builds; strict modes via PERF_BUDGET_STRICT, USE_CLIENT_AUDIT_STRICT, HEAVY_IMPORT_AUDIT_STRICT.",
+  "maxClientChunkKbWarning": 350,
+  "maxClientChunkKbError": 500,
+  "maxFirstLoadKbWarning": 380,
+  "maxFirstLoadKbError": 500,
+  "maxUseClientLinesWarning": 300,
+  "maxUseClientLinesError": 600,
+  "allowedClientGlobs": [
+    "app/(marketing)/**/*.tsx",
+    "app/(marketing)/**/*.ts",
+    "components/marketing/**/*.tsx",
+    "components/marketing/**/*.ts"
+  ],
+  "allowedClientFiles": [],
+  "heavyImportAllowlist": [
+    { "pattern": "stripe", "allowSubstrings": ["app/api/", "lib/", "scripts/"] },
+    { "pattern": "@stripe/stripe-js", "allowSubstrings": ["components/", "app/(auth)/"] },
+    { "pattern": "openai", "allowSubstrings": ["app/api/", "lib/", "scripts/"] },
+    { "pattern": "twilio", "allowSubstrings": ["app/api/", "lib/"] },
+    { "pattern": "@supabase/supabase-js", "allowSubstrings": ["src/lib/", "lib/", "components/", "app/"] },
+    { "pattern": "recharts", "allowSubstrings": ["components/"] }
+  ]
+}

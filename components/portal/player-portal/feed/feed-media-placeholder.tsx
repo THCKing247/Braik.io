@@ -16,12 +16,12 @@ const PRESETS: Record<
   NonNullable<PlayerFeedPost["mediaPlaceholder"]>,
   { gradient: string; icon: typeof Sparkles }
 > = {
-  stadium: { gradient: "from-[#0c1222] via-[#1e1b4b] to-[#4c1d95]", icon: Landmark },
-  practice: { gradient: "from-orange-600 via-amber-500 to-yellow-400", icon: Tent },
-  film: { gradient: "from-slate-950 via-indigo-950 to-slate-900", icon: Clapperboard },
-  locker: { gradient: "from-zinc-800 via-slate-800 to-zinc-950", icon: Trees },
-  field: { gradient: "from-emerald-800 via-green-700 to-lime-700", icon: Trees },
-  crowd: { gradient: "from-fuchsia-600 via-rose-600 to-orange-500", icon: Users },
+  stadium: { gradient: "from-[#081848] via-[#081838] to-[#10265f]", icon: Landmark },
+  practice: { gradient: "from-[#F85808] via-[#D83808] to-[#8e2507]", icon: Tent },
+  film: { gradient: "from-[#081838] via-[#0c1739] to-[#081848]", icon: Clapperboard },
+  locker: { gradient: "from-[#101f4d] via-[#0f2768] to-[#081838]", icon: Trees },
+  field: { gradient: "from-[#0f2768] via-[#10265f] to-[#081848]", icon: Trees },
+  crowd: { gradient: "from-[#D83808] via-[#F85808] to-[#8e2507]", icon: Users },
 }
 
 export function FeedMediaPlaceholder({

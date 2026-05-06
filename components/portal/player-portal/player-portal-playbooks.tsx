@@ -10,7 +10,7 @@ export function PlayerPortalPlaybooks() {
   const bootstrapCoreReady = dashQ.data ? dashQ.data.deferredPending === false : false
 
   return (
-    <div className="flex min-h-[560px] flex-col overflow-hidden rounded-2xl border border-white/40 bg-white shadow-xl">
+    <div className="flex min-h-[560px] flex-col overflow-hidden rounded-2xl border border-slate-700/70 bg-[#0a1220] shadow-xl">
       <PlaybooksBrowse teamId={teamId} canEdit={false} bootstrapCoreReady={bootstrapCoreReady} />
     </div>
   )

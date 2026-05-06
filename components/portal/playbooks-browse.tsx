@@ -89,12 +89,16 @@ export function PlaybooksBrowse({
         <PlaybookBreadcrumbs items={breadcrumbs} className="mb-3" />
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between lg:gap-6">
           <div className="min-w-0">
-            <p className="text-xs font-medium uppercase tracking-wider text-slate-500">Team Playbook</p>
+            <p className="text-xs font-medium uppercase tracking-wider text-slate-500">
+              {canEdit ? "Team Playbook" : "Playbook Library"}
+            </p>
             <h1 className="mt-0.5 text-xl font-semibold tracking-tight text-slate-900 sm:text-2xl">
               Playbooks
             </h1>
             <p className="mt-1 max-w-xl text-sm leading-snug text-slate-600">
-              Create and manage playbooks. Open a playbook to add formations and plays.
+              {canEdit
+                ? "Create and manage playbooks. Open a playbook to add formations and plays."
+                : "Open and review playbooks assigned to your team and position group."}
             </p>
           </div>
           {canEdit && (
@@ -133,7 +137,7 @@ export function PlaybooksBrowse({
                 formationCount={pb.formationCount}
                 playCount={pb.playCount}
                 onSelect={() => handleOpenPlaybook(pb.id)}
-                onPresenter={() => router.push(`/dashboard/playbooks/${pb.id}/present`)}
+                onPresenter={canEdit ? () => router.push(`/dashboard/playbooks/${pb.id}/present`) : undefined}
                 onEdit={canEdit ? () => router.push(`/dashboard/playbooks/${pb.id}/edit`) : undefined}
                 onDelete={canEdit ? () => handleDeletePlaybook(pb.id) : undefined}
                 canEdit={canEdit}

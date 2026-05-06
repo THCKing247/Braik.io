@@ -7,14 +7,15 @@ import { Calendar, Home, MessageSquare, UserRound, Users } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { SuspensionBanner } from "@/components/marketing/suspension-banner"
 import { useParentPortal } from "@/components/portal/parent-portal/parent-portal-context"
+import { braikParentTheme } from "@/components/portal/portal-brand-tokens"
 import { braikLogo } from "@/lib/marketing/landing-images"
 
 function navLinkClass(active: boolean) {
   return cn(
     "flex min-w-[3.25rem] flex-col items-center gap-0.5 rounded-xl px-2 py-2 text-[10px] font-semibold uppercase tracking-wide transition-colors",
     active
-      ? "bg-amber-300/95 text-[#1c1406] shadow-lg shadow-amber-600/25 ring-1 ring-amber-200/80 [&_svg]:text-[#6f4a00] lg:bg-slate-900 lg:text-white lg:shadow-md lg:shadow-slate-900/15 lg:ring-0 lg:[&_svg]:text-white"
-      : "text-white/85 hover:bg-white/10 [&_svg]:text-white lg:text-slate-600 lg:hover:bg-slate-100 lg:[&_svg]:text-slate-500"
+      ? cn(braikParentTheme.activeTab, "[&_svg]:text-[#F8F8F8] lg:bg-slate-900 lg:text-white lg:shadow-md lg:shadow-slate-900/15 lg:ring-0 lg:[&_svg]:text-white")
+      : cn(braikParentTheme.inactiveTab, "[&_svg]:text-[#c6cfe4] lg:text-slate-600 lg:hover:bg-slate-100 lg:[&_svg]:text-slate-500")
   )
 }
 
@@ -58,8 +59,8 @@ export function ParentPortalChrome({
   ]
 
   return (
-    <div className="flex min-h-[100dvh] flex-col bg-gradient-to-b from-[#050c14] via-[#071226] to-[#120714] lg:bg-slate-50">
-      <header className="relative z-20 shrink-0 border-b border-sky-500/15 bg-black/25 px-4 py-3.5 backdrop-blur-xl lg:border-slate-200/90 lg:bg-white lg:py-4 lg:shadow-sm lg:backdrop-blur-0">
+    <div className={cn("flex min-h-[100dvh] flex-col lg:bg-slate-50", braikParentTheme.shell)}>
+      <header className={cn("relative z-20 shrink-0 border-b px-4 py-3.5 backdrop-blur-sm lg:border-slate-200/90 lg:bg-white lg:py-4 lg:shadow-sm lg:backdrop-blur-0", braikParentTheme.header)}>
         <ParentPortalHeaderInner />
       </header>
 
@@ -69,7 +70,10 @@ export function ParentPortalChrome({
       </main>
 
       <nav
-        className="fixed bottom-0 left-0 right-0 z-30 border-t border-sky-500/20 bg-[#040a12]/94 px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 shadow-[0_-12px_40px_-18px_rgba(0,0,0,0.72)] backdrop-blur-xl lg:border-slate-200 lg:bg-white/95 lg:px-1 lg:shadow-none lg:backdrop-blur-md"
+        className={cn(
+          "fixed bottom-0 left-0 right-0 z-30 border-t px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 shadow-[0_-12px_40px_-18px_rgba(0,0,0,0.72)] backdrop-blur-sm lg:border-slate-200 lg:bg-white/95 lg:px-1 lg:shadow-none lg:backdrop-blur-md",
+          braikParentTheme.nav
+        )}
         aria-label="Family portal primary"
       >
         <div className="mx-auto flex max-w-lg items-center justify-between gap-1">
@@ -111,15 +115,15 @@ function ParentPortalHeaderInner() {
   return (
     <div className="mx-auto flex max-w-3xl items-start justify-between gap-3">
       <div className="min-w-0">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-sky-300/95 lg:text-slate-500">
+        <p className={cn("text-[11px] font-semibold uppercase tracking-[0.18em] lg:text-slate-500", braikParentTheme.textSecondary)}>
           {eyebrow}
         </p>
-        <h1 className="truncate bg-gradient-to-r from-sky-100 via-amber-100 to-orange-100 bg-clip-text text-xl font-black text-transparent">
+        <h1 className="truncate bg-gradient-to-r from-[#F8F8F8] via-[#F8F8E8] to-[#F85808] bg-clip-text text-xl font-black text-transparent">
           {teamName}
         </h1>
-        <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-sm text-white/70 lg:text-slate-600">
+        <div className={cn("mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-sm lg:text-slate-600", braikParentTheme.textMuted)}>
           {sport ? <span>{sport}</span> : null}
-          {sub ? <span className="text-white/70 lg:text-slate-500">{sub}</span> : null}
+          {sub ? <span className={cn("lg:text-slate-500", braikParentTheme.textMuted)}>{sub}</span> : null}
         </div>
       </div>
       <div className="shrink-0">

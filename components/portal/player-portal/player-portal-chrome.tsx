@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils"
 import { SuspensionBanner } from "@/components/marketing/suspension-banner"
 import { signOut } from "@/lib/auth/client-auth"
 import { braikPlayerChrome } from "@/components/portal/player-portal/braik-player-visual-tokens"
+import { braikPlayerTheme } from "@/components/portal/portal-brand-tokens"
 import { usePlayerPortal } from "@/components/portal/player-portal/player-portal-context"
 import { playerFilmHubRoot } from "@/lib/player-portal/player-development-routes"
 import { braikLogo } from "@/lib/marketing/landing-images"
@@ -16,8 +17,8 @@ function navLinkClass(active: boolean) {
   return cn(
     "flex flex-col items-center gap-0.5 rounded-xl px-2 py-2 text-[10px] font-semibold uppercase tracking-wide transition-colors min-w-[3.5rem]",
     active
-      ? "bg-amber-300/95 text-[#1c1406] shadow-lg shadow-amber-600/25 ring-1 ring-amber-200/80 [&_svg]:text-[#6f4a00]"
-      : "text-white/85 hover:bg-white/10 [&_svg]:text-white"
+      ? cn(braikPlayerTheme.activeTab, "[&_svg]:text-[#F8F8F8]")
+      : cn(braikPlayerTheme.inactiveTab, "[&_svg]:text-[#c6cfe4]")
   )
 }
 
@@ -73,7 +74,7 @@ export function PlayerPortalChrome({
         aria-hidden
       />
 
-      <header className="relative z-20 shrink-0 border-b border-sky-500/15 bg-black/25 px-4 py-3 backdrop-blur-xl">
+      <header className={cn("relative z-20 shrink-0 border-b px-4 py-3 backdrop-blur-sm", braikPlayerTheme.header)}>
         <PlayerPortalHeaderInner />
       </header>
 
@@ -83,7 +84,10 @@ export function PlayerPortalChrome({
       </main>
 
       <nav
-        className="fixed bottom-0 left-0 right-0 z-30 border-t border-sky-500/20 bg-[#040a12]/94 px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 shadow-[0_-12px_40px_-18px_rgba(0,0,0,0.72)] backdrop-blur-xl"
+        className={cn(
+          "fixed bottom-0 left-0 right-0 z-30 border-t px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 shadow-[0_-12px_40px_-18px_rgba(0,0,0,0.72)] backdrop-blur-sm",
+          braikPlayerTheme.nav
+        )}
         aria-label="Player portal primary navigation"
       >
         <div className="mx-auto flex max-w-lg items-center justify-between gap-1">
@@ -123,19 +127,19 @@ function PlayerPortalHeaderInner() {
   return (
     <div className="mx-auto flex max-w-3xl items-start justify-between gap-2">
       <div className="min-w-0 flex-1">
-        <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-sky-300/95">{eyebrow}</p>
-        <h1 className="truncate bg-gradient-to-r from-sky-100 via-amber-100 to-orange-100 bg-clip-text text-xl font-black text-transparent drop-shadow-sm">
+        <p className={cn("text-[11px] font-bold uppercase tracking-[0.2em]", braikPlayerTheme.textSecondary)}>{eyebrow}</p>
+        <h1 className="truncate bg-gradient-to-r from-[#F8F8F8] via-[#F8F8E8] to-[#F85808] bg-clip-text text-xl font-black text-transparent drop-shadow-sm">
           {teamName}
         </h1>
-        {sport?.trim() ? <p className="text-sm font-medium text-white/70">{sport}</p> : null}
+        {sport?.trim() ? <p className={cn("text-sm font-medium", braikPlayerTheme.textMuted)}>{sport}</p> : null}
       </div>
       <div className="flex shrink-0 flex-col items-end gap-2 sm:flex-row sm:items-center">
         <button
           type="button"
           onClick={() => void signOut({ callbackUrl: "/login" })}
-          className="flex items-center gap-1.5 rounded-xl border border-white/15 bg-white/10 px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-white backdrop-blur-sm transition hover:bg-white/15 active:scale-[0.98]"
+          className="flex items-center gap-1.5 rounded-xl border border-[#2a3152] bg-[#0c1739]/80 px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-[#F8F8E8] backdrop-blur-sm transition hover:bg-[#101f4d] active:scale-[0.98]"
         >
-          <LogOut className="h-4 w-4 text-amber-300" aria-hidden />
+          <LogOut className="h-4 w-4 text-[#F85808]" aria-hidden />
           <span className="hidden sm:inline">Sign out</span>
           <span className="sm:hidden">Out</span>
         </button>

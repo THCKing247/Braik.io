@@ -2,6 +2,7 @@
 
 import type { PlayerFeedPost } from "@/components/portal/player-portal/feed/player-feed-types"
 import { FeedPostCard } from "@/components/portal/player-portal/feed/feed-post-card"
+import { braikPlayerTheme } from "@/components/portal/portal-brand-tokens"
 
 export function PlayerFeedList({
   posts,
@@ -34,12 +35,12 @@ export function PlayerFeedList({
     <div className="space-y-5">
       <div className="flex items-end justify-between gap-3 px-0.5">
         <div>
-          <h3 className="text-[11px] font-bold uppercase tracking-[0.22em] text-sky-300/75">Feed</h3>
-          <p className="mt-0.5 bg-gradient-to-r from-white via-amber-100 to-orange-100 bg-clip-text text-lg font-black text-transparent">
+          <h3 className={`text-[11px] font-bold uppercase tracking-[0.22em] ${braikPlayerTheme.textSecondary}`}>Feed</h3>
+          <p className="mt-0.5 bg-gradient-to-r from-[#F8F8F8] via-[#F8F8E8] to-[#F85808] bg-clip-text text-lg font-black text-transparent">
             Team posts
           </p>
         </div>
-        <span className="rounded-full bg-gradient-to-r from-sky-600/40 to-orange-600/35 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-white ring-1 ring-white/25">
+        <span className="rounded-full bg-gradient-to-r from-[#F85808]/45 to-[#D83808]/45 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-[#F8F8F8] ring-1 ring-[#F85808]/40">
           {liveBadge}
         </span>
       </div>

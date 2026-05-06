@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import { Loader2, Shirt } from "lucide-react"
 import { useParentPortal } from "@/components/portal/parent-portal/parent-portal-context"
 import { ParentPortalDocuments } from "@/components/portal/parent-portal/parent-portal-documents"
+import { braikParentTheme } from "@/components/portal/portal-brand-tokens"
 
 type ProfilePayload = {
   profile?: {
@@ -60,36 +61,36 @@ export function ParentPortalProfile() {
 
   return (
     <div className="space-y-6">
-      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-        <h2 className="text-xs font-semibold uppercase tracking-widest text-slate-500">Athlete snapshot</h2>
+      <section className="rounded-2xl border border-[#1f2f63] bg-[#F8F8F8] p-5 shadow-sm">
+        <h2 className="text-xs font-semibold uppercase tracking-widest text-[#081848]">Athlete snapshot</h2>
         {loading ? (
           <div className="flex justify-center py-10">
             <Loader2 className="h-10 w-10 animate-spin text-slate-400" aria-hidden />
           </div>
         ) : (
           <>
-            <h3 className="mt-2 text-2xl font-bold text-slate-900">{displayName}</h3>
+            <h3 className="mt-2 text-2xl font-bold text-[#081838]">{displayName}</h3>
             <dl className="mt-4 grid grid-cols-2 gap-3 text-sm">
-              <div className="rounded-xl border border-slate-100 bg-slate-50 px-4 py-3">
-                <dt className="flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wide text-slate-600">
+              <div className="rounded-xl border border-[#d7deef] bg-[#F8F8E8] px-4 py-3">
+                <dt className="flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wide text-[#081848]">
                   <Shirt className="h-3.5 w-3.5" aria-hidden /> Jersey
                 </dt>
-                <dd className="mt-1 text-lg font-bold text-slate-900">{p?.jerseyNumber ?? "—"}</dd>
+                <dd className="mt-1 text-lg font-bold text-[#081838]">{p?.jerseyNumber ?? "—"}</dd>
               </div>
-              <div className="rounded-xl border border-slate-100 bg-slate-50 px-4 py-3">
-                <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-600">Position</dt>
-                <dd className="mt-1 font-semibold text-slate-900">{p?.positionGroup ?? "—"}</dd>
+              <div className="rounded-xl border border-[#d7deef] bg-[#F8F8E8] px-4 py-3">
+                <dt className="text-[11px] font-semibold uppercase tracking-wide text-[#081848]">Position</dt>
+                <dd className="mt-1 font-semibold text-[#081838]">{p?.positionGroup ?? "—"}</dd>
               </div>
               {p?.grade ? (
-                <div className="rounded-xl border border-slate-100 bg-white px-4 py-3">
-                  <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Grade</dt>
-                  <dd className="mt-1 font-semibold text-slate-900">{p.grade}</dd>
+                <div className="rounded-xl border border-[#d7deef] bg-white px-4 py-3">
+                  <dt className="text-[11px] font-semibold uppercase tracking-wide text-[#081848]">Grade</dt>
+                  <dd className="mt-1 font-semibold text-[#081838]">{p.grade}</dd>
                 </div>
               ) : null}
               {p?.eligibilityStatus ? (
-                <div className="rounded-xl border border-slate-100 bg-white px-4 py-3">
-                  <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Eligibility</dt>
-                  <dd className="mt-1 font-semibold text-slate-900">{p.eligibilityStatus}</dd>
+                <div className="rounded-xl border border-[#d7deef] bg-white px-4 py-3">
+                  <dt className="text-[11px] font-semibold uppercase tracking-wide text-[#081848]">Eligibility</dt>
+                  <dd className="mt-1 font-semibold text-[#081838]">{p.eligibilityStatus}</dd>
                 </div>
               ) : null}
             </dl>
@@ -97,29 +98,29 @@ export function ParentPortalProfile() {
         )}
       </section>
 
-      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-        <h2 className="text-xs font-semibold uppercase tracking-widest text-slate-500">Parent link</h2>
+      <section className="rounded-2xl border border-[#1f2f63] bg-[#F8F8F8] p-5 shadow-sm">
+        <h2 className="text-xs font-semibold uppercase tracking-widest text-[#081848]">Parent link</h2>
         <dl className="mt-3 grid grid-cols-1 gap-3 text-sm">
-          <div className="rounded-xl border border-slate-100 bg-slate-50 px-4 py-3">
-            <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-600">Linked athlete</dt>
-            <dd className="mt-1 font-semibold text-slate-900">
+          <div className="rounded-xl border border-[#d7deef] bg-[#F8F8E8] px-4 py-3">
+            <dt className="text-[11px] font-semibold uppercase tracking-wide text-[#081848]">Linked athlete</dt>
+            <dd className="mt-1 font-semibold text-[#081838]">
               {[linkedPlayerPreferredName, linkedPlayerFirstName, linkedPlayerLastName].filter(Boolean).join(" ").trim() ||
                 "Athlete"}
             </dd>
           </div>
-          <div className="rounded-xl border border-slate-100 bg-slate-50 px-4 py-3">
-            <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-600">Parent account</dt>
-            <dd className="mt-1 font-semibold text-slate-900">{parentDisplayName?.trim() || parentEmail || "Parent user"}</dd>
+          <div className="rounded-xl border border-[#d7deef] bg-[#F8F8E8] px-4 py-3">
+            <dt className="text-[11px] font-semibold uppercase tracking-wide text-[#081848]">Parent account</dt>
+            <dd className="mt-1 font-semibold text-[#081838]">{parentDisplayName?.trim() || parentEmail || "Parent user"}</dd>
           </div>
-          <div className="rounded-xl border border-slate-100 bg-slate-50 px-4 py-3">
-            <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-600">Portal link key</dt>
-            <dd className="mt-1 font-mono text-xs font-semibold text-slate-700">{linkCodeSegment}</dd>
+          <div className="rounded-xl border border-[#d7deef] bg-[#F8F8E8] px-4 py-3">
+            <dt className="text-[11px] font-semibold uppercase tracking-wide text-[#081848]">Portal link key</dt>
+            <dd className="mt-1 font-mono text-xs font-semibold text-[#081838]">{linkCodeSegment}</dd>
           </div>
         </dl>
       </section>
 
       <section>
-        <h2 className="mb-3 px-1 text-sm font-bold uppercase tracking-widest text-slate-600">Documents</h2>
+        <h2 className={`mb-3 px-1 text-sm font-bold uppercase tracking-widest ${braikParentTheme.textSecondary}`}>Documents</h2>
         <ParentPortalDocuments />
       </section>
     </div>

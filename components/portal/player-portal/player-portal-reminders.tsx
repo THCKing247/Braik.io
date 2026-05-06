@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import { Bell, Loader2 } from "lucide-react"
 import { formatDistanceToNow } from "date-fns"
 import { usePlayerPortal } from "@/components/portal/player-portal/player-portal-context"
+import { braikPlayerTheme } from "@/components/portal/portal-brand-tokens"
 
 type NotifRow = {
   id: string
@@ -44,33 +45,33 @@ export function PlayerPortalReminders() {
   }, [teamId])
 
   return (
-    <div className="rounded-2xl border border-white/40 bg-white p-5 shadow-xl">
+    <div className={`rounded-2xl border p-5 shadow-xl ${braikPlayerTheme.surface}`}>
       <div className="mb-4 flex items-center gap-2">
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-lime-500 to-green-700 text-white shadow-md">
+        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-[#F85808] to-[#D83808] text-[#F8F8F8] shadow-md">
           <Bell className="h-5 w-5" aria-hidden />
         </div>
         <div>
-          <h2 className="text-lg font-bold text-slate-900">Reminders</h2>
-          <p className="text-xs text-slate-500">Recent alerts for your account</p>
+          <h2 className={`text-lg font-bold ${braikPlayerTheme.textWarm}`}>Reminders</h2>
+          <p className={`text-xs ${braikPlayerTheme.textMuted}`}>Recent alerts for your account</p>
         </div>
       </div>
 
       {loading ? (
         <div className="flex justify-center py-16">
-          <Loader2 className="h-10 w-10 animate-spin text-indigo-500" aria-hidden />
+          <Loader2 className="h-10 w-10 animate-spin text-[#F85808]" aria-hidden />
         </div>
       ) : items.length === 0 ? (
-        <p className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-10 text-center text-sm text-slate-500">
+        <p className={`rounded-xl border border-dashed border-[#2a3152] bg-[#10265f] px-4 py-10 text-center text-sm ${braikPlayerTheme.textMuted}`}>
           You&apos;re all caught up — no reminders right now.
         </p>
       ) : (
         <ul className="space-y-2">
           {items.map((n) => (
-            <li key={n.id} className="rounded-xl border border-slate-100 bg-slate-50 px-4 py-3">
-              <p className="font-semibold text-slate-900">{n.title}</p>
-              {n.body ? <p className="mt-1 text-sm text-slate-600 line-clamp-3">{n.body}</p> : null}
+            <li key={n.id} className="rounded-xl border border-[#2a3152] bg-[#10265f] px-4 py-3">
+              <p className={`font-semibold ${braikPlayerTheme.textWarm}`}>{n.title}</p>
+              {n.body ? <p className={`mt-1 text-sm line-clamp-3 ${braikPlayerTheme.textSecondary}`}>{n.body}</p> : null}
               {n.createdAt ? (
-                <p className="mt-2 text-[11px] font-medium uppercase tracking-wide text-slate-400">
+                <p className={`mt-2 text-[11px] font-medium uppercase tracking-wide ${braikPlayerTheme.textMuted}`}>
                   {formatDistanceToNow(new Date(n.createdAt), { addSuffix: true })}
                   {!n.read ? " · Unread" : ""}
                 </p>

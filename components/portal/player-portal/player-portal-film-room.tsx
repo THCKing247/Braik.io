@@ -10,9 +10,9 @@ export function PlayerPortalFilmRoom() {
 
   if (!vc?.navVisible) {
     return (
-      <div className="rounded-2xl border border-white/40 bg-white/95 p-8 text-center shadow-xl">
-        <p className="text-lg font-bold text-slate-900">Film Room isn&apos;t available</p>
-        <p className="mt-2 text-sm text-slate-600">
+      <div className="rounded-2xl border border-slate-700/70 bg-[#0a1220] p-8 text-center shadow-xl">
+        <p className="text-lg font-bold text-[#f8f4e8]">Game Film isn&apos;t available</p>
+        <p className="mt-2 text-sm text-slate-300">
           {vc?.disableHint ??
             "Your program may not have video enabled yet, or your account doesn’t include film access."}
         </p>
@@ -21,7 +21,7 @@ export function PlayerPortalFilmRoom() {
   }
 
   return (
-    <div className="min-h-[560px] overflow-hidden rounded-2xl border border-white/40 bg-white shadow-xl">
+    <div className="min-h-[560px] overflow-hidden rounded-2xl border border-slate-700/70 bg-[#0a1220] shadow-xl">
       <GameVideoLibrary
         teamId={teamId}
         entitlement={vc.entitlement}

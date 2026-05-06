@@ -5,6 +5,7 @@ import { Trash2, Download, FileText, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { braikPlayerTheme } from "@/components/portal/portal-brand-tokens"
 import { cn } from "@/lib/utils"
 import { usePlayerPortal } from "@/components/portal/player-portal/player-portal-context"
 import {
@@ -174,21 +175,21 @@ export function PlayerPortalDocuments() {
 
   return (
     <div className="space-y-8">
-      <section className="rounded-2xl border border-white/40 bg-white p-5 shadow-xl">
-        <h3 className="text-lg font-bold text-slate-900">{PORTAL_DOCUMENTS_MY_TITLE}</h3>
-        <p className="mt-1 text-xs leading-relaxed text-slate-600">{PLAYER_DOCUMENT_UPLOAD_HELPER}</p>
+      <section className={`rounded-2xl border p-5 shadow-xl ${braikPlayerTheme.surface}`}>
+        <h3 className={`text-lg font-bold ${braikPlayerTheme.textWarm}`}>{PORTAL_DOCUMENTS_MY_TITLE}</h3>
+        <p className={`mt-1 text-xs leading-relaxed ${braikPlayerTheme.textSecondary}`}>{PLAYER_DOCUMENT_UPLOAD_HELPER}</p>
 
         {access.canUpload !== false ? (
-          <div className="mt-4 space-y-3 rounded-xl border border-slate-100 bg-slate-50 p-4">
+          <div className="mt-4 space-y-3 rounded-xl border border-[#2a3152] bg-[#10265f] p-4">
             <div className="grid gap-3 sm:grid-cols-2">
               <div>
-                <Label className="text-xs font-semibold text-slate-700">Title</Label>
+                <Label className={`text-xs font-semibold ${braikPlayerTheme.textSecondary}`}>Title</Label>
                 <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Physical form" className="mt-1" />
               </div>
               <div>
-                <Label className="text-xs font-semibold text-slate-700">Type</Label>
+                <Label className={`text-xs font-semibold ${braikPlayerTheme.textSecondary}`}>Type</Label>
                 <select
-                  className="mt-1 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  className="mt-1 flex h-10 w-full rounded-md border border-[#1f2f63] bg-[#F8F8F8] px-3 py-2 text-sm text-[#081838] focus:outline-none focus:ring-2 focus:ring-[#F85808]"
                   value={docType}
                   onChange={(e) =>
                     setDocType(isPlayerDocumentType(e.target.value) ? e.target.value : "other")
@@ -203,17 +204,17 @@ export function PlayerPortalDocuments() {
               </div>
             </div>
             <div>
-              <Label className="text-xs font-semibold text-slate-700">File</Label>
+              <Label className={`text-xs font-semibold ${braikPlayerTheme.textSecondary}`}>File</Label>
               <Input type="file" className="mt-1 cursor-pointer" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
             </div>
-            <label className="flex cursor-pointer items-start gap-2 text-xs text-slate-700">
+            <label className={`flex cursor-pointer items-start gap-2 text-xs ${braikPlayerTheme.textSecondary}`}>
               <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} className="mt-0.5" />
               <span>{PLAYER_DOCUMENT_CONSENT_TEXT}</span>
             </label>
-            {uploadErr ? <p className="text-xs font-medium text-red-600">{uploadErr}</p> : null}
+            {uploadErr ? <p className="text-xs font-medium text-[#F85808]">{uploadErr}</p> : null}
             <Button
               type="button"
-              className="w-full bg-gradient-to-r from-indigo-600 to-violet-600 font-semibold text-white sm:w-auto"
+              className="w-full bg-gradient-to-r from-[#F85808] to-[#D83808] font-semibold text-[#F8F8F8] hover:brightness-105 sm:w-auto"
               disabled={uploadBusy || !file || !consent}
               onClick={() => void handleUpload()}
             >
@@ -222,7 +223,7 @@ export function PlayerPortalDocuments() {
             </Button>
           </div>
         ) : (
-          <p className="mt-3 text-sm text-slate-500">Uploads are disabled for your account.</p>
+          <p className={`mt-3 text-sm ${braikPlayerTheme.textMuted}`}>Uploads are disabled for your account.</p>
         )}
 
         <DocList
@@ -248,9 +249,9 @@ export function PlayerPortalDocuments() {
         />
       </section>
 
-      <section className="rounded-2xl border border-white/40 bg-white p-5 shadow-xl">
-        <h3 className="text-lg font-bold text-slate-900">{PORTAL_DOCUMENTS_STAFF_FOLDER_TITLE}</h3>
-        <p className="mt-1 text-xs text-slate-600">{PORTAL_DOCUMENTS_STAFF_FOLDER_SUBTITLE}</p>
+      <section className={`rounded-2xl border p-5 shadow-xl ${braikPlayerTheme.surface}`}>
+        <h3 className={`text-lg font-bold ${braikPlayerTheme.textWarm}`}>{PORTAL_DOCUMENTS_STAFF_FOLDER_TITLE}</h3>
+        <p className={`mt-1 text-xs ${braikPlayerTheme.textSecondary}`}>{PORTAL_DOCUMENTS_STAFF_FOLDER_SUBTITLE}</p>
         <DocList
           loading={loading}
           emptyHint={PORTAL_DOCUMENTS_EMPTY_STAFF_FOLDER}
@@ -267,9 +268,9 @@ export function PlayerPortalDocuments() {
         />
       </section>
 
-      <section className="rounded-2xl border border-white/40 bg-white p-5 shadow-xl">
-        <h3 className="text-lg font-bold text-slate-900">{PORTAL_DOCUMENTS_TEAM_LIBRARY_TITLE}</h3>
-        <p className="mt-1 text-xs text-slate-600">{PORTAL_DOCUMENTS_TEAM_LIBRARY_SUBTITLE}</p>
+      <section className={`rounded-2xl border p-5 shadow-xl ${braikPlayerTheme.surface}`}>
+        <h3 className={`text-lg font-bold ${braikPlayerTheme.textWarm}`}>{PORTAL_DOCUMENTS_TEAM_LIBRARY_TITLE}</h3>
+        <p className={`mt-1 text-xs ${braikPlayerTheme.textSecondary}`}>{PORTAL_DOCUMENTS_TEAM_LIBRARY_SUBTITLE}</p>
         <DocList
           loading={loading}
           emptyHint={PORTAL_DOCUMENTS_EMPTY_TEAM_LIBRARY}
@@ -319,13 +320,13 @@ function DocList({
   if (loading) {
     return (
       <div className="mt-4 flex justify-center py-10">
-        <Loader2 className="h-8 w-8 animate-spin text-indigo-500" />
+        <Loader2 className="h-8 w-8 animate-spin text-[#F85808]" />
       </div>
     )
   }
   if (items.length === 0) {
     return (
-      <div className="mt-4 rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center text-sm text-slate-500">
+      <div className="mt-4 rounded-xl border border-dashed border-[#2a3152] bg-[#10265f] px-4 py-8 text-center text-sm text-[#9aa8c7]">
         <FileText className="mx-auto mb-2 h-8 w-8 opacity-40" aria-hidden />
         {emptyHint}
       </div>
@@ -338,12 +339,13 @@ function DocList({
           key={row.key}
           className={cn(
             "flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-100 bg-slate-50/80 px-4 py-3",
+            "border-[#2a3152] bg-[#10265f]",
             "sm:flex-nowrap"
           )}
         >
           <div className="min-w-0 flex-1">
-            <p className="truncate font-semibold text-slate-900">{row.primary}</p>
-            <p className="truncate text-xs text-slate-500">{row.secondary}</p>
+            <p className="truncate font-semibold text-[#F8F8E8]">{row.primary}</p>
+            <p className="truncate text-xs text-[#9aa8c7]">{row.secondary}</p>
           </div>
           <div className="flex shrink-0 items-center gap-2">{row.actions}</div>
         </li>

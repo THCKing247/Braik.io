@@ -8,6 +8,7 @@ import {
   PLAYER_FILM_HUB_SECTIONS,
   playerFilmHubRoot,
 } from "@/lib/player-portal/player-development-routes"
+import { braikPlayerTheme } from "@/components/portal/portal-brand-tokens"
 
 /**
  * Team hub: one app-style segmented control (mobile-first, large tap targets).
@@ -23,7 +24,10 @@ export function PlayerPortalPrepShell({ children }: { children: React.ReactNode 
       <nav
         aria-label="Study, game film, and playbooks"
         aria-description="Study includes quizzes. Use Messages from the bottom bar to reach coaches."
-        className="mb-4 rounded-2xl border border-white/15 bg-black/25 p-1 shadow-inner shadow-black/20 backdrop-blur-sm"
+        className={cn(
+          "mb-4 rounded-2xl border p-1 shadow-inner shadow-black/30 backdrop-blur-sm",
+          braikPlayerTheme.surface
+        )}
       >
         <ul className="grid grid-cols-3 gap-1">
           {PLAYER_FILM_HUB_SECTIONS.map(({ key, label, suffix }) => {
@@ -41,8 +45,8 @@ export function PlayerPortalPrepShell({ children }: { children: React.ReactNode 
                   className={cn(
                     "flex min-h-[2.75rem] w-full select-none items-center justify-center rounded-xl px-1 py-2 text-center text-[11px] font-bold uppercase tracking-wide transition active:scale-[0.98] sm:text-xs sm:tracking-normal",
                     current
-                      ? "bg-white text-slate-900 shadow-md"
-                      : "text-white/85 hover:bg-white/10 active:bg-white/15"
+                      ? braikPlayerTheme.activeTab
+                      : `${braikPlayerTheme.inactiveTab} active:bg-[#10265f]`
                   )}
                 >
                   <span className="line-clamp-2 leading-snug">{label}</span>

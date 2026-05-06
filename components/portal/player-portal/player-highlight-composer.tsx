@@ -5,6 +5,7 @@ import { useQueryClient } from "@tanstack/react-query"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { braikPlayerTheme } from "@/components/portal/portal-brand-tokens"
 import { cn } from "@/lib/utils"
 
 const HIGHLIGHT_POSTS_QUERY_KEY = "team-highlight-posts"
@@ -55,11 +56,11 @@ export function PlayerHighlightComposer({ teamId }: { teamId: string }) {
 
   if (!open) {
     return (
-      <div className="rounded-xl border border-white/20 bg-white/5 px-3 py-2">
+      <div className={cn("rounded-xl border px-3 py-2", braikPlayerTheme.surface)}>
         <Button
           type="button"
           variant="outline"
-          className="w-full border-white/25 bg-white/10 text-white hover:bg-white/15"
+          className="w-full border-[#F85808]/45 bg-[#F85808]/15 text-[#F8F8F8] hover:bg-[#D83808]/22"
           onClick={() => setOpen(true)}
         >
           Post a highlight
@@ -69,14 +70,14 @@ export function PlayerHighlightComposer({ teamId }: { teamId: string }) {
   }
 
   return (
-    <div className="space-y-3 rounded-xl border border-white/20 bg-white/5 px-3 py-3">
+    <div className={cn("space-y-3 rounded-xl border px-3 py-3", braikPlayerTheme.surface)}>
       <div className="flex items-center justify-between gap-2">
-        <p className="text-sm font-semibold text-white">Share a highlight</p>
+        <p className="text-sm font-semibold text-[#F8F8F8]">Share a highlight</p>
         <Button
           type="button"
           variant="ghost"
           size="sm"
-          className="text-white/80 hover:text-white"
+          className="text-[#c6cfe4] hover:text-[#F8F8F8]"
           onClick={() => {
             reset()
             setOpen(false)
@@ -86,7 +87,7 @@ export function PlayerHighlightComposer({ teamId }: { teamId: string }) {
         </Button>
       </div>
       <div className="space-y-2">
-        <Label htmlFor="highlight-title" className="text-white/90">
+        <Label htmlFor="highlight-title" className="text-[#F8F8E8]">
           Title
         </Label>
         <Input
@@ -95,11 +96,11 @@ export function PlayerHighlightComposer({ teamId }: { teamId: string }) {
           onChange={(e) => setTitle(e.target.value)}
           placeholder="e.g. Best rep from practice"
           maxLength={200}
-          className="border-white/20 bg-white text-slate-900"
+          className="border-[#1f2f63] bg-[#F8F8F8] text-[#081838] focus-visible:ring-[#F85808]"
         />
       </div>
       <div className="space-y-2">
-        <Label htmlFor="highlight-body" className="text-white/90">
+        <Label htmlFor="highlight-body" className="text-[#F8F8E8]">
           Details (optional)
         </Label>
         <textarea
@@ -111,14 +112,14 @@ export function PlayerHighlightComposer({ teamId }: { teamId: string }) {
           maxLength={5000}
           className={cn(
             "flex min-h-[120px] w-full rounded-xl border px-4 py-2.5 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2",
-            "border-white/20 bg-white text-slate-900 focus-visible:border-primary focus-visible:ring-primary"
+            "border-[#1f2f63] bg-[#F8F8F8] text-[#081838] focus-visible:border-[#F85808] focus-visible:ring-[#F85808]"
           )}
         />
       </div>
-      {error ? <p className="text-sm font-medium text-amber-200">{error}</p> : null}
+      {error ? <p className="text-sm font-medium text-[#F85808]">{error}</p> : null}
       <Button
         type="button"
-        className="w-full"
+        className="w-full bg-[#F85808] text-[#F8F8F8] hover:bg-[#D83808]"
         disabled={submitting || !title.trim()}
         onClick={() => void submit()}
       >

@@ -21,7 +21,7 @@ export function PlayerPortalStudyGuides() {
   }, [teamId, dashQ.data?.deferredPending, queryClient])
 
   return (
-    <div className="min-h-[480px] rounded-2xl border border-white/40 bg-white p-4 shadow-xl sm:p-6">
+    <div className="min-h-[480px] rounded-2xl border border-slate-700/70 bg-[#0a1220] p-4 shadow-xl sm:p-6">
       <StudyGuidesModule teamId={teamId} canEdit={false} />
     </div>
   )

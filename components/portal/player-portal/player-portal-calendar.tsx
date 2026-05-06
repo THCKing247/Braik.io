@@ -16,15 +16,16 @@ import {
   type CalendarVisibleRangePayload,
 } from "@/lib/calendar/calendar-events-client"
 import { usePlayerPortal } from "@/components/portal/player-portal/player-portal-context"
+import { braikPlayerTheme } from "@/components/portal/portal-brand-tokens"
 
 const CalendarManager = dynamic(
   () => import("@/components/portal/calendar-manager").then((m) => m.CalendarManager),
   {
     loading: () => (
-      <div className="min-h-[50vh] w-full animate-pulse rounded-xl border border-white/40 bg-white/90 p-4 shadow-inner">
+      <div className={`min-h-[50vh] w-full animate-pulse rounded-xl border p-4 shadow-inner ${braikPlayerTheme.surface}`}>
         <div className="grid grid-cols-7 gap-2">
           {Array.from({ length: 14 }).map((_, i) => (
-            <div key={i} className="aspect-square rounded-md bg-indigo-100/80" />
+            <div key={i} className="aspect-square rounded-md bg-[#10265f]" />
           ))}
         </div>
       </div>
@@ -116,7 +117,7 @@ export function PlayerPortalCalendar() {
 
   return (
     <div
-      className="flex min-h-[min(720px,calc(100dvh-13rem))] w-full flex-col overflow-hidden rounded-2xl border border-white/40 bg-white shadow-xl"
+      className={`flex min-h-[min(720px,calc(100dvh-13rem))] w-full flex-col overflow-hidden rounded-2xl border shadow-xl ${braikPlayerTheme.surface}`}
       aria-label="Player calendar"
     >
       <CalendarManager

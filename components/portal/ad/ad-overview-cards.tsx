@@ -1,6 +1,21 @@
 "use client"
 
-import { AdCoachesPieChartCard } from "@/components/portal/ad/ad-coaches-pie-chart-card"
+import dynamic from "next/dynamic"
+
+const AdCoachesPieChartCard = dynamic(
+  () =>
+    import("@/components/portal/ad/ad-coaches-pie-chart-card").then((m) => m.AdCoachesPieChartCard),
+  {
+    loading: () => (
+      <div
+        className="flex min-h-[220px] items-center justify-center rounded-xl border border-dashed border-[#E5E7EB] bg-[#F9FAFB] text-sm text-[#6B7280]"
+        aria-hidden
+      >
+        Loading chart…
+      </div>
+    ),
+  }
+)
 
 interface AdOverviewCardsProps {
   totalTeams?: number

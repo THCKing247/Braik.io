@@ -7,6 +7,7 @@
     "dev:optimized": "next dev",
     "prebuild": "tsx scripts/verify-env.ts && npm run typecheck",
     "build": "next build",
+    "analyze": "ANALYZE=true next build",
     "typecheck": "tsc --noEmit",
     "start": "next start",
     "lint": "next lint",
@@ -78,6 +79,7 @@
   },
   "devDependencies": {
     "@capacitor/cli": "^8.2.0",
+    "@next/bundle-analyzer": "14.0.4",
     "@types/bcryptjs": "^2.4.6",
     "@types/node": "^20.10.5",
     "@types/qrcode": "^1.5.6",

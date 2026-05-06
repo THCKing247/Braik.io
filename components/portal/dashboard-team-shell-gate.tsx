@@ -47,11 +47,21 @@ export function DashboardTeamShellGate({ children }: { children: React.ReactNode
   useEffect(() => {
     const payload = q.data
     if (!payload || payload.shellMode !== "full") return
+
     const teamId = payload.currentTeamId || payload.teams[0]?.id || ""
     if (!teamId) return
 
+    const queryKey = dashboardBootstrapQueryKey(teamId)
+    const existingState = queryClient.getQueryState(queryKey)
+
+    if (existingState?.status === "success") {
+      const updatedAt = existingState.dataUpdatedAt ?? 0
+      const isFresh = Date.now() - updatedAt < DASHBOARD_BOOTSTRAP_STALE_MS
+      if (isFresh) return
+    }
+
     void queryClient.prefetchQuery({
-      queryKey: dashboardBootstrapQueryKey(teamId),
+      queryKey,
       queryFn: () => fetchDashboardBootstrap(teamId, queryClient),
       staleTime: DASHBOARD_BOOTSTRAP_STALE_MS,
     })

@@ -44,10 +44,6 @@ export async function GET(request: Request) {
       return NextResponse.json([])
     }
 
-    const lastReadByThread = new Map(
-      (participantThreads ?? []).map((p) => [p.thread_id, p.last_read_at as string | null])
-    )
-
     const { data: threads, error: threadsError } = await supabase
       .from("message_threads")
       .select("id, title, thread_type, created_by, created_at, updated_at, team_id")
@@ -78,19 +74,22 @@ export async function GET(request: Request) {
 
     const countMap = new Map<string, number>()
     const unreadCounts = new Map<string, number>()
-    const { data: messageStatsRows } = await supabase
-      .from("messages")
-      .select("thread_id, sender_id, created_at")
-      .in("thread_id", selectedThreadIds)
-      .is("deleted_at", null)
-    ;(messageStatsRows ?? []).forEach((m) => {
-      countMap.set(m.thread_id, (countMap.get(m.thread_id) ?? 0) + 1)
-      if (m.sender_id === userId) return
-      const lastReadAt = lastReadByThread.get(m.thread_id)
-      if (!lastReadAt || new Date(m.created_at).getTime() > new Date(lastReadAt).getTime()) {
-        unreadCounts.set(m.thread_id, (unreadCounts.get(m.thread_id) ?? 0) + 1)
+    const { data: inboxStats, error: inboxStatsError } = await supabase.rpc(
+      "message_thread_inbox_stats",
+      {
+        p_thread_ids: selectedThreadIds,
+        p_user_id: userId,
       }
-    })
+    )
+    if (inboxStatsError) {
+      console.error("[GET /api/messages/threads] message_thread_inbox_stats", inboxStatsError)
+      return NextResponse.json({ error: "Failed to load threads" }, { status: 500 })
+    }
+    for (const row of inboxStats ?? []) {
+      const tid = row.thread_id as string
+      countMap.set(tid, Number(row.message_count ?? 0))
+      unreadCounts.set(tid, Number(row.unread_count ?? 0))
+    }
 
     const { data: allParticipants } = await supabase
       .from("message_thread_participants")

@@ -9,6 +9,11 @@ import {
   isDashboardShellUnauthorizedError,
   useDashboardShellQuery,
 } from "@/lib/dashboard/dashboard-shell-query"
+import {
+  DASHBOARD_BOOTSTRAP_STALE_MS,
+  dashboardBootstrapQueryKey,
+  fetchDashboardBootstrap,
+} from "@/lib/dashboard/dashboard-bootstrap-query"
 import { DashboardNav } from "@/components/portal/dashboard-nav"
 import { SubscriptionGuard } from "@/components/portal/subscription-guard"
 import { DashboardLayoutClient } from "@/components/portal/dashboard-layout-client"
@@ -37,6 +42,19 @@ export function DashboardTeamShellGate({ children }: { children: React.ReactNode
     if (payload?.user?.id) {
       seedAuthSessionCacheFromShellUser(queryClient, payload.user)
     }
+  }, [q.data, queryClient])
+
+  useEffect(() => {
+    const payload = q.data
+    if (!payload || payload.shellMode !== "full") return
+    const teamId = payload.currentTeamId || payload.teams[0]?.id || ""
+    if (!teamId) return
+
+    void queryClient.prefetchQuery({
+      queryKey: dashboardBootstrapQueryKey(teamId),
+      queryFn: () => fetchDashboardBootstrap(teamId, queryClient),
+      staleTime: DASHBOARD_BOOTSTRAP_STALE_MS,
+    })
   }, [q.data, queryClient])
 
   useEffect(() => {

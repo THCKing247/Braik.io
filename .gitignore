@@ -1,5 +1,8 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
+# Nested duplicate tree — was recorded as a submodule without .gitmodules (breaks Netlify/git submodule init).
+/Braik.io/
+
 # dependencies
 /node_modules
 /.pnp

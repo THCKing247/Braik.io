@@ -19,7 +19,8 @@ import { HomeRequestDemoSection } from "@/components/marketing/home/home-request
  * to below-fold images (see PERFORMANCE_GUIDELINES.md).
  */
 const LeadCaptureFormLazy = dynamic(
-  () => import("@/components/marketing/lead-capture-form").then((m) => m.LeadCaptureForm),
+  () =>
+    import("@/components/marketing/lead-capture-form").then((m) => ({ default: m.LeadCaptureForm })),
   {
     loading: () => (
       <div className="min-h-[220px] w-full animate-pulse rounded-xl bg-slate-100/80" aria-hidden />
@@ -28,7 +29,7 @@ const LeadCaptureFormLazy = dynamic(
 )
 
 const FAQLinkCTALazy = dynamic(
-  () => import("@/components/marketing/faq-link-cta").then((m) => m.FAQLinkCTA),
+  () => import("@/components/marketing/faq-link-cta").then((m) => ({ default: m.FAQLinkCTA })),
   {
     loading: () => (
       <div className="min-h-[200px] w-full animate-pulse rounded-xl bg-slate-50" aria-hidden />

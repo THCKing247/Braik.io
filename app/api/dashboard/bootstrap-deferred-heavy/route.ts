@@ -1,7 +1,9 @@
 /**
  * GET /api/dashboard/bootstrap-deferred-heavy?teamId=
  *
- * Third phase: depth chart entries only (after deferred-core).
+ * Ownership boundary — staged bootstrap **phase 3**: depth chart entries (+ timestamp) only.
+ * All home/roster/calendar data belongs to bootstrap-light + bootstrap-deferred-core.
+ * See DASHBOARD_DATA_OWNERSHIP.md.
  */
 import { NextResponse } from "next/server"
 import { applyRefreshedSessionCookies } from "@/lib/auth/server-auth"

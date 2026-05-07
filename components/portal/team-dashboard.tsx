@@ -393,6 +393,8 @@ function NotificationsCard({
     if (!teamId.trim() || notifFetchInFlight.current) return
     notifFetchInFlight.current = true
     try {
+      // TODO(Phase 4): Same endpoint family as NotificationsWidget + bootstrap `notifications` — consolidate
+      // preview source when bootstrap merged so dashboard home does not parallel-fetch identical preview rows.
       const res = await fetchWithTimeout(
         `/api/notifications?teamId=${encodeURIComponent(teamId)}&limit=15&unreadOnly=true&preview=1`,
         { credentials: "same-origin" }

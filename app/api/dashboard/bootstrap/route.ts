@@ -1,6 +1,10 @@
 /**
  * GET /api/dashboard/bootstrap?teamId=
  *
+ * Ownership boundary — **monolithic** bootstrap (all phases in one response). Same logical slices as
+ * bootstrap-light + bootstrap-deferred-core + bootstrap-deferred-heavy merged; staged endpoints are preferred
+ * for first-paint latency. See DASHBOARD_DATA_OWNERSHIP.md.
+ *
  * Single round-trip for the team dashboard: `shell` (nav / app bootstrap shape), `dashboard` (home:
  * team header, games, calendar, readiness summary), full `roster`, `depthChart`, notifications preview,
  * announcements, and coach engagement counts for hints. Full per-player readiness loads from roster routes.

@@ -1,8 +1,14 @@
 /**
  * GET /api/dashboard/bootstrap-deferred-core?teamId=
  *
- * Second phase: full home dashboard slice (games, calendar, readiness summary) + roster + notification rows +
- * announcements + coach engagement hint counts. Per-player readiness loads from roster APIs. Depth chart: bootstrap-deferred-heavy.
+ * Ownership boundary — staged bootstrap **phase 2** (merges into React Query cache):
+ * - Full `dashboard` home slice (games, calendarEvents, readiness summary/skip).
+ * - Roster list, notifications preview, announcements, readinessDetail/message inbox as built server-side.
+ * - `engagementHintCounts` for coach hints (same counts source as GET /api/engagement/hints).
+ * - Playbooks/documents lists stay empty []; those routes load their own APIs.
+ * Does NOT own depth chart rows — bootstrap-deferred-heavy only.
+ * Per-player readiness drill-in remains on roster APIs.
+ * See DASHBOARD_DATA_OWNERSHIP.md.
  */
 import { NextResponse } from "next/server"
 import { applyRefreshedSessionCookies } from "@/lib/auth/server-auth"

@@ -3,6 +3,11 @@ import type { DashboardShellTeam } from "@/lib/dashboard/load-dashboard-shell-te
 import type { ImpersonationSession } from "@/lib/admin/impersonation"
 import type { BraikPortalKind } from "@/lib/portal/braik-portal-kind"
 
+/**
+ * Wire shape for GET /api/dashboard/shell — global portal chrome only (teams list, routing, billing flags).
+ * Team capability flags + home/roster data live in GET /api/dashboard/bootstrap* payloads (AppBootstrapPayload).
+ * See DASHBOARD_DATA_OWNERSHIP.md.
+ */
 export type DashboardShellPayload =
   | {
       shellMode: "ad-delegate"

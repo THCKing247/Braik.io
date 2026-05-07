@@ -90,6 +90,7 @@ export function DashboardEngagementHints({ currentTeamId }: { currentTeamId: str
     setLoading(true)
     const ac = new AbortController()
     let cancelled = false
+    // TODO(Phase 4): Fallback only — if deferred-core always merges engagementHintCounts into shell, remove redundant hints GET.
     fetchWithTimeout(`/api/engagement/hints?teamId=${encodeURIComponent(currentTeamId)}`, {
       credentials: "same-origin",
       signal: ac.signal,

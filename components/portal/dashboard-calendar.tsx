@@ -255,6 +255,8 @@ export function DashboardCalendar({
 
     setLoading(true)
     const { from, to } = dashboardCalendarGridRangeIso(currentMonth)
+    // TODO(Phase 4): Month navigation without a bootstrap-wide event window may always hit this API — consider
+    // wider bootstrap calendar payload or React Query cache reuse to avoid redundant range fetches (DASHBOARD_DATA_OWNERSHIP.md).
     fetch(calendarEventsUrl(teamId, from, to), { cache: "no-store" })
       .then((res) => (res.ok ? res.json() : []))
       .then((data: unknown) => {

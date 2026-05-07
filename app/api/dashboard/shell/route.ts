@@ -30,6 +30,12 @@ const UUID_RE =
 export type { DashboardShellPayload as DashboardShellResponse }
 
 /**
+ * Ownership boundary — `GET /api/dashboard/shell`:
+ * Owns auth-derived identity, team switcher list + currentTeamId, portalKind / portal segments,
+ * subscription placeholders, impersonation. Does NOT own per-team capability flags, games, roster,
+ * calendar, announcements, or notification rows (those belong to dashboard bootstrap / deferred routes).
+ * See DASHBOARD_DATA_OWNERSHIP.md.
+ *
  * Dashboard shell after client mount. Resolves session via cookie JWT + `getUser` (never `auth.getSession()`).
  */
 export async function GET(request: Request) {

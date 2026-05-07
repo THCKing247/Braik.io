@@ -57,7 +57,11 @@ export type AppBootstrapVideoClips = {
   disableHint?: string | null
 }
 
-/** Lightweight shell payload — no roster, calendar rows, messages, etc. */
+/**
+ * Embedded in GET /api/dashboard/bootstrap* as `shell` — team-scoped nav flags, unread scalar, video gating.
+ * Global team list + portal routing live on GET /api/dashboard/shell (`DashboardShellPayload`), not here.
+ * See DASHBOARD_DATA_OWNERSHIP.md.
+ */
 export type AppBootstrapPayload = {
   user: AppBootstrapUser
   team: AppBootstrapTeam

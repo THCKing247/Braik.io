@@ -194,6 +194,8 @@ const TEAM_ACTIVITY_LABELS: Record<string, string> = {
 const readinessBundleInFlight = new Map<string, Promise<{ summary: TeamReadinessSummary; flags: PlayerReadinessItem[] } | null>>()
 
 // TECH_DEBT: Raw readiness fetches — candidate for `lib/roster/` (or team health) API helper + shared types (TECH_DEBT_GUARDRAILS.md §1).
+// TODO(Phase 4): When `prefetchedReadinessDetail` from dashboard bootstrap is already available, avoid this parallel
+// summary+flags pair on first paint — see DASHBOARD_DATA_OWNERSHIP.md.
 function fetchReadinessBundleOnce(teamId: string, bustNonce: number) {
   const key = `${teamId}:${bustNonce}`
   const existing = readinessBundleInFlight.get(key)

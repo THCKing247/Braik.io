@@ -53,6 +53,8 @@ export function NotificationsWidget({ teamId }: NotificationsWidgetProps) {
     if (!teamId.trim() || fetchInFlight.current) return
     fetchInFlight.current = true
     try {
+      // TODO(Phase 4): Prefer seeding from merged dashboard bootstrap / shared preview cache before this GET
+      // when deferred-core has already populated notifications — avoids duplicate parallel fetch vs home widgets.
       const response = await fetchWithTimeout(
         `/api/notifications?teamId=${encodeURIComponent(teamId)}&limit=10&preview=1`,
         { credentials: "same-origin" }

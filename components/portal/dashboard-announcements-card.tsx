@@ -132,6 +132,8 @@ export function DashboardAnnouncementsCard({
   const load = useCallback(async () => {
     if (!teamId) return
     try {
+      // TODO(Phase 4): When callers omit `initialAnnouncements`, this duplicates GET /api/teams/.../team-announcements
+      // after bootstrap-deferred-core already merged `announcements` — align props / cache reads per DASHBOARD_DATA_OWNERSHIP.md.
       const res = await fetchWithTimeout(
         `/api/teams/${encodeURIComponent(teamId)}/team-announcements`,
         { credentials: "same-origin" }

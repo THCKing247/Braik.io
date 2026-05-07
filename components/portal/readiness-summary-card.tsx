@@ -22,6 +22,8 @@ function fetchReadinessSummaryOnce(teamId: string) {
   const existing = readinessSummaryInFlight.get(teamId)
   if (existing) return existing
   const p = (async () => {
+    // TODO(Phase 4): Used only in bootstrap `fallback` state — ensure home path never races this vs deferred-core
+    // `dashboard.readiness` summary (DASHBOARD_DATA_OWNERSHIP.md).
     const res = await fetch(`/api/teams/${teamId}/readiness?summaryOnly=1`)
     if (res.status === 403) return { forbidden: true as const }
     if (!res.ok) {

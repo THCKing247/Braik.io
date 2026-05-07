@@ -20,10 +20,9 @@ export type DashboardBootstrapCalendarEvent = {
 }
 
 /**
- * Contract for GET /api/dashboard/bootstrap* — shared by routes and the portal dashboard client.
- * bootstrap-light: team header + empty games/calendar + skipped readiness (minimal first paint).
- * bootstrap-deferred-core: full home slice, roster, notifications, announcements, readiness detail.
- * bootstrap-deferred-heavy: depth chart entries only.
+ * Home grid slice — merged result after all bootstrap phases.
+ * bootstrap-light: team header + empty games/calendar + readiness skipped/stub (first paint).
+ * bootstrap-deferred-core: replaces with full games + calendarEvents + readiness summary (or skipped).
  */
 export type DashboardBootstrapPayload = {
   team: {
@@ -50,8 +49,10 @@ export type DashboardReadinessDetailPayload = {
 }
 
 /**
- * GET /api/dashboard/bootstrap — extended payload for React Query + single round-trip.
- * Includes shell (nav), dashboard home slice, roster, depth chart, notifications preview, announcements, optional full readiness.
+ * Full merged bootstrap cache shape (React Query key `["dashboard-bootstrap", teamId]`).
+ * Composed from bootstrap-light + optional deferred-core/heavy merges — NOT all populated on first response.
+ * `shell`: team-scoped nav flags + unread scalar (AppBootstrapPayload); global teams list remains GET /api/dashboard/shell.
+ * See DASHBOARD_DATA_OWNERSHIP.md for phase boundaries.
  */
 export type FullDashboardBootstrapPayload = {
   shell: AppBootstrapPayload
@@ -78,7 +79,10 @@ export type FullDashboardBootstrapPayload = {
   deferredHeavyPending?: boolean
 }
 
-/** Core deferred slice — replaces `dashboard` and fills roster / notification previews / announcements. */
+/**
+ * Wire shape for GET /api/dashboard/bootstrap-deferred-core — replaces `dashboard` and fills roster,
+ * notifications, announcements, engagement counts; excludes depth chart (heavy phase).
+ */
 export type DashboardBootstrapDeferredCorePayload = {
   dashboard: DashboardBootstrapPayload
   roster: unknown[]
@@ -96,6 +100,7 @@ export type DashboardBootstrapDeferredCorePayload = {
   generatedAt: string
 }
 
+/** Wire shape for GET /api/dashboard/bootstrap-deferred-heavy — depth chart only. */
 export type DashboardBootstrapDeferredHeavyPayload = {
   depthChart: { entries: DepthChartBootstrapEntry[] }
   generatedAt: string

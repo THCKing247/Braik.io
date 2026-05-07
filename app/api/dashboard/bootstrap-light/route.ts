@@ -1,8 +1,13 @@
 /**
  * GET /api/dashboard/bootstrap-light?teamId=
  *
- * First paint only: lite shell + minimal dashboard (team header; empty games/calendar; readiness skipped).
- * Full home slice + roster + previews: bootstrap-deferred-core. Depth chart: bootstrap-deferred-heavy.
+ * Ownership boundary — first paint / staged bootstrap **phase 1**:
+ * - Returns AppBootstrapPayload (`shell`) + minimal `dashboard` (team header only; empty games/calendar; readiness skipped).
+ * - Placeholders for roster/notifications/announcements until deferred-core merges (see `deferredPending`).
+ * - Does NOT include full games/calendar roster rows, depth chart entries, or engagement hint counts (deferred phases).
+ * Full home slice + roster + notifications + announcements + engagement counts: bootstrap-deferred-core.
+ * Depth chart only: bootstrap-deferred-heavy.
+ * See DASHBOARD_DATA_OWNERSHIP.md.
  */
 import { NextResponse } from "next/server"
 import { applyRefreshedSessionCookies } from "@/lib/auth/server-auth"

@@ -70,12 +70,19 @@ For any **new dashboard widget** or **portal surface**, answer briefly in the PR
 
 ## Reference files (keep comments in sync when changing flow)
 
+- [DASHBOARD_DATA_OWNERSHIP.md](./DASHBOARD_DATA_OWNERSHIP.md) — shell vs bootstrap-light vs deferred-core/heavy boundaries
 - `components/portal/dashboard-team-shell-gate.tsx` — shell query, first gate
 - `components/portal/dashboard-page-shell.tsx` — team resolution + `sessionStillLoading`
 - `components/portal/dashboard-team-inner.tsx` — `AppBootstrapProvider` + URL team alignment
 - `lib/hooks/use-dashboard-shell-identity.ts` — identity for skeleton alignment
 - `lib/dashboard/dashboard-bootstrap-query.ts` — bootstrap + deferred merge
 - `app/(portal)/dashboard/(team)/page.tsx` — dashboard home composition
+
+## H. Dashboard data ownership
+
+Which endpoints own nav vs home vs deferred roster/depth data — **read before adding dashboard fetches**: [DASHBOARD_DATA_OWNERSHIP.md](./DASHBOARD_DATA_OWNERSHIP.md).
+
+---
 
 ## Related guardrails
 

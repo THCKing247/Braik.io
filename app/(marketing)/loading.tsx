@@ -1,6 +1,9 @@
-import { LoadingState } from "@/components/ui/loading-state"
-
-/** Lightweight shell during client navigations between marketing routes (perceived responsiveness). */
+/** Lightweight shell during client navigations between marketing routes — no copy, pulse only. */
 export default function MarketingLoading() {
-  return <LoadingState label="Loading" minHeightClassName="min-h-screen" size="lg" />
+  return (
+    <div
+      className="min-h-screen w-full animate-pulse bg-gradient-to-b from-slate-50 to-white"
+      aria-busy="true"
+    />
+  )
 }

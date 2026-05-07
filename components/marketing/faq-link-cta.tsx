@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { ScrollReveal } from "@/components/marketing/scroll-reveal"
-import { ImagePlaceholder } from "@/components/marketing/image-placeholder"
+import { HomeBrandPanel } from "@/components/marketing/home/home-brand-panel"
 import { SectionSplit } from "@/components/marketing/section-split"
 import { PageCTA } from "@/components/marketing/page-cta"
 import { landingContainerSplit } from "@/lib/marketing/landing-visual-theme"
@@ -35,7 +35,7 @@ export function FAQLinkCTA({ id = "faq-cta", imagePosition = "right", className 
 
   const visual = (
     <div className="min-w-0">
-      <ImagePlaceholder aspect="4/3" />
+      <HomeBrandPanel variant="faq-support" />
     </div>
   )
 

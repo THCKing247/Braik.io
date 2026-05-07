@@ -1,6 +1,9 @@
 /**
  * Formation Intelligence Phase 3: rank suggested concepts using playbook/team data.
  * Deterministic, explainable ranking—no AI. Prioritizes concepts already used in the playbook.
+ *
+ * TECH_DEBT: Program-intelligence logic under `lib/utils/` — prefer `lib/playbooks/` or `lib/program-intelligence/`
+ * for new code so `lib/utils` stays generic (TECH_DEBT_GUARDRAILS.md §4).
  */
 
 import type { RecommendedConcept } from "@/lib/constants/formation-concept-recommendations"

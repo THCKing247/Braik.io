@@ -1,5 +1,10 @@
 "use client"
 
+/**
+ * TECH_DEBT: Coach payments uses inline `fetch` for several endpoints — candidate for `lib/api-client` helpers
+ * or React Query (TECH_DEBT_GUARDRAILS.md §1).
+ */
+
 import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"

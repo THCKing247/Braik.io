@@ -76,3 +76,7 @@ For any **new dashboard widget** or **portal surface**, answer briefly in the PR
 - `lib/hooks/use-dashboard-shell-identity.ts` — identity for skeleton alignment
 - `lib/dashboard/dashboard-bootstrap-query.ts` — bootstrap + deferred merge
 - `app/(portal)/dashboard/(team)/page.tsx` — dashboard home composition
+
+## Related guardrails
+
+Broader technical-debt rules (fetch ownership, client boundaries, API JSON shapes, feature ownership in PRs): [TECH_DEBT_GUARDRAILS.md](./TECH_DEBT_GUARDRAILS.md).

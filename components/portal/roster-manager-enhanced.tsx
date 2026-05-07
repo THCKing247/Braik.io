@@ -1,5 +1,11 @@
 "use client"
 
+/**
+ * TECH_DEBT: Many inline fetch calls to /api/... live in this file. Prefer typed API helpers or React Query
+ * hooks for new work (TECH_DEBT_GUARDRAILS.md §1). Consolidate incrementally; do not add new ad-hoc fetches
+ * without a planned owner module.
+ */
+
 import { useState, useEffect, useLayoutEffect, useMemo, useRef } from "react"
 import Link from "next/link"
 import { useRouter, usePathname } from "next/navigation"
@@ -187,6 +193,7 @@ const TEAM_ACTIVITY_LABELS: Record<string, string> = {
 /** Coalesce concurrent readiness bundle fetches. */
 const readinessBundleInFlight = new Map<string, Promise<{ summary: TeamReadinessSummary; flags: PlayerReadinessItem[] } | null>>()
 
+// TECH_DEBT: Raw readiness fetches — candidate for `lib/roster/` (or team health) API helper + shared types (TECH_DEBT_GUARDRAILS.md §1).
 function fetchReadinessBundleOnce(teamId: string, bustNonce: number) {
   const key = `${teamId}:${bustNonce}`
   const existing = readinessBundleInFlight.get(key)

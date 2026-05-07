@@ -30,6 +30,7 @@ export default function DashboardPage() {
   useEffect(() => {
     if (status === "authenticated" && role === "ATHLETIC_DIRECTOR") {
       authTimingClient("dashboard_home_ad_redirect")
+      // TECH_DEBT: Move to a small `lib/api-client` / routing helper or hook (TECH_DEBT_GUARDRAILS.md §1).
       fetch("/api/routing/organization-default", { credentials: "same-origin" })
         .then((res) => (res.ok ? res.json() : null))
         .then((payload: { path?: string } | null) => {

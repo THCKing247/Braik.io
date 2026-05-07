@@ -1,5 +1,7 @@
 "use client"
 
+// TECH_DEBT: Large client-only route — consider a thin server `page.tsx` + editor client island when feasible (TECH_DEBT_GUARDRAILS.md §3).
+
 import { useParams, useRouter, useSearchParams } from "next/navigation"
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Play, Pause, RotateCcw, SkipBack, ChevronsLeft, ChevronsRight, Repeat, Route, Film, HelpCircle, Copy, Trash2, Presentation, MoreHorizontal, PanelRight } from "lucide-react"

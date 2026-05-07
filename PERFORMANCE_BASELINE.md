@@ -2,7 +2,7 @@
 
 This document defines the Phase 0 baseline process for measuring whether Braik feels faster, smoother, and more seamless after each optimization phase.
 
-**Source of truth together with** [PERFORMANCE_GUIDELINES.md](./PERFORMANCE_GUIDELINES.md) (first render, shell/bootstrap fetching, Suspense, and dashboard home import rules).
+**Source of truth together with** [PERFORMANCE_GUIDELINES.md](./PERFORMANCE_GUIDELINES.md) (first render, shell/bootstrap fetching, Suspense, and dashboard home import rules) and [TECH_DEBT_GUARDRAILS.md](./TECH_DEBT_GUARDRAILS.md) (fetch ownership, loading gates, `"use client"` boundaries, API shapes, PR feature ownership).
 
 ---
 

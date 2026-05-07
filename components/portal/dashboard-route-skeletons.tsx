@@ -1,6 +1,11 @@
 import { cn } from "@/lib/utils"
 import { LoadingState } from "@/components/ui/loading-state"
 
+/**
+ * TECH_DEBT: Large `min-h-[50vh]+` skeletons here are for **in-route** loading. Do not use them as a second
+ * full-page gate when shell/bootstrap identity is already available (TECH_DEBT_GUARDRAILS.md §2; PERFORMANCE_GUIDELINES §C).
+ */
+
 /** Default main-area pulse used by most dashboard routes. */
 export function DashboardMainSkeleton({
   className,

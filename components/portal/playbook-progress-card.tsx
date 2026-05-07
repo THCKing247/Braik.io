@@ -26,6 +26,7 @@ export function PlaybookProgressCard({ programId, compact = false }: PlaybookPro
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
+  // TECH_DEBT: Replace with a typed fetch helper or `useQuery` (stable key) — TECH_DEBT_GUARDRAILS.md §1.
   useEffect(() => {
     if (!programId) return
     setLoading(true)

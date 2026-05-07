@@ -6,6 +6,8 @@ import { sendEmail } from "@/lib/email/postmark"
 
 const CATEGORIES = new Set(["bug", "feature_request", "support_question", "general"])
 
+// TECH_DEBT: Normalize JSON errors to a single `{ ok: false, error: string }` (or equivalent) shape; document types (TECH_DEBT_GUARDRAILS.md §5).
+
 /** Inbox for portal feedback (Postmark delivery). */
 const FEEDBACK_SUPPORT_INBOX = "support@apextsgroup.com"
 

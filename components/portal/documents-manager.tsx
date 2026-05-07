@@ -17,6 +17,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { fetchMessagesContacts } from "@/lib/api/messaging/threads"
 
 interface Document {
   id: string
@@ -306,13 +307,8 @@ export function DocumentsManager({
     setPublicEnabled(!!doc.publicShareToken)
     setSharePick("")
     try {
-      const res = await fetch(`/api/messages/contacts?teamId=${encodeURIComponent(teamId)}`)
-      if (res.ok) {
-        const data = (await res.json()) as Contact[]
-        setShareContacts(Array.isArray(data) ? data : [])
-      } else {
-        setShareContacts([])
-      }
+      const data = await fetchMessagesContacts(teamId)
+      setShareContacts(Array.isArray(data) ? (data as Contact[]) : [])
     } catch {
       setShareContacts([])
     }

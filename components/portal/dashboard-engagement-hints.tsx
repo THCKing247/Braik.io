@@ -9,7 +9,7 @@ import { useAppBootstrapOptional } from "@/components/portal/app-bootstrap-conte
 import { X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { readLightweightMemoryRaw, writeLightweightMemory } from "@/lib/api-client/lightweight-fetch-memory"
-import { fetchWithTimeout } from "@/lib/api-client/fetch-with-timeout"
+import { fetchEngagementHints } from "@/lib/api/dashboard/stats"
 import { prefetchPropForDashboardScheduleHref } from "@/lib/navigation/dashboard-schedule-prefetch"
 
 type Hint = {
@@ -91,14 +91,10 @@ export function DashboardEngagementHints({ currentTeamId }: { currentTeamId: str
     const ac = new AbortController()
     let cancelled = false
     // TODO(Phase 4): Fallback only — if deferred-core always merges engagementHintCounts into shell, remove redundant hints GET.
-    fetchWithTimeout(`/api/engagement/hints?teamId=${encodeURIComponent(currentTeamId)}`, {
-      credentials: "same-origin",
-      signal: ac.signal,
-    })
-      .then(async (res) => {
-        const data = await res.json().catch(() => ({}))
+    fetchEngagementHints(currentTeamId, { signal: ac.signal })
+      .then((data) => {
         if (cancelled || ac.signal.aborted) return
-        if (res.ok && Array.isArray(data.hints)) {
+        if (Array.isArray(data.hints)) {
           const list = data.hints as Hint[]
           setHints(list)
           writeLightweightMemory(hintsMemKey(currentTeamId), { hints: list })

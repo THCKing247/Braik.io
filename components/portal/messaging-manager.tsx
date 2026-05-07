@@ -41,6 +41,8 @@ import {
   useMessagingUnreadTotalQuery,
   type MessagesThreadsQueryData,
 } from "@/lib/messaging/messaging-queries"
+import { fetchMessagesContacts } from "@/lib/api/messaging/threads"
+import { postMessagesSend, postMessagesThreadsCreate } from "@/lib/api/messaging/send-message"
 import {
   mapLegacyFormattedThreadsToWire,
   wireThreadListItemToThread,
@@ -940,14 +942,9 @@ export function MessagingManager({
 
   const loadContacts = async () => {
     try {
-      const response = await fetch(`/api/messages/contacts?teamId=${teamId}`)
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.error || "Failed to load contacts")
-      }
-      const data = await response.json()
-      setContacts(data)
-    } catch (error: any) {
+      const data = await fetchMessagesContacts(teamId)
+      setContacts(data as Contact[])
+    } catch (error: unknown) {
       console.error("Error loading contacts:", error)
       // Non-fatal error for contacts, don't set main error state
     }
@@ -957,6 +954,7 @@ export function MessagingManager({
     async (threadId: string): Promise<boolean> => {
       const rollback = optimisticReadRef.current
       try {
+        // Inline POST kept here: optimistic rollback branches on HTTP status without throwing — revisit with a typed helper later.
         const res = await fetch(`/api/messages/threads/${threadId}/read`, { method: "POST" })
         if (!res.ok) {
           if (rollback?.threadId === threadId) {
@@ -1388,32 +1386,11 @@ export function MessagingManager({
 
     setLoading(true)
     try {
-      const response = await fetch("/api/messages/send", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          threadId: selectedThread.id,
-          body: messageText,
-          attachments: messageAttachments,
-        }),
-      })
-
-      const responseData = await response.json()
-
-      if (!response.ok) {
-        // Remove optimistic message on error
-        setMessages(prev => prev.filter(m => m.id !== tempId))
-        const errorMessage = responseData.error || responseData.details || "Failed to send message"
-        const fullError = responseData.details || responseData.code 
-          ? `${errorMessage}${responseData.details ? ` (${responseData.details})` : ''}${responseData.code ? ` [${responseData.code}]` : ''}`
-          : errorMessage
-        console.error("[handleSendMessage] API error:", {
-          status: response.status,
-          error: responseData,
-          fullError
-        })
-        throw new Error(fullError)
-      }
+      const responseData = (await postMessagesSend({
+        threadId: selectedThread.id,
+        body: messageText,
+        attachments: messageAttachments,
+      })) as Message
 
       // Replace optimistic message with real message
       const newMessage = responseData
@@ -1463,6 +1440,7 @@ export function MessagingManager({
       void invalidateMessagingUnreadTotal(queryClient, userId, teamId)
       void invalidateMessageThreadInboxStatsForUser(queryClient, userId)
     } catch (error: any) {
+      setMessages((prev) => prev.filter((m) => m.id !== tempId))
       const errorMessage = error.message || "Error sending message"
       setError(errorMessage)
       // Also show alert for immediate feedback
@@ -1510,22 +1488,11 @@ export function MessagingManager({
         subject = contact ? `Chat with ${contact.name}` : "New Conversation"
       }
 
-      const response = await fetch("/api/messages/threads/create", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          teamId,
-          subject: subject || "New Conversation",
-          participantUserIds: selectedContacts,
-        }),
+      const newThread = await postMessagesThreadsCreate({
+        teamId,
+        subject: subject || "New Conversation",
+        participantUserIds: selectedContacts,
       })
-
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.error || "Failed to create thread")
-      }
-
-      const newThread = (await response.json()) as Record<string, unknown>
       const wire = createdThreadJsonToWire(newThread)
       queryClient.setQueryData<MessagesThreadsQueryData>(messagesThreadsQueryKey(teamId), (old) => {
         if (!old) {

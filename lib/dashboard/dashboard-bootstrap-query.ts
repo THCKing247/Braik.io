@@ -12,8 +12,13 @@ import {
   mergeDashboardBootstrapDeferredHeavy,
 } from "@/lib/dashboard/merge-dashboard-bootstrap"
 import { readLightweightMemoryRaw, writeLightweightMemory } from "@/lib/api-client/lightweight-fetch-memory"
-import { fetchWithTimeout } from "@/lib/api-client/fetch-with-timeout"
 import { dashboardBootstrapClientPerf } from "@/lib/debug/dashboard-bootstrap-client-perf"
+import {
+  fetchDashboardBootstrapDeferredCore,
+  fetchDashboardBootstrapDeferredHeavy,
+  fetchDashboardBootstrapLight,
+} from "@/lib/api/dashboard/bootstrap"
+import { queryKeys } from "@/lib/queries/keys"
 
 /** Light payload can stay warm across short navigations. */
 export const DASHBOARD_BOOTSTRAP_STALE_MS = 90 * 1000
@@ -25,7 +30,7 @@ export const DEFERRED_HOME_FALLBACK_DELAY_MS = 700
 export const DEFERRED_HEAVY_AFTER_CORE_MS = 450
 
 export function dashboardBootstrapQueryKey(teamId: string) {
-  return ["dashboard-bootstrap", teamId.trim()] as const
+  return queryKeys.dashboard.bootstrap(teamId)
 }
 
 export function dashboardBootstrapMemoryKey(teamId: string): string {
@@ -47,36 +52,15 @@ const heavyMergeInFlight = new Set<string>()
 const heavyScheduleTimers = new Map<string, ReturnType<typeof setTimeout>>()
 
 async function fetchBootstrapLight(teamId: string): Promise<FullDashboardBootstrapPayload> {
-  const res = await fetchWithTimeout(
-    `/api/dashboard/bootstrap-light?teamId=${encodeURIComponent(teamId)}`,
-    { credentials: "same-origin" }
-  )
-  if (!res.ok) {
-    throw new Error(`bootstrap-light ${res.status}`)
-  }
-  return (await res.json()) as FullDashboardBootstrapPayload
+  return fetchDashboardBootstrapLight(teamId)
 }
 
 async function fetchBootstrapDeferredCore(teamId: string): Promise<DashboardBootstrapDeferredCorePayload> {
-  const res = await fetchWithTimeout(
-    `/api/dashboard/bootstrap-deferred-core?teamId=${encodeURIComponent(teamId)}`,
-    { credentials: "same-origin" }
-  )
-  if (!res.ok) {
-    throw new Error(`bootstrap-deferred-core ${res.status}`)
-  }
-  return (await res.json()) as DashboardBootstrapDeferredCorePayload
+  return fetchDashboardBootstrapDeferredCore(teamId)
 }
 
 async function fetchBootstrapDeferredHeavy(teamId: string): Promise<DashboardBootstrapDeferredHeavyPayload> {
-  const res = await fetchWithTimeout(
-    `/api/dashboard/bootstrap-deferred-heavy?teamId=${encodeURIComponent(teamId)}`,
-    { credentials: "same-origin" }
-  )
-  if (!res.ok) {
-    throw new Error(`bootstrap-deferred-heavy ${res.status}`)
-  }
-  return (await res.json()) as DashboardBootstrapDeferredHeavyPayload
+  return fetchDashboardBootstrapDeferredHeavy(teamId)
 }
 
 function getOrCreateDeferredCoreFetch(teamId: string): Promise<DashboardBootstrapDeferredCorePayload> {

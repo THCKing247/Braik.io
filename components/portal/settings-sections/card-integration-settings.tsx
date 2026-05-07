@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { fetchCoachPaymentsStatus, postCoachPaymentsConnect } from "@/lib/api/payments/payments"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { CreditCard, CheckCircle, XCircle } from "lucide-react"
@@ -30,14 +31,14 @@ export function CardIntegrationSettings({ teamId }: CardIntegrationSettingsProps
 
   const loadAccountStatus = async () => {
     try {
-      const response = await fetch(`/api/teams/${teamId}/payments/coach/status`)
-      if (response.ok) {
-        const data = await response.json()
+      const data = await fetchCoachPaymentsStatus(teamId)
+      if (data != null && typeof data === "object") {
+        const d = data as { account?: { id?: string }; provider?: string; status?: string; connected?: boolean }
         setAccount({
-          id: data.account?.id || "",
-          provider: data.provider || "stripe",
-          status: data.status || "not_connected",
-          connected: data.connected || false,
+          id: d.account?.id || "",
+          provider: d.provider || "stripe",
+          status: d.status || "not_connected",
+          connected: d.connected || false,
         })
       }
     } catch (error) {
@@ -48,29 +49,18 @@ export function CardIntegrationSettings({ teamId }: CardIntegrationSettingsProps
   const handleConnect = async () => {
     setLoading(true)
     try {
-      const response = await fetch(`/api/teams/${teamId}/payments/coach/connect`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          provider: "stripe",
-          paymentAckAccepted: true,
-          paymentAckVersion: LEGAL_POLICY_VERSIONS.paymentAcknowledgement,
-        }),
+      await postCoachPaymentsConnect(teamId, {
+        provider: "stripe",
+        paymentAckAccepted: true,
+        paymentAckVersion: LEGAL_POLICY_VERSIONS.paymentAcknowledgement,
       })
-
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.error || "Failed to connect account")
-      }
-
-      const data = await response.json()
       alert(
         "Payment account connection initiated. In production, you would be redirected to complete the onboarding process."
       )
       loadAccountStatus()
       setShowConnectForm(false)
-    } catch (error: any) {
-      alert(error.message || "Error connecting account")
+    } catch (error: unknown) {
+      alert(error instanceof Error ? error.message : "Error connecting account")
     } finally {
       setLoading(false)
     }

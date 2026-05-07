@@ -1,10 +1,5 @@
 "use client"
 
-/**
- * TECH_DEBT: Coach payments uses inline `fetch` for several endpoints — candidate for `lib/api-client` helpers
- * or React Query (TECH_DEBT_GUARDRAILS.md §1).
- */
-
 import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -13,6 +8,13 @@ import { Label } from "@/components/ui/label"
 import { DollarSign, Plus, CreditCard, CheckCircle, XCircle, Edit, Trash2 } from "lucide-react"
 import { format } from "date-fns"
 import { DatePicker, dateToYmd, ymdToDate } from "@/components/portal/date-time-picker"
+import {
+  deleteCoachPaymentsCollection,
+  fetchCoachPaymentsCollections,
+  fetchCoachPaymentsStatus,
+  postCoachPaymentsConnect,
+  saveCoachPaymentsCollection,
+} from "@/lib/api/payments/payments"
 
 interface PaymentAccount {
   connected: boolean
@@ -68,19 +70,17 @@ export function CoachPaymentsManager({ teamId, isHeadCoach }: CoachPaymentsManag
     if (!isHeadCoach) return
 
     try {
-      const [accountRes, collectionsRes] = await Promise.all([
-        fetch(`/api/teams/${teamId}/payments/coach/status`),
-        fetch(`/api/teams/${teamId}/payments/coach/collections`),
+      const [accountData, collectionsData] = await Promise.all([
+        fetchCoachPaymentsStatus(teamId),
+        fetchCoachPaymentsCollections(teamId),
       ])
 
-      if (accountRes.ok) {
-        const accountData = await accountRes.json()
-        setAccount(accountData)
+      if (accountData != null) {
+        setAccount(accountData as PaymentAccount)
       }
 
-      if (collectionsRes.ok) {
-        const collectionsData = await collectionsRes.json()
-        setCollections(collectionsData)
+      if (collectionsData != null) {
+        setCollections(collectionsData as PaymentCollection[])
       }
     } catch (error) {
       console.error("Error loading data:", error)
@@ -90,25 +90,14 @@ export function CoachPaymentsManager({ teamId, isHeadCoach }: CoachPaymentsManag
   const handleConnect = async () => {
     setLoading(true)
     try {
-      const response = await fetch(`/api/teams/${teamId}/payments/coach/connect`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ provider: "stripe" }),
-      })
-
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.error || "Failed to connect account")
-      }
-
-      const data = await response.json()
+      await postCoachPaymentsConnect(teamId, { provider: "stripe" })
       alert(
         "Payment account connection initiated. In production, you would be redirected to complete the onboarding process."
       )
       loadData()
       setShowConnectForm(false)
-    } catch (error: any) {
-      alert(error.message || "Error connecting account")
+    } catch (error: unknown) {
+      alert(error instanceof Error ? error.message : "Error connecting account")
     } finally {
       setLoading(false)
     }
@@ -123,21 +112,7 @@ export function CoachPaymentsManager({ teamId, isHeadCoach }: CoachPaymentsManag
 
     setLoading(true)
     try {
-      const url = editingCollection
-        ? `/api/teams/${teamId}/payments/coach/collections/${editingCollection.id}`
-        : `/api/teams/${teamId}/payments/coach/collections`
-      const method = editingCollection ? "PATCH" : "POST"
-
-      const response = await fetch(url, {
-        method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(collectionForm),
-      })
-
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.error || "Failed to save collection")
-      }
+      await saveCoachPaymentsCollection(teamId, collectionForm, editingCollection?.id)
 
       loadData()
       resetForm()
@@ -153,16 +128,7 @@ export function CoachPaymentsManager({ teamId, isHeadCoach }: CoachPaymentsManag
 
     setLoading(true)
     try {
-      const response = await fetch(
-        `/api/teams/${teamId}/payments/coach/collections/${collectionId}`,
-        {
-          method: "DELETE",
-        }
-      )
-
-      if (!response.ok) {
-        throw new Error("Failed to delete collection")
-      }
+      await deleteCoachPaymentsCollection(teamId, collectionId)
 
       loadData()
     } catch (error) {

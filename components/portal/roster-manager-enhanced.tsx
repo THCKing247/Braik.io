@@ -43,6 +43,7 @@ import { DepthChartMobileWorkspace } from "./depth-chart-mobile-workspace"
 import { ProgramDepthChartView } from "./program-depth-chart-view"
 import { PlayerPromoteModal } from "./player-promote-modal"
 import { CallUpSuggestionsPanel } from "./callup-suggestions-panel"
+import { postRosterInviteRevoke, postRosterPlayerInvite } from "@/lib/api/roster/invites"
 import { RosterPrintModal } from "./roster-print-modal"
 import { RosterEmailModal } from "./roster-email-modal"
 import { AddFollowUpModal } from "./add-follow-up-modal"
@@ -1382,16 +1383,12 @@ export function RosterManagerEnhanced({
     }
     setInviteLoading(true)
     try {
-      const response = await fetch(`/api/roster/${player.id}/invite`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-      })
-      const data = await response.json().catch(() => ({}))
-      if (!response.ok) {
-        throw new Error((data as { error?: string }).error ?? "Failed to generate invite")
+      const data = (await postRosterPlayerInvite(player.id)) as {
+        inviteCode?: string
+        joinLink?: string
       }
-      const code = (data as { inviteCode?: string }).inviteCode
-      const joinLink = (data as { joinLink?: string }).joinLink
+      const code = data.inviteCode
+      const joinLink = data.joinLink
       if (code) {
         setInviteModal({ player, inviteCode: code, joinLink: joinLink ?? null })
         setPlayers((prev) =>
@@ -1413,15 +1410,8 @@ export function RosterManagerEnhanced({
     if (player.user) return
     setInviteLoading(true)
     try {
-      const response = await fetch(`/api/roster/${player.id}/invite`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-      })
-      const data = await response.json().catch(() => ({}))
-      if (!response.ok) {
-        throw new Error((data as { error?: string }).error ?? "Failed to resend invite")
-      }
-      const joinLink = (data as { joinLink?: string }).joinLink
+      const data = (await postRosterPlayerInvite(player.id)) as { joinLink?: string }
+      const joinLink = data.joinLink
       setPlayers((prev) =>
         prev.map((p) =>
           p.id === player.id ? { ...p, joinLink: joinLink ?? p.joinLink } : p
@@ -1491,14 +1481,7 @@ export function RosterManagerEnhanced({
     if (player.user) return
     setInviteLoading(true)
     try {
-      const response = await fetch(`/api/roster/${player.id}/invite/revoke`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-      })
-      if (!response.ok) {
-        const data = await response.json().catch(() => ({}))
-        throw new Error((data as { error?: string }).error ?? "Failed to revoke invite")
-      }
+      await postRosterInviteRevoke(player.id)
       setPlayers((prev) =>
         prev.map((p) =>
           p.id === player.id

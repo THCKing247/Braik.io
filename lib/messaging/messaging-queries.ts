@@ -4,12 +4,17 @@ import { useMemo } from "react"
 import { keepPreviousData, useQuery, type QueryClient } from "@tanstack/react-query"
 import type { MessageThreadWireItem } from "@/lib/messaging/thread-list-wire"
 import { supabase } from "@/lib/supabaseClient"
+import { fetchMessagesThreadsList as fetchMessagesThreadsListApi } from "@/lib/api/messaging/threads"
+import { messagingQueryRoot, queryKeys } from "@/lib/queries/keys"
 
-export const MESSAGING_UNREAD_TOTAL_QUERY_KEY = "messaging-unread-total" as const
-export const MESSAGE_THREAD_INBOX_STATS_QUERY_KEY = "message-thread-inbox-stats" as const
+/** @deprecated Prefer `messagingQueryRoot.unreadTotal` — kept for invalidation filters that referenced the string literal. */
+export const MESSAGING_UNREAD_TOTAL_QUERY_KEY = messagingQueryRoot.unreadTotal
+
+/** @deprecated Prefer `messagingQueryRoot.inboxStats`. */
+export const MESSAGE_THREAD_INBOX_STATS_QUERY_KEY = messagingQueryRoot.inboxStats
 
 export function messagingUnreadTotalQueryKey(userId: string, teamId: string) {
-  return [MESSAGING_UNREAD_TOTAL_QUERY_KEY, userId, teamId] as const
+  return queryKeys.messaging.unreadTotal(userId, teamId)
 }
 
 export function normalizeThreadIds(threadIds: string[]) {
@@ -17,7 +22,7 @@ export function normalizeThreadIds(threadIds: string[]) {
 }
 
 export function messageThreadInboxStatsQueryKey(userId: string, visibleThreadIds: readonly string[]) {
-  return [MESSAGE_THREAD_INBOX_STATS_QUERY_KEY, userId, ...visibleThreadIds] as const
+  return queryKeys.messaging.inboxStats(userId, visibleThreadIds)
 }
 
 export function useMessagingUnreadTotalQuery(opts: { userId: string; teamId: string }) {
@@ -80,10 +85,11 @@ export function invalidateMessagingUnreadTotal(queryClient: QueryClient, userId:
 }
 
 export function invalidateMessageThreadInboxStatsForUser(queryClient: QueryClient, userId: string) {
-  return queryClient.invalidateQueries({ queryKey: [MESSAGE_THREAD_INBOX_STATS_QUERY_KEY, userId] })
+  return queryClient.invalidateQueries({ queryKey: [messagingQueryRoot.inboxStats, userId] })
 }
 
-export const MESSAGES_THREADS_QUERY_KEY = "messages-threads" as const
+/** @deprecated Prefer `messagingQueryRoot.threadsList`. */
+export const MESSAGES_THREADS_QUERY_KEY = messagingQueryRoot.threadsList
 
 export type MessagesThreadsQueryData = {
   threads: MessageThreadWireItem[]
@@ -91,22 +97,11 @@ export type MessagesThreadsQueryData = {
 }
 
 export function messagesThreadsQueryKey(teamId: string) {
-  return [MESSAGES_THREADS_QUERY_KEY, teamId] as const
+  return queryKeys.messaging.threadsList(teamId)
 }
 
 export async function fetchMessagesThreadsList(teamId: string): Promise<MessagesThreadsQueryData> {
-  const res = await fetch(`/api/messages/threads?teamId=${encodeURIComponent(teamId)}`, {
-    credentials: "same-origin",
-  })
-  if (!res.ok) {
-    const err = (await res.json().catch(() => ({}))) as { error?: string }
-    throw new Error(err.error || "Failed to load threads")
-  }
-  const raw = (await res.json()) as { threads?: MessageThreadWireItem[]; meta?: { totalUnread?: number } }
-  return {
-    threads: raw.threads ?? [],
-    meta: { totalUnread: Number(raw.meta?.totalUnread ?? 0) },
-  }
+  return fetchMessagesThreadsListApi(teamId)
 }
 
 export function useMessagesThreadsQuery(opts: { teamId: string; enabled: boolean }) {

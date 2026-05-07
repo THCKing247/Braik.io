@@ -15,6 +15,7 @@ import { FieldCoordinateSystem } from "@/components/portal/playbook-field-surfac
 import type { FormationRecord, SubFormationRecord, PlayRecord, SideOfBall, PlayType, RoutePoint, BlockEndPoint, TemplateData } from "@/types/playbook"
 import type { PlayCanvasData } from "@/types/playbook"
 import type { DepthChartSlot } from "@/lib/constants/playbook-positions"
+import { fetchRosterLite } from "@/lib/api/roster/players"
 
 interface PlaybookWorkspaceProps {
   teamId: string
@@ -170,11 +171,10 @@ export function PlaybookWorkspace({
   }, [teamId])
 
   const fetchRoster = useCallback(async () => {
-    const res = await fetch(`/api/roster?teamId=${teamId}&lite=1`, { credentials: "same-origin" })
-    if (res.ok) {
-      const data = await res.json()
+    const data = await fetchRosterLite(teamId)
+    if (data != null && Array.isArray(data)) {
       setRosterPlayers(
-        (data ?? []).map((p: { id: string; firstName?: string; lastName?: string; jerseyNumber?: number | null; positionGroup?: string | null }) => ({
+        (data as { id: string; firstName?: string; lastName?: string; jerseyNumber?: number | null; positionGroup?: string | null }[]).map((p) => ({
           id: p.id,
           firstName: p.firstName ?? "",
           lastName: p.lastName ?? "",

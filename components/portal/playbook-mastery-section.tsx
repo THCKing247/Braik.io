@@ -1,6 +1,7 @@
 "use client"
 
 import React, { useState, useEffect, useRef } from "react"
+import { fetchTeamById } from "@/lib/api/teams/teams"
 import { Card, CardContent } from "@/components/ui/card"
 import { BookOpen, Loader2 } from "lucide-react"
 
@@ -29,9 +30,10 @@ export function PlaybookMasterySection({ teamId, canEdit }: PlaybookMasterySecti
   useEffect(() => {
     if (!teamId) return
     setLoading(true)
-    fetch(`/api/teams/${teamId}`)
-      .then((res) => (res.ok ? res.json() : null))
-      .then((team: { programId?: string } | null) => {
+    fetchTeamById(teamId)
+      .then((teamRaw) => {
+        const team =
+          teamRaw && typeof teamRaw === "object" ? (teamRaw as { programId?: string }) : null
         if (team?.programId) {
           setProgramId(team.programId)
           if (masteryNotFoundPrograms.current.has(team.programId)) {

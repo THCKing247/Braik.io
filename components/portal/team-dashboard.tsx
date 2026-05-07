@@ -66,6 +66,7 @@ import { getNextUpcomingGame, inferHomeAway, type TeamGameRow } from "@/lib/team
 import { computeTeamRecord, formatRecordLine } from "@/lib/records/compute-team-record"
 import { TEAM_GAMES_CHANGED_EVENT } from "@/lib/team-games-events"
 import { fetchWithTimeout } from "@/lib/api-client/fetch-with-timeout"
+import { fetchTeamById } from "@/lib/api/teams/teams"
 import type { DashboardBootstrapPayload } from "@/lib/dashboard/dashboard-bootstrap-types"
 import type { NotificationApiRow } from "@/lib/notifications/notifications-api-query"
 import { useDashboardBootstrapQuery } from "@/lib/dashboard/dashboard-bootstrap-query"
@@ -179,14 +180,14 @@ function TeamBanner({
       return
     }
     let cancelled = false
-    fetch(`/api/teams/${teamId}`)
-      .then((res) => (res.ok ? res.json() : null))
+    fetchTeamById(teamId)
       .then((data) => {
-        if (!cancelled && data) {
+        if (!cancelled && data && typeof data === "object") {
+          const d = data as { name?: string; slogan?: string | null; logoUrl?: string | null }
           setTeamSummary({
-            name: data.name ?? "",
-            slogan: data.slogan ?? null,
-            logoUrl: data.logoUrl ?? null,
+            name: d.name ?? "",
+            slogan: d.slogan ?? null,
+            logoUrl: d.logoUrl ?? null,
           })
         }
       })

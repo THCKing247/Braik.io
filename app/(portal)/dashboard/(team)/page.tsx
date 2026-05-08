@@ -1,7 +1,6 @@
 "use client"
 
 import { Suspense, useEffect } from "react"
-import { useSession } from "@/lib/auth/client-auth"
 import { useRouter } from "next/navigation"
 import {
   DashboardPageShell,
@@ -19,8 +18,6 @@ import { authTimingClient } from "@/lib/auth/login-flow-timing"
 
 export default function DashboardPage() {
   const router = useRouter()
-  const { data: session, status } = useSession()
-  const role = session?.user?.role
   const identity = useDashboardShellIdentity()
 
   useEffect(() => {
@@ -28,7 +25,7 @@ export default function DashboardPage() {
   }, [])
 
   useEffect(() => {
-    if (status === "authenticated" && role === "ATHLETIC_DIRECTOR") {
+    if (identity.hasIdentity && identity.roleUpper === "ATHLETIC_DIRECTOR") {
       authTimingClient("dashboard_home_ad_redirect")
       // TECH_DEBT: Move to a small `lib/api-client` / routing helper or hook (TECH_DEBT_GUARDRAILS.md §1).
       fetch("/api/routing/organization-default", { credentials: "same-origin" })
@@ -40,46 +37,22 @@ export default function DashboardPage() {
           router.replace("/dashboard")
         })
     }
-  }, [status, role, router])
+  }, [identity.hasIdentity, identity.roleUpper, router])
 
   // Legacy `?teamId=` → canonical `/dashboard/org/...` is handled in middleware (avoids client redirect races).
-
-  /**
-   * Must match `DashboardPageShellContent` session gate: if shell/bootstrap already has user id, render
-   * main content even while `useSession()` is still resolving — avoids an extra full skeleton beat.
-   */
-  const waitForMainContent =
-    !identity.hasIdentity && status === "loading" && !session?.user?.id
-
-  if (status === "authenticated" && !session?.user) {
-    return (
-      <div className="flex min-h-[40vh] items-center justify-center p-6" style={{ backgroundColor: "rgb(var(--snow))" }}>
-        <div className="rounded-lg border bg-white p-6 text-center shadow-sm" style={{ borderColor: "rgb(var(--border))" }}>
-          <h2 className="text-base font-semibold" style={{ color: "rgb(var(--text))" }}>Session data is incomplete</h2>
-          <p className="mt-2 text-sm" style={{ color: "rgb(var(--muted))" }}>
-            We could not finish loading your account details. Please refresh the page or sign out and back in.
-          </p>
-        </div>
-      </div>
-    )
-  }
 
   return (
     <Suspense fallback={<DashboardPageShellSkeleton />}>
       <AdPortalLandingGate>
         <DashboardPageShell>
-          {({ teamId, canEdit }) =>
-            waitForMainContent ? (
-              <DashboardPageShellSkeleton />
-            ) : (
-              <TeamDashboard
-                key={teamId || "no-team"}
-                session={session}
-                teamId={teamId}
-                canAddCalendarEvents={canEdit}
-              />
-            )
-          }
+          {({ teamId, canEdit }) => (
+            <TeamDashboard
+              key={teamId || "no-team"}
+              session={null}
+              teamId={teamId}
+              canAddCalendarEvents={canEdit}
+            />
+          )}
         </DashboardPageShell>
       </AdPortalLandingGate>
     </Suspense>

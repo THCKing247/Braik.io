@@ -8,6 +8,7 @@ import Link from "next/link"
 import { prefetchPropForDashboardScheduleHref } from "@/lib/navigation/dashboard-schedule-prefetch"
 import { useRouter } from "next/navigation"
 import { DashboardPageShell } from "@/components/portal/dashboard-page-shell"
+import { useAppBootstrapOptional } from "@/components/portal/app-bootstrap-context"
 import { PortalStandardPageHeader, PortalStandardPageRoot } from "@/components/portal/portal-standard-page"
 import { PortalUnderlineTabs } from "@/components/portal/portal-underline-tabs"
 import { ScheduleGameListSkeleton } from "@/components/portal/dashboard-route-skeletons"
@@ -81,11 +82,11 @@ function downloadScheduleCsv(games: TeamGameRow[], filenameSuffix: string) {
 function TeamScheduleContent({ teamId, canEdit }: { teamId: string; canEdit: boolean }) {
   const router = useRouter()
   const queryClient = useQueryClient()
+  const bootstrap = useAppBootstrapOptional()
 
   /** Stable for the lifetime of this mount — one query key + one network round-trip per team. */
   const scheduleRange = useMemo(() => getSchedulePageGamesRange(), [])
 
-  const [teamName, setTeamName] = useState<string>("Your team")
   const [formOpen, setFormOpen] = useState(false)
   const [importOpen, setImportOpen] = useState(false)
   const [editing, setEditing] = useState<TeamGameRow | null>(null)
@@ -138,21 +139,8 @@ function TeamScheduleContent({ teamId, canEdit }: { teamId: string; canEdit: boo
     return () => window.removeEventListener(TEAM_GAMES_CHANGED_EVENT, handler as EventListener)
   }, [queryClient, teamId])
 
-  useEffect(() => {
-    let cancelled = false
-    const t = window.setTimeout(() => {
-      fetch(`/api/teams/${encodeURIComponent(teamId)}`)
-        .then((res) => (res.ok ? res.json() : null))
-        .then((data: { name?: string } | null) => {
-          if (!cancelled && data?.name) setTeamName(data.name)
-        })
-        .catch(() => {})
-    }, 0)
-    return () => {
-      cancelled = true
-      window.clearTimeout(t)
-    }
-  }, [teamId])
+  /** Prefer bootstrap team summary; avoid duplicate `/api/teams/:id` fetch on first render. */
+  const teamName = bootstrap?.payload?.team?.name || "Your team"
 
   const onSaved = useCallback(
     async (meta?: { gameId?: string | null; game?: TeamGameRow | null }) => {

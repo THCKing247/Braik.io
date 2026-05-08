@@ -20,6 +20,7 @@ import { DashboardLayoutFallback } from "@/components/portal/dashboard-layout-fa
 import { DashboardShellLoadingSkeleton } from "@/components/portal/dashboard-shell-loading-skeleton"
 import { PortalShellProvider } from "@/components/portal/portal-shell-context"
 import { PortalRouteEnforcer } from "@/components/portal/portal-route-enforcer"
+import { teamScopedDashboardHref } from "@/lib/portal/dashboard-path"
 
 /**
  * Coach / recruiter **team dashboard** chrome (sidebar, coach nav). Player and parent roles should prefer
@@ -61,6 +62,48 @@ export function DashboardTeamShellGate({ children }: { children: React.ReactNode
     ) {
       router.replace("/onboarding")
     }
+  }, [q.data, router])
+
+  useEffect(() => {
+    const payload = q.data
+    if (!payload || payload.shellMode !== "full") return
+    const role = payload.user.role?.toUpperCase()
+    const currentTeam = payload.teams.find((t) => t.id === payload.currentTeamId) || payload.teams[0]
+    const currentShortIds =
+      currentTeam?.shortOrgId && currentTeam?.shortTeamId
+        ? { shortOrgId: currentTeam.shortOrgId, shortTeamId: currentTeam.shortTeamId }
+        : null
+    const nextHrefs: string[] = []
+
+    if (role === "ATHLETIC_DIRECTOR") {
+      nextHrefs.push("/dashboard/ad/teams", "/dashboard/ad/coaches")
+    } else if (payload.portalKind === "recruiter") {
+      nextHrefs.push("/dashboard/recruiter", "/dashboard/recruiter/recruiting")
+      // TODO(Phase 5): Tune recruiter prefetch targets once recruiting IA settles.
+    } else {
+      nextHrefs.push(
+        teamScopedDashboardHref(payload.portalKind, "/roster", currentShortIds),
+        teamScopedDashboardHref(payload.portalKind, "/schedule", currentShortIds),
+        teamScopedDashboardHref(payload.portalKind, "/messages", currentShortIds)
+      )
+    }
+
+    const win = window as typeof window & {
+      requestIdleCallback?: (cb: () => void) => number
+      cancelIdleCallback?: (id: number) => void
+    }
+    const idleCb = win.requestIdleCallback
+    const prefetch = () => {
+      for (const href of nextHrefs) {
+        router.prefetch(href)
+      }
+    }
+    if (typeof idleCb === "function") {
+      const id = idleCb(prefetch)
+      return () => win.cancelIdleCallback?.(id)
+    }
+    const t = window.setTimeout(prefetch, 300)
+    return () => window.clearTimeout(t)
   }, [q.data, router])
 
   if (q.isError && isDashboardShellUnauthorizedError(q.error)) {

@@ -67,7 +67,7 @@ import { getNextUpcomingGame, inferHomeAway, type TeamGameRow } from "@/lib/team
 import { computeTeamRecord, formatRecordLine } from "@/lib/records/compute-team-record"
 import { TEAM_GAMES_CHANGED_EVENT } from "@/lib/team-games-events"
 import { fetchWithTimeout } from "@/lib/api-client/fetch-with-timeout"
-import { fetchTeamById } from "@/lib/api/teams/teams"
+import { useTeamDetailQuery } from "@/lib/queries/teams"
 import type { DashboardBootstrapPayload } from "@/lib/dashboard/dashboard-bootstrap-types"
 import type { NotificationApiRow } from "@/lib/notifications/notifications-api-query"
 import { useDashboardBootstrapQuery } from "@/lib/dashboard/dashboard-bootstrap-query"
@@ -155,49 +155,31 @@ function TeamBanner({
   /** Shown under the welcome line when showing cached data or background refresh. */
   networkSyncHint?: string | null
 }) {
-  const [teamSummary, setTeamSummary] = useState<{ name: string; slogan: string | null; logoUrl: string | null } | null>(null)
   const [logoBroken, setLogoBroken] = useState(false)
   const hasTeam = Boolean(user.teamId)
+  const shouldFetchFallbackSummary =
+    Boolean(teamId) && !prefetchedTeamSummary && !bootstrapTeamLoading && Boolean(allowTeamSummaryFallback)
+  const teamSummaryQuery = useTeamDetailQuery(teamId, shouldFetchFallbackSummary)
+  const fallbackTeamSummary = useMemo(() => {
+    const data = teamSummaryQuery.data
+    if (!data || typeof data !== "object") return null
+    const d = data as { name?: string; slogan?: string | null; logoUrl?: string | null }
+    return {
+      name: d.name ?? "",
+      slogan: d.slogan ?? null,
+      logoUrl: d.logoUrl ?? null,
+    }
+  }, [teamSummaryQuery.data])
 
   const record = useMemo(() => computeTeamRecord(scheduleGames), [scheduleGames])
   const overallLine = formatRecordLine(record.overall)
   const districtLine = formatRecordLine(record.district)
 
   useEffect(() => {
-    if (!teamId) {
-      setTeamSummary(null)
-      setLogoBroken(false)
-      return
-    }
     setLogoBroken(false)
-    if (prefetchedTeamSummary) {
-      setTeamSummary(prefetchedTeamSummary)
-      return
-    }
-    if (bootstrapTeamLoading) {
-      return
-    }
-    if (!allowTeamSummaryFallback) {
-      return
-    }
-    let cancelled = false
-    fetchTeamById(teamId)
-      .then((data) => {
-        if (!cancelled && data && typeof data === "object") {
-          const d = data as { name?: string; slogan?: string | null; logoUrl?: string | null }
-          setTeamSummary({
-            name: d.name ?? "",
-            slogan: d.slogan ?? null,
-            logoUrl: d.logoUrl ?? null,
-          })
-        }
-      })
-      .catch(() => {
-        if (!cancelled) setTeamSummary(null)
-      })
-    return () => { cancelled = true }
-  }, [teamId, prefetchedTeamSummary, bootstrapTeamLoading, allowTeamSummaryFallback])
+  }, [teamId, prefetchedTeamSummary])
 
+  const teamSummary = prefetchedTeamSummary ?? fallbackTeamSummary
   const teamName = teamSummary?.name || user.teamName || user.organizationName || "Your Team"
   const lastName = user?.name?.split(" ").slice(-1)[0] || ""
   const roleLabel = getRoleLabel(user.role)

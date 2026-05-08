@@ -8,26 +8,30 @@ export function createClientRequestId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`
 }
 
-function headersWithClientRequestId(initHeaders?: HeadersInit): Headers {
+function headersWithClientRequestId(initHeaders?: HeadersInit, requestId?: string): Headers {
   const h = new Headers(initHeaders)
   if (!h.has(CLIENT_REQUEST_ID_HEADER)) {
-    h.set(CLIENT_REQUEST_ID_HEADER, createClientRequestId())
+    h.set(CLIENT_REQUEST_ID_HEADER, requestId || createClientRequestId())
   }
   return h
 }
 
 /** Merges init so each request carries a client-generated id unless already provided. */
 export function mergeInitWithClientRequestId(
-  init?: RequestInit & { timeoutMs?: number }
+  init?: RequestInit & { timeoutMs?: number },
+  requestId?: string | null | false
 ): RequestInit & { timeoutMs?: number } {
+  if (requestId === false) {
+    return init ?? {}
+  }
   if (!init) {
-    return { headers: headersWithClientRequestId() }
+    return { headers: headersWithClientRequestId(undefined, requestId ?? undefined) }
   }
   const { timeoutMs, headers, ...rest } = init
   return {
     ...rest,
     ...(timeoutMs !== undefined ? { timeoutMs } : {}),
-    headers: headersWithClientRequestId(headers),
+    headers: headersWithClientRequestId(headers, requestId ?? undefined),
   }
 }
 

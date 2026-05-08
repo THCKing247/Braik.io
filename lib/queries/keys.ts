@@ -22,12 +22,13 @@ export const queryKeys = {
   },
   /** Reserved for future React Query migrations — roster today is mostly imperative fetch + bootstrap. */
   roster: {
-    lite: (teamId: string) => ["roster", "lite", teamId] as const,
+    lite: (teamId: string) => ["roster", "lite", teamId.trim()] as const,
   },
   teams: {
-    detail: (teamId: string) => ["teams", "detail", teamId] as const,
+    detail: (teamId: string) => ["teams", "detail", teamId.trim()] as const,
   },
   payments: {
-    coachOverview: (teamId: string) => ["payments", "coach", teamId] as const,
+    coachStatus: (teamId: string) => ["payments", "coach", "status", teamId.trim()] as const,
+    coachCollections: (teamId: string) => ["payments", "coach", "collections", teamId.trim()] as const,
   },
 } as const

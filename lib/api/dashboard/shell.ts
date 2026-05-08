@@ -1,5 +1,6 @@
 import type { DashboardShellPayload } from "@/lib/dashboard/dashboard-shell-payload"
 import { fetchWithTimeout } from "@/lib/api-client/fetch-with-timeout"
+import { ApiError } from "@/lib/api/core/api-error"
 
 /** Thrown when GET /api/dashboard/shell returns 401 — consumers redirect to login. */
 export class DashboardShellUnauthorizedError extends Error {
@@ -14,11 +15,12 @@ export async function fetchDashboardShellResponse(): Promise<Response> {
 }
 
 export async function parseDashboardShellResponse(res: Response): Promise<DashboardShellPayload> {
+  const body = await res.json().catch(() => ({}))
   if (res.status === 401) {
     throw new DashboardShellUnauthorizedError("Unauthorized")
   }
   if (!res.ok) {
-    throw new Error(`shell ${res.status}`)
+    throw new ApiError(`shell ${res.status}`, res.status, body)
   }
-  return (await res.json()) as DashboardShellPayload
+  return body as DashboardShellPayload
 }

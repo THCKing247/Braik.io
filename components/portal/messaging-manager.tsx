@@ -1071,6 +1071,8 @@ export function MessagingManager({
     }
     try {
       void markThreadReadAndSync(threadId)
+      // TODO(Phase 4): Keep direct detail fetch for now; this flow coordinates pagination, optimistic state,
+      // and realtime hydration in one transaction and needs a dedicated typed helper before extraction.
       const response = await fetch(threadDetailFetchUrl(threadId))
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}))
@@ -1188,6 +1190,7 @@ export function MessagingManager({
     const container = messagesContainerRef.current
     const prevScrollHeight = container?.scrollHeight ?? 0
     try {
+      // TODO(Phase 4): Older-page fetch intentionally remains local until thread detail pagination is centralized.
       const res = await fetch(threadDetailFetchUrl(threadId, { before: oldest }))
       if (!res.ok) return
       const data = await res.json()

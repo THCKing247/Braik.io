@@ -6,6 +6,13 @@ export type FetchJsonInit = Omit<RequestInit, "headers"> & {
   headers?: HeadersInit
   /** Passed through to `fetchWithTimeout` (default 28s). */
   timeoutMs?: number
+  /**
+   * Optional request id override.
+   * - `undefined`: auto-generate header
+   * - `string`: send that id
+   * - `false`: disable client request-id header
+   */
+  requestId?: string | null | false
 }
 
 function parseBodyText(text: string): unknown {
@@ -30,7 +37,8 @@ function errorMessageFromBody(status: number, parsed: unknown): string {
  * Adds {@link CLIENT_REQUEST_ID_HEADER} unless already set; surfaces server `X-Request-Id` on errors.
  */
 export async function fetchJson<T>(input: RequestInfo | URL, init?: FetchJsonInit): Promise<T> {
-  const merged = mergeInitWithClientRequestId(init)
+  const { requestId: outgoingRequestId, ...restInit } = init ?? {}
+  const merged = mergeInitWithClientRequestId(restInit, outgoingRequestId)
   const { timeoutMs, ...rest } = merged
   const res = await fetchWithTimeout(input, {
     ...rest,

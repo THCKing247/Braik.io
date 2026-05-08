@@ -1,4 +1,5 @@
-import { fetchWithTimeout } from "@/lib/api-client/fetch-with-timeout"
+import { ApiError } from "@/lib/api/core/api-error"
+import { fetchJson } from "@/lib/api/core/fetch-json"
 
 export type PostMessagesSendBody = {
   threadId: string
@@ -8,29 +9,29 @@ export type PostMessagesSendBody = {
 
 /** POST /api/messages/send — preserves legacy error string shaping (details/code concat). */
 export async function postMessagesSend(payload: PostMessagesSendBody): Promise<unknown> {
-  const response = await fetchWithTimeout("/api/messages/send", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    credentials: "same-origin",
-    body: JSON.stringify(payload),
-  })
-
-  const responseData = (await response.json().catch(() => ({}))) as {
-    error?: string
-    details?: string
-    code?: string
-    [key: string]: unknown
+  try {
+    return await fetchJson("/api/messages/send", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "same-origin",
+      body: JSON.stringify(payload),
+    })
+  } catch (error) {
+    if (error instanceof ApiError) {
+      const responseData = (error.body ?? {}) as {
+        error?: string
+        details?: string
+        code?: string
+      }
+      const errorMessage = responseData.error || responseData.details || "Failed to send message"
+      const fullError =
+        responseData.details || responseData.code
+          ? `${errorMessage}${responseData.details ? ` (${responseData.details})` : ""}${responseData.code ? ` [${responseData.code}]` : ""}`
+          : errorMessage
+      throw new Error(fullError)
+    }
+    throw error
   }
-
-  if (!response.ok) {
-    const errorMessage = responseData.error || responseData.details || "Failed to send message"
-    const fullError = responseData.details || responseData.code
-      ? `${errorMessage}${responseData.details ? ` (${responseData.details})` : ""}${responseData.code ? ` [${responseData.code}]` : ""}`
-      : errorMessage
-    throw new Error(fullError)
-  }
-
-  return responseData
 }
 
 export type PostMessagesThreadsCreateBody = {
@@ -41,17 +42,18 @@ export type PostMessagesThreadsCreateBody = {
 
 /** POST /api/messages/threads/create */
 export async function postMessagesThreadsCreate(body: PostMessagesThreadsCreateBody): Promise<Record<string, unknown>> {
-  const response = await fetchWithTimeout("/api/messages/threads/create", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    credentials: "same-origin",
-    body: JSON.stringify(body),
-  })
-
-  if (!response.ok) {
-    const error = (await response.json().catch(() => ({}))) as { error?: string }
-    throw new Error(error.error || "Failed to create thread")
+  try {
+    return await fetchJson<Record<string, unknown>>("/api/messages/threads/create", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "same-origin",
+      body: JSON.stringify(body),
+    })
+  } catch (error) {
+    if (error instanceof ApiError) {
+      const responseData = (error.body ?? {}) as { error?: string }
+      throw new Error(responseData.error || "Failed to create thread")
+    }
+    throw error
   }
-
-  return (await response.json()) as Record<string, unknown>
 }

@@ -1,5 +1,6 @@
-import { LoadingState } from "@/components/ui/loading-state"
+import { DashboardRouteTransitionPulse } from "@/components/portal/dashboard-route-skeletons"
 
+/** TODO(cleanup): Playbook subtree pulls heavy editor chunks — keep route-local skeletons; consider matching playbook grid rows when bundle splits settle. */
 export default function PlaybooksLoading() {
-  return <LoadingState label="Loading playbooks" minHeightClassName="min-h-[40vh]" className="p-6" size="lg" />
+  return <DashboardRouteTransitionPulse aria-label="Loading playbooks" />
 }

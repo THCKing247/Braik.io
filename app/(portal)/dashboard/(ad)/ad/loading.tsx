@@ -1,6 +1,6 @@
-import { DashboardMainSkeleton } from "@/components/portal/dashboard-route-skeletons"
+import { DashboardRouteTransitionPulse } from "@/components/portal/dashboard-route-skeletons"
 
-/** Instant shell while the dashboard layout + page resolve. */
+/** AD segment only — nav from layout; avoid duplicating a full-viewport gate (PERFORMANCE_GUIDELINES.md §C). */
 export default function DashboardLoading() {
-  return <DashboardMainSkeleton aria-label="Loading dashboard" />
+  return <DashboardRouteTransitionPulse aria-label="Loading organization portal" />
 }

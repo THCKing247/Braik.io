@@ -37,6 +37,7 @@ import {
 
 const ReadinessSummaryCardLazy = lazy(() => import("@/components/portal/readiness-summary-card"))
 
+/** Below-the-fold / secondary widgets only — banner + primary home column stay in this module (PERFORMANCE_GUIDELINES.md §F). */
 const DashboardCalendar = dynamic(
   () => import("@/components/portal/dashboard-calendar").then((m) => m.DashboardCalendar),
   {

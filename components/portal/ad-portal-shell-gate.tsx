@@ -14,6 +14,7 @@ import {
 } from "@/lib/app/ad-portal-bootstrap-query"
 import { AdAppBootstrapProvider } from "@/components/portal/ad-app-bootstrap-context"
 import { AdNav, AdNavShellSkeleton } from "@/components/portal/ad/ad-nav"
+import { AdPortalLikelyRoutePrefetch } from "@/components/portal/dashboard-likely-route-prefetch"
 import { LoadingState } from "@/components/ui/loading-state"
 
 export function AdPortalShellGate({
@@ -120,6 +121,7 @@ export function AdPortalShellGate({
 
   return (
     <AdAppBootstrapProvider initialPayload={mergedPayload}>
+      <AdPortalLikelyRoutePrefetch enabled={showRealNav} />
       <div className="min-h-screen" style={{ backgroundColor: "rgb(var(--snow))" }}>
         {showRealNav ? <AdNav /> : <AdNavShellSkeleton />}
         <main className="mx-auto max-w-7xl px-4 py-8">{children}</main>

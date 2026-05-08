@@ -3,14 +3,13 @@
 import { Suspense, useEffect, useMemo, type ReactNode } from "react"
 import { usePathname, useSearchParams } from "next/navigation"
 import { parseCanonicalDashboardTeamPath } from "@/lib/navigation/organization-routes"
-import { useSession } from "@/lib/auth/client-auth"
+import { useDashboardShellQuery } from "@/lib/dashboard/dashboard-shell-query"
 import { PortalTeamProvider, useEffectiveTeamId } from "@/components/portal/portal-team-context"
 import { AppBootstrapProvider } from "@/components/portal/app-bootstrap-context"
 import { MessagingUnreadProvider } from "@/components/portal/messaging-unread-context"
 import { AdPortalLinkProvider } from "@/components/portal/ad-portal-link-context"
 import { rememberActiveDashboardTeam } from "@/lib/dashboard/active-team-session"
 import { devDashboardHandoffLog } from "@/lib/debug/dashboard-handoff-dev"
-import { LoadingState } from "@/components/ui/loading-state"
 
 interface Team {
   id: string
@@ -41,9 +40,12 @@ function resolveCurrentTeamIdForPortal(args: {
 
 function UrlResolvedTeamBootstrap({ teams, children }: { teams: Team[]; children: ReactNode }) {
   const searchParams = useSearchParams()
-  const { data: session } = useSession()
+  const shellQ = useDashboardShellQuery()
+  const shellTeamHint =
+    shellQ.data?.shellMode === "full" ? shellQ.data.user.teamId : undefined
   const urlTeamId = searchParams.get("teamId")
-  const effective = useEffectiveTeamId(urlTeamId, session?.user?.teamId)
+  /** Align with shell user.teamId so we do not wait on `useSession()` for team alignment (PERFORMANCE_GUIDELINES.md). */
+  const effective = useEffectiveTeamId(urlTeamId, shellTeamHint)
   /**
    * MUST match `DashboardPageShell`: `effectiveTeamId || teamIdFromQuery || ""`, then shell fallbacks.
    * Previously we used `(effective || teams[0])` only — missing `urlTeamId` caused AppBootstrap to bind to
@@ -110,13 +112,15 @@ export function DashboardTeamInner({
   )
 }
 
+/** Suspense for team bootstrap only — chrome is usually already visible from the shell gate; keep fallback compact. */
 const shellSuspenseFallback = (
-  <div className="flex min-h-screen flex-col bg-background">
-    <div
-      className="min-h-[52px] w-full shrink-0 border-b border-border bg-card pt-[env(safe-area-inset-top,0px)]"
-      style={{ minHeight: "max(52px, calc(52px + env(safe-area-inset-top, 0px)))" }}
-    />
-    <LoadingState label="Loading dashboard" minHeightClassName="min-h-[40vh]" className="flex-1 p-6" size="lg" />
+  <div
+    className="flex min-h-[30vh] flex-col bg-background px-4 pb-6 pt-4 md:px-6"
+    aria-busy
+    aria-label="Loading team scope"
+  >
+    <div className="mb-4 h-9 max-w-sm animate-pulse rounded-lg bg-[rgb(var(--platinum))]" />
+    <div className="h-32 w-full animate-pulse rounded-xl bg-[rgb(var(--platinum))]" />
   </div>
 )
 

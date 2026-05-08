@@ -15,6 +15,7 @@ import { useMinWidthLg } from "@/lib/hooks/use-min-width-lg"
 import { ScrollFadeContainer } from "@/components/ui/scroll-fade-container"
 import { cn } from "@/lib/utils"
 import { stripDashboardPortalPrefix } from "@/lib/portal/dashboard-path"
+import { DashboardLikelyRoutePrefetch } from "@/components/portal/dashboard-likely-route-prefetch"
 
 interface Team {
   id: string
@@ -92,6 +93,7 @@ export function DashboardLayoutClient({
   return (
     <CoachBProvider isDesktop={isLgUp}>
       <PlaybookToastProvider>
+        <DashboardLikelyRoutePrefetch teams={shellTeams} currentTeamId={resolvedCurrentTeamId} />
         <BiometricEnablePrompt />
         <div
           className={cn(

@@ -1,5 +1,5 @@
-import { DashboardMainSkeleton } from "@/components/portal/dashboard-route-skeletons"
+import { RosterRouteSkeleton } from "@/components/portal/dashboard-route-skeletons"
 
 export default function RosterLoading() {
-  return <DashboardMainSkeleton aria-label="Loading roster" />
+  return <RosterRouteSkeleton />
 }

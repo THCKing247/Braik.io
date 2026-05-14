@@ -350,21 +350,35 @@ export function DepthChartView({
     null
   const presetsForSide = useMemo(() => getPresetsForSide(selectedUnit), [selectedUnit])
 
-  // Formation/specialTeamType for current view (used when saving and filtering assignments)
-  const currentFormation = selectedUnit === "special_teams" ? null : resolvedSelectedPresetId
-  const currentSpecialTeamType = selectedUnit === "special_teams" ? resolvedSelectedPresetId : null
-
-  /** DB formation id for offense/defense depth rows; canonical preset when synced. Null for special teams. */
-  const persistDepthFormation = useMemo(() => {
+  /**
+   * Persistence scope only: formation id stored on depth rows (canonical when synced; coach-selected when independent).
+   * Do not derive from displayPreset, layoutPresetIdForDisplay, or layout-only fallbacks.
+   */
+  const persistenceFormationId = useMemo((): string | null => {
     if (selectedUnit === "special_teams") return null
-    if (!independentDepthByFormation) return DEFAULT_PRESET_BY_SIDE[selectedUnit]
-    return currentFormation
-  }, [selectedUnit, independentDepthByFormation, currentFormation])
+    const fallback = DEFAULT_PRESET_BY_SIDE[selectedUnit]
+    if (!independentDepthByFormation) return fallback
+    const stored = selectedPresetByUnit[selectedUnit]
+    const candidate = stored ?? fallback
+    return getPreset(selectedUnit, candidate) ? candidate : fallback
+  }, [selectedUnit, independentDepthByFormation, selectedPresetByUnit])
 
-  const depthFormationField =
-    selectedUnit === "special_teams" ? null : persistDepthFormation ?? null
-  const depthSpecialField =
-    selectedUnit === "special_teams" ? currentSpecialTeamType ?? null : null
+  /**
+   * Persistence scope only: special-teams subgroup id on depth rows.
+   * Do not derive from displayPreset or layoutPresetIdForDisplay.
+   */
+  const persistenceSpecialTeamType = useMemo((): string | null => {
+    if (selectedUnit !== "special_teams") return null
+    const fallback = DEFAULT_PRESET_BY_SIDE.special_teams
+    const stored = selectedPresetByUnit.special_teams
+    const candidate = stored ?? fallback
+    return getPreset("special_teams", candidate) ? candidate : fallback
+  }, [selectedUnit, selectedPresetByUnit])
+
+  const depthFormationField: string | null =
+    selectedUnit === "special_teams" ? null : persistenceFormationId
+  const depthSpecialField: string | null =
+    selectedUnit === "special_teams" ? persistenceSpecialTeamType : null
 
   const depthEntriesByScopeKey = useMemo(() => {
     const m = new Map<string, DepthChartEntry[]>()
@@ -378,13 +392,8 @@ export function DepthChartView({
   }, [depthChart])
 
   const currentDepthScopeKey = useMemo(
-    () =>
-      getDepthScopeKey(
-        selectedUnit,
-        selectedUnit === "special_teams" ? null : persistDepthFormation,
-        selectedUnit === "special_teams" ? (currentSpecialTeamType ?? null) : null
-      ),
-    [selectedUnit, persistDepthFormation, currentSpecialTeamType]
+    () => getDepthScopeKey(selectedUnit, depthFormationField, depthSpecialField),
+    [selectedUnit, depthFormationField, depthSpecialField]
   )
 
   const matchesCurrentDepthScope = useCallback(
@@ -409,15 +418,9 @@ export function DepthChartView({
   const findCurrentEntry = useCallback(
     (position: string, depthString: number) =>
       depthEntryByAssignmentKey.get(
-        getAssignmentKey(
-          selectedUnit,
-          position,
-          depthString,
-          selectedUnit === "special_teams" ? null : persistDepthFormation,
-          selectedUnit === "special_teams" ? (currentSpecialTeamType ?? null) : null
-        )
+        getAssignmentKey(selectedUnit, position, depthString, depthFormationField, depthSpecialField)
       ),
-    [depthEntryByAssignmentKey, selectedUnit, persistDepthFormation, currentSpecialTeamType]
+    [depthEntryByAssignmentKey, selectedUnit, depthFormationField, depthSpecialField]
   )
 
   const getCurrentEntriesByPlayer = useCallback(
@@ -434,7 +437,7 @@ export function DepthChartView({
 
   const presetWithLabels = useMemo((): FormationPreset | null => {
     if (!displayPreset) return null
-    const stType = selectedUnit === "special_teams" ? currentSpecialTeamType : null
+    const stType = depthSpecialField
     const withLabel = (s: FormationSlot): FormationSlot => ({
       ...s,
       displayLabel: getLabel(s.slotKey, s.alias ?? s.displayLabel, selectedUnit, stType),
@@ -453,7 +456,7 @@ export function DepthChartView({
       ...displayPreset,
       slots: displayPreset.slots.map(withLabel),
     }
-  }, [displayPreset, selectedUnit, currentSpecialTeamType, getLabel])
+  }, [displayPreset, selectedUnit, depthSpecialField, getLabel])
 
   // Load custom position labels
   useEffect(() => {
@@ -952,7 +955,7 @@ export function DepthChartView({
                       position: s.slotKey,
                       label: s.displayLabel,
                     }))}
-                    specialTeamType={selectedUnit === "special_teams" ? currentSpecialTeamType : null}
+                    specialTeamType={depthSpecialField}
                     onLabelsUpdated={handleLabelsUpdated}
                   />
                 )}
@@ -1051,7 +1054,7 @@ export function DepthChartView({
                       position: s.slotKey,
                       label: s.displayLabel,
                     }))}
-                    specialTeamType={selectedUnit === "special_teams" ? currentSpecialTeamType : null}
+                    specialTeamType={depthSpecialField}
                     onLabelsUpdated={handleLabelsUpdated}
                   />
                 )}
@@ -1084,7 +1087,7 @@ export function DepthChartView({
                 playersById={playersById}
                 unit={selectedUnit}
                 formation={depthFormationField}
-                specialTeamType={currentSpecialTeamType}
+                specialTeamType={depthSpecialField}
                 canEdit={canEdit}
                 validSlotKeysForDraggingPlayer={validSlotKeysForDraggingPlayer}
                 onDragStartPlayer={handleDragStartPlayer}

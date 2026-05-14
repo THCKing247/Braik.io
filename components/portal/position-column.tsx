@@ -13,9 +13,9 @@ interface PositionColumnProps {
   emptySlotHint?: string | null
   players: Array<{ player: RosterPlayerForSlot; string: number }>
   canEdit: boolean
-  /** When null: not dragging. When boolean: true = valid drop target, false = dimmed (invalid for dragged player). */
+  /** When null: not dragging. When true: best-fit slot for dragged player. When false: position mismatch — drops are still allowed; amber styling is advisory only. */
   isSlotValidForDrop?: boolean | null
-  /** Called when drag starts from an assigned slot (roster or slot); used to show valid/invalid slot guidance. */
+  /** Called when drag starts from an assigned slot (roster or slot); used to show best-fit vs mismatch slot guidance. */
   onDragStartPlayer?: (playerId: string) => void
   onDrop?: (position: string, string: number, playerId: string) => void
   onRemove?: (position: string, string: number) => void
@@ -36,7 +36,7 @@ export function PositionColumn({
   onReorder,
 }: PositionColumnProps) {
   const [dragOverString, setDragOverString] = useState<number | null>(null)
-  const isInvalidDropTarget = isSlotValidForDrop === false
+  const isPositionMismatch = isSlotValidForDrop === false
   const isDragging = isSlotValidForDrop !== null
 
   const starter = players.find((p) => p.string === 1)
@@ -45,18 +45,14 @@ export function PositionColumn({
   const moreCount = players.filter((p) => p.string > 3).length
 
   const handleDrop = (e: React.DragEvent, targetString: number) => {
-    if (isInvalidDropTarget) {
-      setDragOverString(null)
-      return
-    }
     e.preventDefault()
     const playerId = e.dataTransfer.getData("playerId")
     const sourceString = e.dataTransfer.getData("sourceString")
 
-    if (playerId && onDrop) {
+    if (playerId) {
       if (sourceString && onReorder) {
         onReorder(position, parseInt(sourceString, 10), targetString)
-      } else {
+      } else if (onDrop) {
         onDrop(position, targetString, playerId)
       }
     }
@@ -72,16 +68,22 @@ export function PositionColumn({
   }
 
   const columnRingClass = isDragging
-    ? isInvalidDropTarget
-      ? "opacity-[0.42] saturate-75"
+    ? isPositionMismatch
+      ? "ring-2 ring-amber-500/45 ring-offset-2 ring-offset-background rounded-xl"
       : "ring-2 ring-primary/40 ring-offset-2 ring-offset-background rounded-xl"
     : ""
 
   const dropZoneClass = (stringNum: number, minH: string) => {
     const over = dragOverString === stringNum
     const base = `rounded-xl border-2 border-dashed transition-all duration-200 ${minH} shrink-0 box-border`
-    if (isInvalidDropTarget) {
-      return `${base} border-muted-foreground/25 bg-muted/20`
+    if (!isDragging) {
+      return `${base} border-transparent bg-transparent`
+    }
+    if (isPositionMismatch) {
+      if (over) {
+        return `${base} border-amber-500 bg-amber-500/12 ring-2 ring-amber-500/30`
+      }
+      return `${base} border-amber-500/40 bg-amber-500/[0.06]`
     }
     if (over) {
       return `${base} border-primary bg-primary/10 ring-2 ring-primary/20`
@@ -91,9 +93,9 @@ export function PositionColumn({
 
   const emptyStarterClass =
     "w-full h-[104px] rounded-xl border-2 border-dashed flex flex-col items-center justify-center gap-1 py-2 px-2 shrink-0 transition-colors duration-200 " +
-    (isInvalidDropTarget
-      ? "border-muted-foreground/30 bg-muted/15 text-muted-foreground"
-      : isDragging
+    (isPositionMismatch && isDragging
+      ? "border-amber-500/45 bg-amber-500/[0.07] text-muted-foreground"
+      : isDragging && !isPositionMismatch
         ? "border-primary/25 bg-primary/[0.04] text-muted-foreground"
         : "border-slate-300/80 dark:border-slate-600 bg-slate-50/80 dark:bg-slate-900/40 text-slate-600 dark:text-slate-300")
 
@@ -101,9 +103,9 @@ export function PositionColumn({
     `w-full rounded-xl border-2 border-dashed flex items-center justify-center shrink-0 transition-colors duration-200 ${
       label === "2nd" ? "h-[76px]" : "h-[64px]"
     } ` +
-    (isInvalidDropTarget
-      ? "border-muted-foreground/25 bg-muted/15 text-muted-foreground/80"
-      : isDragging
+    (isPositionMismatch && isDragging
+      ? "border-amber-500/40 bg-amber-500/[0.05] text-muted-foreground/80"
+      : isDragging && !isPositionMismatch
         ? "border-primary/20 bg-primary/[0.03] text-muted-foreground"
         : "border-slate-200 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-900/35 text-slate-500 dark:text-slate-400")
 
@@ -125,11 +127,6 @@ export function PositionColumn({
         <div
           className="h-[104px] shrink-0"
           onDragOver={(e) => {
-            if (isInvalidDropTarget) {
-              e.preventDefault()
-              e.dataTransfer.dropEffect = "none"
-              return
-            }
             e.preventDefault()
             e.dataTransfer.dropEffect = "move"
             setDragOverString(1)
@@ -171,11 +168,6 @@ export function PositionColumn({
         <div
           className="h-[76px] shrink-0"
           onDragOver={(e) => {
-            if (isInvalidDropTarget) {
-              e.preventDefault()
-              e.dataTransfer.dropEffect = "none"
-              return
-            }
             e.preventDefault()
             e.dataTransfer.dropEffect = "move"
             setDragOverString(2)
@@ -211,11 +203,6 @@ export function PositionColumn({
         <div
           className="h-[64px] shrink-0"
           onDragOver={(e) => {
-            if (isInvalidDropTarget) {
-              e.preventDefault()
-              e.dataTransfer.dropEffect = "none"
-              return
-            }
             e.preventDefault()
             e.dataTransfer.dropEffect = "move"
             setDragOverString(3)

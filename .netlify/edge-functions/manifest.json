@@ -1,0 +1,53 @@
+{
+  "version": 1,
+  "functions": [
+    {
+      "function": "___netlify-edge-handler-middleware",
+      "name": "Next.js Middleware Handler",
+      "pattern": "^(?:\\/(_next\\/data\\/[^/]{1,}))?\\/dashboard(?:\\/((?:[^\\/#\\?]+?)(?:\\/(?:[^\\/#\\?]+?))*))?(.json)?[\\/#\\?]?$",
+      "generator": "@netlify/plugin-nextjs@5.15.10"
+    },
+    {
+      "function": "___netlify-edge-handler-middleware",
+      "name": "Next.js Middleware Handler",
+      "pattern": "^(?:\\/(_next\\/data\\/[^/]{1,}))?\\/admin(?:\\/((?:[^\\/#\\?]+?)(?:\\/(?:[^\\/#\\?]+?))*))?(.json)?[\\/#\\?]?$",
+      "generator": "@netlify/plugin-nextjs@5.15.10"
+    },
+    {
+      "function": "___netlify-edge-handler-middleware",
+      "name": "Next.js Middleware Handler",
+      "pattern": "^(?:\\/(_next\\/data\\/[^/]{1,}))?\\/org(?:\\/((?:[^\\/#\\?]+?)(?:\\/(?:[^\\/#\\?]+?))*))?(.json)?[\\/#\\?]?$",
+      "generator": "@netlify/plugin-nextjs@5.15.10"
+    },
+    {
+      "function": "___netlify-edge-handler-middleware",
+      "name": "Next.js Middleware Handler",
+      "pattern": "^(?:\\/(_next\\/data\\/[^/]{1,}))?\\/player(?:\\/((?:[^\\/#\\?]+?)(?:\\/(?:[^\\/#\\?]+?))*))?(.json)?[\\/#\\?]?$",
+      "generator": "@netlify/plugin-nextjs@5.15.10"
+    },
+    {
+      "function": "___netlify-edge-handler-middleware",
+      "name": "Next.js Middleware Handler",
+      "pattern": "^(?:\\/(_next\\/data\\/[^/]{1,}))?\\/parent(?:\\/((?:[^\\/#\\?]+?)(?:\\/(?:[^\\/#\\?]+?))*))?(.json)?[\\/#\\?]?$",
+      "generator": "@netlify/plugin-nextjs@5.15.10"
+    },
+    {
+      "function": "___netlify-edge-handler-middleware",
+      "name": "Next.js Middleware Handler",
+      "pattern": "^(?:\\/(_next\\/data\\/[^/]{1,}))?\\/api\\/dev(?:\\/((?:[^\\/#\\?]+?)(?:\\/(?:[^\\/#\\?]+?))*))?(.json)?[\\/#\\?]?$",
+      "generator": "@netlify/plugin-nextjs@5.15.10"
+    },
+    {
+      "function": "___netlify-edge-handler-middleware",
+      "name": "Next.js Middleware Handler",
+      "pattern": "^(?:\\/(_next\\/data\\/[^/]{1,}))?\\/signup(.json)?[\\/#\\?]?$",
+      "generator": "@netlify/plugin-nextjs@5.15.10"
+    },
+    {
+      "function": "___netlify-edge-handler-middleware",
+      "name": "Next.js Middleware Handler",
+      "pattern": "^(?:\\/(_next\\/data\\/[^/]{1,}))?\\/signup(?:\\/((?:[^\\/#\\?]+?)(?:\\/(?:[^\\/#\\?]+?))*))?(.json)?[\\/#\\?]?$",
+      "generator": "@netlify/plugin-nextjs@5.15.10"
+    }
+  ]
+}

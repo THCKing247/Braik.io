@@ -70,6 +70,38 @@ interface DepthChartViewProps {
 
 type Side = "offense" | "defense" | "special_teams"
 
+/** Scope key for indexing depth chart rows (unit + formation + special team type). */
+function getDepthScopeKey(
+  unit: string,
+  formation: string | null | undefined,
+  specialTeamType: string | null | undefined
+): string {
+  const f = formation ?? ""
+  const st = specialTeamType ?? ""
+  return `${unit}\x1e${f}\x1e${st}`
+}
+
+/** Unique key for one assignment cell within a scope. */
+function getAssignmentKey(
+  unit: string,
+  position: string,
+  depthString: number,
+  formation: string | null | undefined,
+  specialTeamType: string | null | undefined
+): string {
+  return `${getDepthScopeKey(unit, formation, specialTeamType)}\x1e${position}\x1e${depthString}`
+}
+
+function presetHasDisplayableLayout(p: FormationPreset | null): boolean {
+  if (!p) return false
+  if (p.rows?.length) return p.rows.some((r) => (r.slots?.length ?? 0) > 0)
+  return (p.slots?.length ?? 0) > 0
+}
+
+function getLabelKey(position: string, unit: string, specialTeamType?: string | null) {
+  return specialTeamType ? `${unit}-${position}-${specialTeamType}` : `${unit}-${position}`
+}
+
 const ROSTER_SCROLL_STYLES = `
 .roster-scroll-container {
   overflow-y: auto;
@@ -145,7 +177,6 @@ export function DepthChartView({
     defense: DEFAULT_PRESET_BY_SIDE.defense,
     special_teams: DEFAULT_PRESET_BY_SIDE.special_teams,
   }))
-  const selectedPresetId = selectedPresetByUnit[selectedUnit] ?? DEFAULT_PRESET_BY_SIDE[selectedUnit]
   const [customLabels, setCustomLabels] = useState<Record<string, string>>({})
   const [labelsLoaded, setLabelsLoaded] = useState(false)
 
@@ -198,18 +229,34 @@ export function DepthChartView({
     }
   }, [teamId, depthChart])
 
+  const resolvedSelectedPresetId = useMemo(() => {
+    const fallback = DEFAULT_PRESET_BY_SIDE[selectedUnit]
+    const stored = selectedPresetByUnit[selectedUnit]
+    const candidate = stored ?? fallback
+    return getPreset(selectedUnit, candidate) ? candidate : fallback
+  }, [selectedPresetByUnit, selectedUnit])
+
+  useEffect(() => {
+    const fallback = DEFAULT_PRESET_BY_SIDE[selectedUnit]
+    const stored = selectedPresetByUnit[selectedUnit]
+    if (stored === undefined) return
+    if (getPreset(selectedUnit, stored)) return
+    if (stored === fallback) return
+    setSelectedPresetByUnit((prev) => ({ ...prev, [selectedUnit]: fallback }))
+  }, [selectedUnit, selectedPresetByUnit])
+
   useEffect(() => {
     setMissingBannerDismissed(false)
-  }, [selectedUnit, selectedPresetId])
+  }, [selectedUnit, resolvedSelectedPresetId])
 
-  const setIndependentDepth = (value: boolean) => {
+  const setIndependentDepth = useCallback((value: boolean) => {
     setIndependentDepthByFormation(value)
     try {
       localStorage.setItem(`braik-depth-independent-${teamId}`, value ? "1" : "0")
     } catch {
       /* ignore */
     }
-  }
+  }, [teamId])
 
   const handleIndependentCheckboxChange = useCallback(
     (checked: boolean) => {
@@ -283,20 +330,29 @@ export function DepthChartView({
   // Clear drag state when switching unit/preset so valid-slot guidance is not stale
   useEffect(() => {
     setDraggingPlayerId(null)
-  }, [selectedUnit, selectedPresetId])
+  }, [selectedUnit, resolvedSelectedPresetId])
 
-  const preset = getPreset(selectedUnit, selectedPresetId) ?? getPreset(selectedUnit, DEFAULT_PRESET_BY_SIDE[selectedUnit]) ?? null
+  const layoutPresetIdForDisplay = useMemo(() => {
+    if (selectedUnit === "special_teams" || independentDepthByFormation) {
+      return resolvedSelectedPresetId
+    }
+    const canonId = DEFAULT_PRESET_BY_SIDE[selectedUnit]
+    const canon = getPreset(selectedUnit, canonId)
+    if (presetHasDisplayableLayout(canon)) return canonId
+    const sel = getPreset(selectedUnit, resolvedSelectedPresetId)
+    if (presetHasDisplayableLayout(sel)) return resolvedSelectedPresetId
+    return canonId
+  }, [selectedUnit, independentDepthByFormation, resolvedSelectedPresetId])
+
+  const displayPreset =
+    getPreset(selectedUnit, layoutPresetIdForDisplay) ??
+    getPreset(selectedUnit, DEFAULT_PRESET_BY_SIDE[selectedUnit]) ??
+    null
   const presetsForSide = useMemo(() => getPresetsForSide(selectedUnit), [selectedUnit])
 
-  useEffect(() => {
-    if (selectedUnit && selectedPresetId && !getPreset(selectedUnit, selectedPresetId)) {
-      setSelectedPresetByUnit((prev) => ({ ...prev, [selectedUnit]: DEFAULT_PRESET_BY_SIDE[selectedUnit] }))
-    }
-  }, [selectedUnit, selectedPresetId])
-
   // Formation/specialTeamType for current view (used when saving and filtering assignments)
-  const currentFormation = selectedUnit === "special_teams" ? null : selectedPresetId
-  const currentSpecialTeamType = selectedUnit === "special_teams" ? selectedPresetId : null
+  const currentFormation = selectedUnit === "special_teams" ? null : resolvedSelectedPresetId
+  const currentSpecialTeamType = selectedUnit === "special_teams" ? resolvedSelectedPresetId : null
 
   /** DB formation id for offense/defense depth rows; canonical preset when synced. Null for special teams. */
   const persistDepthFormation = useMemo(() => {
@@ -310,41 +366,94 @@ export function DepthChartView({
   const depthSpecialField =
     selectedUnit === "special_teams" ? currentSpecialTeamType ?? null : null
 
-  const matchesPersistedDepthRow = (e: DepthChartEntry) =>
-    selectedUnit === "special_teams"
-      ? e.specialTeamType === currentSpecialTeamType
-      : !e.specialTeamType && e.formation === persistDepthFormation
+  const depthEntriesByScopeKey = useMemo(() => {
+    const m = new Map<string, DepthChartEntry[]>()
+    for (const e of depthChart) {
+      const k = getDepthScopeKey(e.unit, e.formation, e.specialTeamType)
+      const arr = m.get(k) ?? []
+      arr.push(e)
+      m.set(k, arr)
+    }
+    return m
+  }, [depthChart])
 
-  const getLabelKey = (position: string, unit: string, specialTeamType?: string | null) => {
-    return specialTeamType ? `${unit}-${position}-${specialTeamType}` : `${unit}-${position}`
-  }
+  const currentDepthScopeKey = useMemo(
+    () =>
+      getDepthScopeKey(
+        selectedUnit,
+        selectedUnit === "special_teams" ? null : persistDepthFormation,
+        selectedUnit === "special_teams" ? (currentSpecialTeamType ?? null) : null
+      ),
+    [selectedUnit, persistDepthFormation, currentSpecialTeamType]
+  )
 
-  const getLabel = (position: string, defaultLabel: string, unit: string, specialTeamType?: string | null) => {
-    return customLabels[getLabelKey(position, unit, specialTeamType)] ?? defaultLabel
-  }
+  const matchesCurrentDepthScope = useCallback(
+    (e: DepthChartEntry) =>
+      getDepthScopeKey(e.unit, e.formation, e.specialTeamType) === currentDepthScopeKey,
+    [currentDepthScopeKey]
+  )
+
+  const currentScopeEntries = useMemo(
+    () => depthEntriesByScopeKey.get(currentDepthScopeKey) ?? [],
+    [depthEntriesByScopeKey, currentDepthScopeKey]
+  )
+
+  const depthEntryByAssignmentKey = useMemo(() => {
+    const m = new Map<string, DepthChartEntry>()
+    for (const e of depthChart) {
+      m.set(getAssignmentKey(e.unit, e.position, e.string, e.formation, e.specialTeamType), e)
+    }
+    return m
+  }, [depthChart])
+
+  const findCurrentEntry = useCallback(
+    (position: string, depthString: number) =>
+      depthEntryByAssignmentKey.get(
+        getAssignmentKey(
+          selectedUnit,
+          position,
+          depthString,
+          selectedUnit === "special_teams" ? null : persistDepthFormation,
+          selectedUnit === "special_teams" ? (currentSpecialTeamType ?? null) : null
+        )
+      ),
+    [depthEntryByAssignmentKey, selectedUnit, persistDepthFormation, currentSpecialTeamType]
+  )
+
+  const getCurrentEntriesByPlayer = useCallback(
+    (playerId: string) => currentScopeEntries.filter((e) => e.playerId === playerId),
+    [currentScopeEntries]
+  )
+
+  const getLabel = useCallback(
+    (position: string, defaultLabel: string, unit: string, specialTeamType?: string | null) => {
+      return customLabels[getLabelKey(position, unit, specialTeamType)] ?? defaultLabel
+    },
+    [customLabels]
+  )
 
   const presetWithLabels = useMemo((): FormationPreset | null => {
-    if (!preset) return null
+    if (!displayPreset) return null
     const stType = selectedUnit === "special_teams" ? currentSpecialTeamType : null
     const withLabel = (s: FormationSlot): FormationSlot => ({
       ...s,
       displayLabel: getLabel(s.slotKey, s.alias ?? s.displayLabel, selectedUnit, stType),
     })
-    if (preset.rows?.length) {
+    if (displayPreset.rows?.length) {
       return {
-        ...preset,
-        rows: preset.rows.map((r) => ({
+        ...displayPreset,
+        rows: displayPreset.rows.map((r) => ({
           ...r,
           slots: r.slots.map(withLabel),
         })),
-        slots: preset.rows.flatMap((r) => r.slots.map(withLabel)),
+        slots: displayPreset.rows.flatMap((r) => r.slots.map(withLabel)),
       }
     }
     return {
-      ...preset,
-      slots: preset.slots.map(withLabel),
+      ...displayPreset,
+      slots: displayPreset.slots.map(withLabel),
     }
-  }, [preset, customLabels, selectedUnit, currentSpecialTeamType])
+  }, [displayPreset, selectedUnit, currentSpecialTeamType, getLabel])
 
   // Load custom position labels
   useEffect(() => {
@@ -383,20 +492,12 @@ export function DepthChartView({
   const isAthlete = (p: Player) => !p.positionGroup
 
   const assignedPlayerIdsOnCurrentSide = useMemo(() => {
-    return new Set(
-      depthChart
-        .filter(
-          (e) =>
-            e.unit === selectedUnit &&
-            e.playerId &&
-            (selectedUnit === "special_teams"
-              ? e.specialTeamType === currentSpecialTeamType
-              : !e.specialTeamType && e.formation === persistDepthFormation)
-        )
-        .map((e) => e.playerId!)
-        .filter(Boolean)
-    )
-  }, [depthChart, selectedUnit, persistDepthFormation, currentSpecialTeamType])
+    const ids = new Set<string>()
+    for (const e of currentScopeEntries) {
+      if (e.playerId) ids.add(e.playerId)
+    }
+    return ids
+  }, [currentScopeEntries])
 
   const filteredRosterForSidebar = useMemo(() => {
     let list = players
@@ -460,16 +561,16 @@ export function DepthChartView({
   )
 
   const validSlotKeysForDraggingPlayer = useMemo(() => {
-    if (!draggingPlayerId || !preset) return null
-    const slots = getFormationSlots(preset)
+    if (!draggingPlayerId || !displayPreset) return null
+    const slots = getFormationSlots(displayPreset)
     const player = playersById.get(draggingPlayerId)
     if (!player) return new Set(slots.map((s) => s.slotKey))
     return getValidSlotKeys(player.positionGroup, slots)
-  }, [draggingPlayerId, playersById, preset])
+  }, [draggingPlayerId, playersById, displayPreset])
 
   const eligibilityHintsByPlayerId = useMemo(() => {
-    if (!preset || !presetWithLabels) return new Map<string, string>()
-    const slots = getFormationSlots(preset)
+    if (!displayPreset || !presetWithLabels) return new Map<string, string>()
+    const slots = getFormationSlots(displayPreset)
     const slotsWithLabels = getFormationSlots(presetWithLabels)
     const keyToLabel = new Map(slotsWithLabels.map((s) => [s.slotKey, s.displayLabel]))
     const map = new Map<string, string>()
@@ -479,22 +580,15 @@ export function DepthChartView({
       if (labels.length) map.set(p.id, `Best fit: ${labels.join(", ")}`)
     }
     return map
-  }, [preset, presetWithLabels, players])
+  }, [displayPreset, presetWithLabels, players])
 
   const handleDragStartPlayer = useCallback((playerId: string) => {
     setDraggingPlayerId(playerId)
   }, [])
 
   const assignmentsForCurrentView: DepthAssignment[] = useMemo(
-    () =>
-      depthChart.filter(
-        (e) =>
-          e.unit === selectedUnit &&
-          (selectedUnit === "special_teams"
-            ? e.specialTeamType === currentSpecialTeamType
-            : !e.specialTeamType && e.formation === persistDepthFormation)
-      ) as DepthAssignment[],
-    [depthChart, selectedUnit, persistDepthFormation, currentSpecialTeamType]
+    () => currentScopeEntries as DepthAssignment[],
+    [currentScopeEntries]
   )
 
   const missingBannerSlots = useMemo(() => {
@@ -512,32 +606,19 @@ export function DepthChartView({
 
   const handleDrop = (position: string, string: number, playerId: string) => {
     const updates: DepthChartUpdate[] = []
-    const existingEntry = depthChart.find(
-      (e) =>
-        e.unit === selectedUnit &&
-        e.position === position &&
-        e.string === string &&
-        matchesPersistedDepthRow(e)
-    )
+    const existingEntry = findCurrentEntry(position, string)
 
     if (string === 1) {
-      depthChart
-        .filter(
-          (e) =>
-            e.playerId === playerId &&
-            e.unit === selectedUnit &&
-            matchesPersistedDepthRow(e)
-        )
-        .forEach((e) => {
-          updates.push({
-            unit: e.unit,
-            position: e.position,
-            string: e.string,
-            playerId: null,
-            formation: depthFormationField,
-            specialTeamType: depthSpecialField,
-          })
+      getCurrentEntriesByPlayer(playerId).forEach((e) => {
+        updates.push({
+          unit: e.unit,
+          position: e.position,
+          string: e.string,
+          playerId: null,
+          formation: depthFormationField,
+          specialTeamType: depthSpecialField,
         })
+      })
       if (existingEntry?.playerId) {
         updates.push({
           unit: selectedUnit,
@@ -557,30 +638,18 @@ export function DepthChartView({
         specialTeamType: depthSpecialField,
       })
     } else {
-      depthChart
-        .filter(
-          (e) =>
-            e.playerId === playerId &&
-            e.unit === selectedUnit &&
-            matchesPersistedDepthRow(e)
-        )
-        .forEach((e) => {
-          updates.push({
-            unit: e.unit,
-            position: e.position,
-            string: e.string,
-            playerId: null,
-            formation: depthFormationField,
-            specialTeamType: depthSpecialField,
-          })
+      getCurrentEntriesByPlayer(playerId).forEach((e) => {
+        updates.push({
+          unit: e.unit,
+          position: e.position,
+          string: e.string,
+          playerId: null,
+          formation: depthFormationField,
+          specialTeamType: depthSpecialField,
         })
+      })
       if (existingEntry?.playerId) {
-        const droppedEntry = depthChart.find(
-          (e) =>
-            e.playerId === playerId &&
-            e.unit === selectedUnit &&
-            matchesPersistedDepthRow(e)
-        )
+        const droppedEntry = getCurrentEntriesByPlayer(playerId)[0]
         if (droppedEntry) {
           updates.push({
             unit: selectedUnit,
@@ -623,13 +692,7 @@ export function DepthChartView({
   }
 
   const handleRemove = (position: string, string: number) => {
-    const entry = depthChart.find(
-      (e) =>
-        e.unit === selectedUnit &&
-        e.position === position &&
-        e.string === string &&
-        matchesPersistedDepthRow(e)
-    )
+    const entry = findCurrentEntry(position, string)
     if (entry) {
       onUpdate([
         {
@@ -645,20 +708,8 @@ export function DepthChartView({
   }
 
   const handleReorder = (position: string, fromString: number, toString: number) => {
-    const fromEntry = depthChart.find(
-      (e) =>
-        e.unit === selectedUnit &&
-        e.position === position &&
-        e.string === fromString &&
-        matchesPersistedDepthRow(e)
-    )
-    const toEntry = depthChart.find(
-      (e) =>
-        e.unit === selectedUnit &&
-        e.position === position &&
-        e.string === toString &&
-        matchesPersistedDepthRow(e)
-    )
+    const fromEntry = findCurrentEntry(position, fromString)
+    const toEntry = findCurrentEntry(position, toString)
     const updates: DepthChartUpdate[] = []
     if (fromEntry?.playerId) {
       if (toEntry?.playerId) {
@@ -707,7 +758,7 @@ export function DepthChartView({
 
   const unitLabel =
     selectedUnit === "offense" ? "Offense" : selectedUnit === "defense" ? "Defense" : "Special Teams"
-  const formationName = preset?.name ?? ""
+  const formationName = displayPreset?.name ?? ""
   const generatedDate = new Date().toLocaleDateString(undefined, {
     year: "numeric",
     month: "short",
@@ -748,10 +799,9 @@ export function DepthChartView({
         style={{ gridTemplateColumns: "280px 1fr", gap: 0 }}
       >
         {/* Left: Roster list with filters */}
-        <div
-          className="flex flex-col min-h-0 overflow-hidden p-4 border-r border-border"
-        >
-          <h3 className="text-sm font-semibold mb-3 shrink-0 text-foreground">
+        <div className="flex flex-col min-h-0 overflow-hidden p-3 md:p-4 border-r border-border/60">
+          <div className="flex flex-col flex-1 min-h-0 overflow-hidden rounded-xl border border-border/80 bg-card shadow-md ring-1 ring-black/[0.04] dark:ring-white/[0.06] p-4">
+          <h3 className="text-sm font-semibold mb-3 shrink-0 text-foreground tracking-tight">
             Available Players
           </h3>
 
@@ -833,12 +883,11 @@ export function DepthChartView({
               </div>
             )}
           </div>
+          </div>
         </div>
 
         {/* Right: Depth chart area */}
-        <div
-          className="flex flex-col p-6 flex justify-start items-stretch lg:min-w-0"
-        >
+        <div className="flex flex-col p-4 md:p-6 flex justify-start items-stretch lg:min-w-0 min-h-0">
           {editorExitActions ? (
             <div className="sticky top-0 z-20 -mx-2 mb-4 flex w-full min-w-0 flex-wrap items-center gap-2 border-b border-border/80 bg-[rgb(var(--platinum))] px-2 pb-3 pt-1 print:hidden">
               <div className="min-w-0 flex-1 basis-full sm:basis-auto sm:min-h-[2.25rem] sm:max-w-[50%]">
@@ -895,11 +944,11 @@ export function DepthChartView({
                   <Printer className="h-4 w-4 mr-1.5" />
                   Print
                 </Button>
-                {isHeadCoach && labelsLoaded && preset && (
+                {isHeadCoach && labelsLoaded && displayPreset && (
                   <PositionLabelEditor
                     teamId={teamId}
                     unit={selectedUnit}
-                    positions={getFormationSlots(presetWithLabels ?? preset).map((s) => ({
+                    positions={getFormationSlots(presetWithLabels ?? displayPreset).map((s) => ({
                       position: s.slotKey,
                       label: s.displayLabel,
                     }))}
@@ -910,7 +959,6 @@ export function DepthChartView({
               </div>
             </div>
           ) : null}
-
           {/* Unit tabs + Formation selector + Print */}
           <div className="mb-4 flex flex-wrap gap-2 items-center justify-between">
             <div className="flex gap-2 flex-wrap items-center">
@@ -918,10 +966,10 @@ export function DepthChartView({
                 <button
                   key={unit}
                   onClick={() => setSelectedUnit(unit)}
-                  className={`px-4 py-2 rounded-lg font-semibold text-sm transition-all border-2 ${
+                  className={`px-3.5 py-2 rounded-full text-sm font-semibold transition-all duration-200 border ${
                     selectedUnit === unit
-                      ? "bg-primary text-primary-foreground border-primary"
-                      : "bg-transparent text-foreground border-border opacity-60 hover:opacity-100 hover:border-primary/50"
+                      ? "bg-primary text-primary-foreground border-primary shadow-md scale-[1.02]"
+                      : "bg-card/60 text-foreground border-border/60 hover:border-primary/35 hover:bg-muted/70"
                   }`}
                 >
                   {unit === "offense" ? "Offense" : unit === "defense" ? "Defense" : "Special Teams"}
@@ -934,7 +982,7 @@ export function DepthChartView({
               </span>
               <div className="flex flex-wrap gap-2 overflow-x-auto overflow-y-hidden py-0.5">
                 {presetsForSide.map((p) => {
-                  const isSelected = selectedPresetId === p.id
+                  const isSelected = resolvedSelectedPresetId === p.id
                   return (
                     <button
                       key={p.id}
@@ -942,10 +990,10 @@ export function DepthChartView({
                       onClick={() =>
                         setSelectedPresetByUnit((prev) => ({ ...prev, [selectedUnit]: p.id }))
                       }
-                      className={`shrink-0 rounded-lg border-2 px-3 py-2 text-left transition-all min-w-0 ${
+                      className={`shrink-0 rounded-full border px-3.5 py-2 text-left transition-all duration-200 min-w-0 shadow-sm ${
                         isSelected
-                          ? "bg-primary text-primary-foreground border-primary"
-                          : "bg-transparent text-foreground border-border opacity-70 hover:opacity-100 hover:border-primary/50"
+                          ? "bg-primary text-primary-foreground border-primary ring-2 ring-primary/30 ring-offset-2 ring-offset-background scale-[1.02]"
+                          : "bg-card/80 text-foreground border-border/80 hover:border-primary/40 hover:bg-muted/50 hover:shadow"
                       }`}
                     >
                       <span className="block text-xs font-semibold truncate max-w-[100px] sm:max-w-none">
@@ -995,11 +1043,11 @@ export function DepthChartView({
                     Print
                   </Button>
                 </div>
-                {isHeadCoach && labelsLoaded && preset && (
+                {isHeadCoach && labelsLoaded && displayPreset && (
                   <PositionLabelEditor
                     teamId={teamId}
                     unit={selectedUnit}
-                    positions={getFormationSlots(presetWithLabels ?? preset).map((s) => ({
+                    positions={getFormationSlots(presetWithLabels ?? displayPreset).map((s) => ({
                       position: s.slotKey,
                       label: s.displayLabel,
                     }))}
@@ -1027,7 +1075,8 @@ export function DepthChartView({
             </div>
           )}
 
-          <div className="depth-chart-scroll-area flex-1 overflow-auto py-2 px-2 min-h-0">
+          <div className="depth-chart-scroll-area flex-1 overflow-auto py-2 px-1 min-h-0">
+            <div className="rounded-2xl border border-border/70 bg-gradient-to-br from-muted/20 via-background/40 to-muted/30 p-3 md:p-4 shadow-inner min-h-[200px] ring-1 ring-inset ring-black/[0.03] dark:ring-white/[0.06]">
             {presetWithLabels && (
               <DepthChartGrid
                 preset={presetWithLabels}
@@ -1044,6 +1093,7 @@ export function DepthChartView({
                 onReorder={handleReorder}
               />
             )}
+            </div>
           </div>
         </div>
       </div>

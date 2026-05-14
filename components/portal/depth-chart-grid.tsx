@@ -146,13 +146,13 @@ export function DepthChartGrid({
 
   return (
     <div
-      className="w-full max-w-4xl lg:max-w-[min(100%,88rem)] mx-auto rounded-xl py-5 px-4"
-      style={{
-        backgroundColor: "rgb(var(--platinum))",
-        boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
-      }}
+      className="w-full max-w-4xl lg:max-w-[min(100%,88rem)] mx-auto rounded-2xl py-6 px-4 md:px-6 border border-emerald-900/15 dark:border-emerald-500/20 bg-gradient-to-b from-background via-[rgb(var(--platinum))]/90 to-emerald-950/[0.07] dark:to-emerald-950/25 shadow-[0_8px_30px_rgb(0,0,0,0.06)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.25)] ring-1 ring-inset ring-white/40 dark:ring-white/5"
     >
-      <div className="flex flex-col pb-4">
+      <div className="flex flex-col pb-2 relative">
+        <div
+          className="pointer-events-none absolute inset-x-4 top-3 bottom-3 rounded-xl border border-dashed border-emerald-800/10 dark:border-emerald-400/10 opacity-60"
+          aria-hidden
+        />
         {rowList.map((formationRow, rowIdx) => {
           const spacingClass = rowTypeSpacingClass(formationRow.rowType)
           const rowClass = formationRowClass(formationRow.alignment, formationRow.rowType)

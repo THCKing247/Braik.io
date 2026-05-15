@@ -9,8 +9,10 @@ import { Label } from "@/components/ui/label"
 import { SiteHeader } from "@/components/marketing/site-header"
 import { isWaitlistMode } from "@/lib/config/waitlist-mode"
 import { getProgramOrCoachAccessHref } from "@/lib/marketing/join-cta"
-
-const STORAGE_KEY = "braik_parent_player_code"
+import {
+  BRAIK_PARENT_JOIN_PREVIEW_SESSION_KEY,
+  BRAIK_PARENT_PLAYER_CODE_SESSION_KEY,
+} from "@/lib/parent/parent-join-session-keys"
 
 type Step = "code" | "confirm"
 
@@ -64,14 +66,16 @@ export default function ParentJoinPage() {
   const handleConfirmAndSignup = () => {
     const normalized = code.trim().toUpperCase()
     if (typeof window !== "undefined") {
-      sessionStorage.setItem(STORAGE_KEY, normalized)
-      const existing = localStorage.getItem("signupData")
-      const signupData = existing ? JSON.parse(existing) : {}
-      signupData.role = "parent"
-      signupData.teamId = normalized
-      localStorage.setItem("signupData", JSON.stringify(signupData))
+      sessionStorage.setItem(BRAIK_PARENT_PLAYER_CODE_SESSION_KEY, normalized)
+      sessionStorage.setItem(
+        BRAIK_PARENT_JOIN_PREVIEW_SESSION_KEY,
+        JSON.stringify({
+          playerDisplayName: playerLabel,
+          teamName: teamLabel,
+        })
+      )
     }
-    router.push("/signup")
+    router.push("/parent/join/create-account")
   }
 
   return (
@@ -84,8 +88,8 @@ export default function ParentJoinPage() {
               Parent Access
             </h1>
             <p className="mt-2 text-center text-sm text-[#495057]">
-              Enter the parent link code your coach gave you after your athlete finishes player signup. You&apos;ll confirm the
-              athlete, then create your own parent account.
+              Enter the parent link code your coach gave you. You&apos;ll confirm the athlete matches your family, then create a
+              parent account that connects only to that player profile.
             </p>
             <div className="mt-8 space-y-4">
               {step === "code" ? (
@@ -146,7 +150,7 @@ export default function ParentJoinPage() {
                 </Link>
               </p>
               <p className="text-center text-xs text-[#9CA3AF]">
-                Coaches and staff:{" "}
+                Coaches and athletic staff receive accounts from Braik or your school&apos;s admin —{" "}
                 {isWaitlistMode() ? (
                   <>
                     <Link href={getProgramOrCoachAccessHref()} className="text-[#6B7280] hover:text-[#3B82F6] hover:underline">
@@ -157,9 +161,9 @@ export default function ParentJoinPage() {
                 ) : (
                   <>
                     <Link href={getProgramOrCoachAccessHref()} className="text-[#6B7280] hover:text-[#3B82F6] hover:underline">
-                      request coach or school access
-                    </Link>
-                    .
+                      request access
+                    </Link>{" "}
+                    if your program invited you to Braik.
                   </>
                 )}
               </p>

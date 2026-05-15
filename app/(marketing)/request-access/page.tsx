@@ -19,7 +19,7 @@ import { getPlayerSignupHref, getProgramOrCoachAccessHref } from "@/lib/marketin
 export const metadata = {
   title: "Get access | Braik",
   description:
-    "Players sign up with a team join code or QR from their coach. Coaches and schools request access or contact Braik.",
+    "Players link to roster profiles using codes from their coach. Parents use Parent Access with a link code. Coaches and schools request provisioned access from Braik.",
 }
 
 export default function RequestAccessPage() {
@@ -37,8 +37,8 @@ export default function RequestAccessPage() {
             Get access
           </h1>
           <p className={`${marketingBodyClass} text-[#212529]/85 max-w-2xl mx-auto`}>
-            Pick the path that matches you—players join with a code from their team. Coach and admin accounts are
-            handled separately.
+            Players and parents connect with codes from your team. Coach and athletic director accounts are provisioned by Braik or
+            your school admin—not through open enrollment.
           </p>
           <div className="mt-6 flex flex-wrap items-center justify-center gap-3 text-sm">
             <Link href="/login" className="font-medium text-[#2563EB] hover:underline">
@@ -56,10 +56,11 @@ export default function RequestAccessPage() {
               <p className="text-xs font-semibold uppercase tracking-wider text-[#1D4ED8] mb-2">For players</p>
               <h2 className={`${marketingSectionTitleClass} text-left mb-3`}>Player sign up</h2>
               <p className={`${marketingBodyClass} text-[#212529]/85 text-left mb-2`}>
-                If your coach gave you a Braik team code or QR code, use it to create your account and join your team.
+                Use your coach&apos;s team join flow at player signup with your personal player code or invite link so your login
+                attaches to the roster profile your program created for you.
               </p>
               <p className={`${marketingMutedClass} text-left mb-6`}>
-                Your code connects you to the right roster—no open signup without a team.
+                There isn&apos;t a generic “open” player signup—your team starts your roster row first.
               </p>
               <Link href={playerHref} className="block">
                 <Button
@@ -69,7 +70,13 @@ export default function RequestAccessPage() {
                   Sign up as a player
                 </Button>
               </Link>
-              <p className={`mt-4 text-center ${marketingMutedClass}`}>Have a team code? Tap the button above.</p>
+              <p className={`mt-4 text-center ${marketingMutedClass}`}>
+                Parents:{" "}
+                <Link href="/parent/join" className="font-medium text-[#2563EB] hover:underline">
+                  Parent Access
+                </Link>{" "}
+                with your athlete&apos;s parent link code.
+              </p>
             </div>
 
             {/* Coaches / staff */}
@@ -79,7 +86,7 @@ export default function RequestAccessPage() {
               <p className={`${marketingBodyClass} text-[#212529]/85 text-left mb-4`}>
                 {waitlist
                   ? "Braik is opening in phases for new programs. Join the waitlist and we’ll follow up with next steps."
-                  : "Coach and administrator access is provisioned for your program. Contact us and we’ll help route your request."}
+                  : "Head coaches, assistants, and athletic directors receive accounts through Braik or your district/school admin. Tell us who you are and we’ll route your request."}
               </p>
               <div className="flex flex-col sm:flex-row gap-3 mb-8">
                 <Button asChild size="lg" variant="default" className="min-h-[48px] font-athletic uppercase tracking-wide flex-1">

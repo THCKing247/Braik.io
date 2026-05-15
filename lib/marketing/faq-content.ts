@@ -73,8 +73,8 @@ export const MARKETING_FAQ_ENTRIES: MarketingFaqEntry[] = [
     id: "get-started",
     question: "How do I get started?",
     answer: isWaitlistMode()
-      ? "Players join with a team join code or QR from their coach—sign up to create an account and link to your roster. Programs opening in phases can join the waitlist for early access; coach and admin accounts stay invite-based."
-      : "Players use a team join code or QR from their coach to sign up and join the team. Coach and administrator access is handled separately—use Request access if you need a program account.",
+      ? "Players join with a personal player code or coach invite and link to an existing roster profile. Parents connect using the Parent Access flow with a player/parent link code after the athlete is on the roster. Coaches and athletic directors receive accounts through Braik or your school's provisioning — join the waitlist if your program is enrolling in phases."
+      : "Players sign up with a personal player code or coach invite to link their login to an existing roster profile. Parents use Parent Access with a player/parent link code to connect to their athlete's profile. Coaches and athletic directors get accounts from Braik or your school's admin — use Request access if your program directed you to Braik.",
     learnMoreHref: isWaitlistMode() ? "/waitlist" : "/signup/player",
     learnMoreLabel: isWaitlistMode() ? "Join the waitlist" : "Player sign up",
   },

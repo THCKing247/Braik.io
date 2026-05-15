@@ -55,6 +55,11 @@ export async function middleware(request: NextRequest) {
     return finish(NextResponse.redirect(u))
   }
 
+  /** Public parent onboarding (validated player code → account). Rest of `/parent/*` stays authenticated. */
+  if (pathname === "/parent/join" || pathname.startsWith("/parent/join/")) {
+    return finish(NextResponse.next())
+  }
+
   if (pathname.startsWith("/api/dev/")) {
     if (process.env.NODE_ENV === "production") {
       const expectedSeedKey = process.env.SEED_KEY

@@ -211,7 +211,9 @@ export function OnboardingWizard() {
                     onChange={() => setRosterCreationMode("player_self_create")}
                     className="border-border"
                   />
-                  <span className="text-sm">Players sign up with the team code and their profile is created automatically.</span>
+                  <span className="text-sm">
+                    Staff add roster profiles first; players finish signup with a personal player code or coach invite link.
+                  </span>
                 </label>
               </div>
             </div>

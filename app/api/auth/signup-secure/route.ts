@@ -47,6 +47,7 @@ type RawSignupBody = {
   // Backward-compatible aliases from the existing flow
   name?: string
   teamName?: string
+  /** TODO(payload): Clients send join/player/parent codes here; parsed as `programCode`. Rename to `parentPlayerCode` / `joinCode` (or split per role) once all callers migrate. */
   teamId?: string
   sportType?: string
   smsOptIn?: boolean
@@ -193,12 +194,15 @@ export async function POST(request: Request) {
     const allowPlayerInviteTokenWithoutGlobalFlag = parsed.role === "player" && !!parsed.joinToken
     const allowPlayerClaimCodeWithoutGlobalFlag =
       parsed.role === "player" && !!parsed.programCode && parsed.isPlayerClaimIntent
+    /** Parent links to an existing roster row via validated player/parent-link code (`/parent/join`). */
+    const allowParentPlayerCodeSignupWithoutGlobalFlag = parsed.role === "parent" && !!parsed.programCode
 
     if (
       !isPublicSignupAllowed() &&
       !allowPlayerTeamJoinWithoutGlobalFlag &&
       !allowPlayerInviteTokenWithoutGlobalFlag &&
-      !allowPlayerClaimCodeWithoutGlobalFlag
+      !allowPlayerClaimCodeWithoutGlobalFlag &&
+      !allowParentPlayerCodeSignupWithoutGlobalFlag
     ) {
       return NextResponse.json(
         {
@@ -265,7 +269,7 @@ export async function POST(request: Request) {
     if (role === "parent" && !programCode) {
       throw new SignupRouteError(
         400,
-        "A player code is required for parent accounts. Start at /parent/join to enter your child's code, then complete signup."
+        "A player code is required for parent accounts. Start at /parent/join to validate your child's code, then finish account creation at /parent/join/create-account."
       )
     }
 

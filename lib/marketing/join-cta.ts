@@ -3,7 +3,7 @@ import { isWaitlistMode } from "@/lib/config/waitlist-mode"
 /** Public player onboarding — team join code or QR with code. */
 export const PLAYER_SIGNUP_HREF = "/signup/player"
 
-/** First-time parent account creation (parent link code → `/signup`). */
+/** First-time parent account creation (player/parent link code → `/parent/join`). */
 export const PARENT_ACCESS_HREF = "/parent/join"
 
 export function getPlayerSignupHref(): string {

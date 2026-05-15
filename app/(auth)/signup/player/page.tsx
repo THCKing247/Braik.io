@@ -930,10 +930,15 @@ function PlayerJoinSignupInner() {
             ) : null}
 
             <p className="mt-6 text-center text-sm text-[#6c757d]">
-              Wrong path?{" "}
-              <Link href="/signup/role" className="text-[#3B82F6] hover:underline font-medium">
-                Other sign up options
+              Coaches and schools receive Braik access from administrators —{" "}
+              <Link href="/request-access" className="text-[#3B82F6] hover:underline font-medium">
+                request access here
               </Link>
+              . Players use{" "}
+              <Link href="/signup/player" className="text-[#3B82F6] hover:underline font-medium">
+                player signup with a team code
+              </Link>
+              .
             </p>
           </div>
         </div>

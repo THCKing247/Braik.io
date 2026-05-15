@@ -32,6 +32,7 @@ export function isNativePublicWithoutAppUnlock(pathname: string): boolean {
   if (isNativeMarketingSurface(pathname)) return true
   if (pathname.startsWith("/signup") || pathname.startsWith("/waitlist") || pathname.startsWith("/request-access"))
     return true
+  if (pathname.startsWith("/parent/join")) return true
   if (pathname.startsWith("/join")) return true
   if (pathname.startsWith("/invite")) return true
   if (pathname.startsWith("/recruiting")) return true

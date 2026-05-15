@@ -20,14 +20,16 @@ export function TeamCodeCard({ teamIdCode }: { teamIdCode: string }) {
         {teamIdCode ? (
           <>
             <p className="text-sm text-muted-foreground">
-              Share this team code with Assistant Coaches, Players, and Parents so they can join your team.
+              Share this team join code during player signup so athletes land on the correct team. Parents use Parent Access with a
+              player-specific parent link code from the coach.
             </p>
             <div className="rounded-lg border border-border bg-muted/30 p-6">
               <p className="text-sm mb-2 text-muted-foreground">Team Code</p>
               <p className="text-4xl font-bold font-mono tracking-wider text-foreground">{teamIdCode}</p>
             </div>
             <p className="text-xs text-muted-foreground">
-              This code is required when other users sign up to join your team.
+              Players use player signup and enter this team code when prompted; assistants receive invites through your program&apos;s
+              Braik admin.
             </p>
           </>
         ) : (

@@ -1,6 +1,7 @@
 "use client"
 
-import { useQuery } from "@tanstack/react-query"
+import { createContext, createElement, useContext, useMemo, type ReactNode } from "react"
+import { useQuery, type UseQueryResult } from "@tanstack/react-query"
 import { fetchJson } from "@/lib/api/core/fetch-json"
 
 export type AdPortalMeResponse = {
@@ -48,13 +49,28 @@ async function fetchAdPortalMe(): Promise<AdPortalMeResponse> {
   return fetchJson<AdPortalMeResponse>("/api/me/ad-portal", { credentials: "same-origin" })
 }
 
-/** Shared React Query cache for HEAD_COACH AD portal link + landing gate (one network call per session). */
-export function useAdPortalMeQuery(opts: { enabled: boolean }) {
-  const cachedPath = opts.enabled ? readCachedAdPortalDefaultPath() : null
-  return useQuery({
+type AdPortalMeContextValue = {
+  query: UseQueryResult<AdPortalMeResponse, Error>
+}
+
+const AdPortalMeContext = createContext<AdPortalMeContextValue | null>(null)
+
+/**
+ * Single React Query observer for /api/me/ad-portal (landing gate + nav share one network call).
+ * Mount once under dashboard team shell (`UrlResolvedTeamBootstrap`).
+ */
+export function AdPortalMeProvider({
+  children,
+  enabled,
+}: {
+  children: ReactNode
+  enabled: boolean
+}) {
+  const cachedPath = enabled ? readCachedAdPortalDefaultPath() : null
+  const query = useQuery({
     queryKey: adPortalMeQueryKey,
     queryFn: fetchAdPortalMe,
-    enabled: opts.enabled,
+    enabled,
     staleTime: 24 * 60 * 60 * 1000,
     gcTime: 24 * 60 * 60 * 1000,
     refetchOnMount: false,
@@ -63,6 +79,18 @@ export function useAdPortalMeQuery(opts: { enabled: boolean }) {
     initialData: cachedPath
       ? ({ canEnterAdPortal: true, defaultPath: cachedPath } satisfies AdPortalMeResponse)
       : undefined,
-    initialDataUpdatedAt: cachedPath ? Date.now() - 1000 : undefined,
+    initialDataUpdatedAt: cachedPath ? Date.now() : undefined,
   })
+
+  const value = useMemo(() => ({ query }), [query])
+  return createElement(AdPortalMeContext.Provider, { value }, children)
+}
+
+/** Consumers must be under {@link AdPortalMeProvider}. `opts.enabled` is informational only — fetch is owned by the provider. */
+export function useAdPortalMeQuery(_opts: { enabled: boolean }): UseQueryResult<AdPortalMeResponse, Error> {
+  const ctx = useContext(AdPortalMeContext)
+  if (!ctx) {
+    throw new Error("useAdPortalMeQuery must be used within AdPortalMeProvider")
+  }
+  return ctx.query
 }

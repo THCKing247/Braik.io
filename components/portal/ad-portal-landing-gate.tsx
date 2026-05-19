@@ -10,6 +10,8 @@ import { useEffect, type ReactNode } from "react"
 /**
  * Varsity head coaches with football AD portal scope default to the organization portal unless they are
  * already on a team dashboard (`?teamId=` legacy or canonical `/dashboard/org/:shortOrgId/team/:shortTeamId`).
+ *
+ * Uses {@link AdPortalMeProvider} from dashboard shell (`AdPortalLinkProvider`) — no second query observer.
  */
 export function AdPortalLandingGate({ children }: { children: ReactNode }) {
   const { data: session, status } = useSession()
@@ -63,3 +65,4 @@ function DashboardLandingSkeleton() {
     </div>
   )
 }
+

@@ -1,6 +1,11 @@
 "use client"
 
 import { useState, useEffect, useCallback, useMemo } from "react"
+import { useQueryClient } from "@tanstack/react-query"
+import {
+  teamAnnouncementsQueryKey,
+  useTeamAnnouncementsQuery,
+} from "@/lib/api/team/team-announcements-query"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
@@ -104,8 +109,24 @@ export function DashboardAnnouncementsCard({
   bootstrapLoading?: boolean
 }) {
   const role = sessionRoleToRole(viewerRole)
-  const [announcements, setAnnouncements] = useState<TeamAnnouncementRow[]>([])
-  const [loading, setLoading] = useState(true)
+  const queryClient = useQueryClient()
+  const announcementsQuery = useTeamAnnouncementsQuery({
+    teamId,
+    enabled: Boolean(teamId) && !bootstrapLoading,
+    initialData: initialAnnouncements,
+  })
+  const announcements = announcementsQuery.data ?? []
+  const loading = bootstrapLoading || (announcementsQuery.isPending && announcementsQuery.data === undefined)
+
+  const patchAnnouncementsCache = useCallback(
+    (updater: (prev: TeamAnnouncementRow[]) => TeamAnnouncementRow[]) => {
+      if (!teamId) return
+      queryClient.setQueryData<TeamAnnouncementRow[]>(teamAnnouncementsQueryKey(teamId), (prev) =>
+        updater(prev ?? [])
+      )
+    },
+    [teamId, queryClient]
+  )
   const [viewOpen, setViewOpen] = useState(false)
   const [createOpen, setCreateOpen] = useState(false)
 
@@ -129,51 +150,20 @@ export function DashboardAnnouncementsCard({
   const [userPinnedIds, setUserPinnedIds] = useState<Set<string>>(() => new Set())
   const [userUnpinnedIds, setUserUnpinnedIds] = useState<Set<string>>(() => new Set())
 
-  const load = useCallback(async () => {
+  const refreshAnnouncements = useCallback(() => {
     if (!teamId) return
-    try {
-      // TODO(Phase 4): When callers omit `initialAnnouncements`, this duplicates GET /api/teams/.../team-announcements
-      // after bootstrap-deferred-core already merged `announcements` — align props / cache reads per DASHBOARD_DATA_OWNERSHIP.md.
-      const res = await fetchWithTimeout(
-        `/api/teams/${encodeURIComponent(teamId)}/team-announcements`,
-        { credentials: "same-origin" }
-      )
-      if (!res.ok) return
-      const data = await res.json()
-      setAnnouncements(Array.isArray(data.announcements) ? data.announcements : [])
-    } catch {
-      /* ignore */
-    } finally {
-      setLoading(false)
-    }
-  }, [teamId])
+    void queryClient.invalidateQueries({ queryKey: teamAnnouncementsQueryKey(teamId) })
+  }, [teamId, queryClient])
 
   const pollingAllowed = useNotificationsPollingActive()
   const annPollMs = useNotificationPollIntervalMs()
 
   useEffect(() => {
-    if (!teamId) return
-    if (bootstrapLoading) {
-      setLoading(true)
-      return
-    }
-    if (initialAnnouncements !== undefined) {
-      setAnnouncements(initialAnnouncements)
-      setLoading(false)
-      return
-    }
-    setLoading(true)
-    load()
-  }, [teamId, load, initialAnnouncements, bootstrapLoading])
-
-  useEffect(() => {
-    if (!teamId || !pollingAllowed) return
+    if (!teamId || !pollingAllowed || bootstrapLoading) return
     const ms = Math.max(annPollMs, 60_000)
-    const id = window.setInterval(() => {
-      load()
-    }, ms)
+    const id = window.setInterval(refreshAnnouncements, ms)
     return () => clearInterval(id)
-  }, [teamId, load, pollingAllowed, annPollMs])
+  }, [teamId, refreshAnnouncements, pollingAllowed, annPollMs, bootstrapLoading])
 
   useEffect(() => {
     if (!viewerUserId || !teamId) return
@@ -231,7 +221,7 @@ export function DashboardAnnouncementsCard({
       audience: createAudience,
       send_notification: createNotify,
     }
-    setAnnouncements((prev) => [optimisticRow, ...prev.filter((a) => !a.id.startsWith("optimistic-"))])
+    patchAnnouncementsCache((prev) => [optimisticRow, ...prev.filter((a) => !a.id.startsWith("optimistic-"))])
     setCreateOpen(false)
     try {
       const res = await fetchWithTimeout(`/api/teams/${encodeURIComponent(teamId)}/team-announcements`, {
@@ -247,19 +237,19 @@ export function DashboardAnnouncementsCard({
       })
       const j = (await res.json().catch(() => ({}))) as Record<string, unknown>
       if (!res.ok) {
-        setAnnouncements((prev) => prev.filter((a) => a.id !== optimisticId))
+        patchAnnouncementsCache((prev) => prev.filter((a) => a.id !== optimisticId))
         setCreateError(typeof j.error === "string" ? j.error : "Could not post announcement.")
         setCreateOpen(true)
         return
       }
       const row = j as unknown as TeamAnnouncementRow
       if (row?.id && typeof row.id === "string" && row.team_id) {
-        setAnnouncements((prev) => prev.map((a) => (a.id === optimisticId ? row : a)))
+        patchAnnouncementsCache((prev) => prev.map((a) => (a.id === optimisticId ? row : a)))
       } else {
-        await load()
+        refreshAnnouncements()
       }
     } catch {
-      setAnnouncements((prev) => prev.filter((a) => a.id !== optimisticId))
+      patchAnnouncementsCache((prev) => prev.filter((a) => a.id !== optimisticId))
       setCreateError("Network error. Try again.")
       setCreateOpen(true)
     } finally {
@@ -291,7 +281,7 @@ export function DashboardAnnouncementsCard({
     setEditError(null)
     setEditSaving(true)
     const prevSnap = announcements
-    setAnnouncements((p) =>
+    patchAnnouncementsCache((p) =>
       p.map((a) =>
         a.id === id
           ? {
@@ -321,14 +311,14 @@ export function DashboardAnnouncementsCard({
       )
       const j = await res.json().catch(() => ({}))
       if (!res.ok) {
-        setAnnouncements(prevSnap)
+        patchAnnouncementsCache(() => prevSnap)
         setEditError(typeof (j as { error?: string }).error === "string" ? (j as { error: string }).error : "Could not save.")
         return
       }
       setEditingId(null)
-      await load()
+      refreshAnnouncements()
     } catch {
-      setAnnouncements(prevSnap)
+      patchAnnouncementsCache(() => prevSnap)
       setEditError("Network error.")
     } finally {
       setEditSaving(false)

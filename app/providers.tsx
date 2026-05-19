@@ -6,6 +6,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { SessionProvider } from "@/lib/auth/client-auth"
 import { ThemeProvider } from "@/components/ui/theme-provider"
 import { BraikPerfInstrumentation } from "@/components/perf/braik-perf-instrumentation"
+import { ClientApiFetchMonitor } from "@/components/debug/client-api-fetch-monitor"
 import { DASHBOARD_BOOTSTRAP_STALE_MS } from "@/lib/dashboard/dashboard-bootstrap-query"
 
 /** Deferred: not needed for first paint on web; loads in a separate chunk. */
@@ -46,6 +47,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
           disableTransitionOnChange={false}
         >
           <BraikPerfInstrumentation />
+          <ClientApiFetchMonitor />
           {children}
         </ThemeProvider>
       </SessionProvider>

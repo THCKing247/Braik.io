@@ -8,6 +8,7 @@ import {
   portalPrefixedDashboardHref,
   teamScopedDashboardHref,
 } from "@/lib/portal/dashboard-path"
+import { shouldSkipDashboardRouterPrefetch } from "@/lib/navigation/dashboard-schedule-prefetch"
 
 type PrefetchTeam = {
   id: string
@@ -67,9 +68,15 @@ export function DashboardLikelyRoutePrefetch({
         : null
 
     runWhenIdle(() => {
-      router.prefetch(teamScopedDashboardHref("coach", "/roster", shortIds))
-      router.prefetch(teamScopedDashboardHref("coach", "/schedule", shortIds))
-      router.prefetch(teamScopedDashboardHref("coach", "/messages", shortIds))
+      for (const href of [
+        teamScopedDashboardHref("coach", "/roster", shortIds),
+        teamScopedDashboardHref("coach", "/schedule", shortIds),
+        teamScopedDashboardHref("coach", "/messages", shortIds),
+      ]) {
+        if (!shouldSkipDashboardRouterPrefetch(href)) {
+          router.prefetch(href)
+        }
+      }
     })
   }, [router, kind, role, teams, currentTeamId])
 

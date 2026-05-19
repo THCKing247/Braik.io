@@ -838,7 +838,9 @@ export function RosterManagerEnhanced({
 
   useEffect(() => {
     if (!canEdit || !teamId) return
-    if (activeTab !== "roster" && activeTab !== "readiness") return
+    const needsBundle =
+      activeTab === "readiness" || (activeTab === "roster" && readinessFilter !== "all")
+    if (!needsBundle) return
     if (readinessRefetchNonce === 0 && prefetchedReadinessDetail?.summary) {
       setReadinessSummary(prefetchedReadinessDetail.summary)
       if (prefetchedReadinessDetail.players && prefetchedReadinessDetail.players.length > 0) {
@@ -870,7 +872,7 @@ export function RosterManagerEnhanced({
     return () => {
       cancelled = true
     }
-  }, [canEdit, teamId, activeTab, readinessRefetchNonce, prefetchedReadinessDetail])
+  }, [canEdit, teamId, activeTab, readinessFilter, readinessRefetchNonce, prefetchedReadinessDetail])
 
   useEffect(() => {
     if (readinessRefetchNonce > 0) {

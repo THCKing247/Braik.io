@@ -21,6 +21,7 @@ import { DashboardShellLoadingSkeleton } from "@/components/portal/dashboard-she
 import { PortalShellProvider } from "@/components/portal/portal-shell-context"
 import { PortalRouteEnforcer } from "@/components/portal/portal-route-enforcer"
 import { teamScopedDashboardHref } from "@/lib/portal/dashboard-path"
+import { shouldSkipDashboardRouterPrefetch } from "@/lib/navigation/dashboard-schedule-prefetch"
 
 /**
  * Coach / recruiter **team dashboard** chrome (sidebar, coach nav). Player and parent roles should prefer
@@ -95,7 +96,9 @@ export function DashboardTeamShellGate({ children }: { children: React.ReactNode
     const idleCb = win.requestIdleCallback
     const prefetch = () => {
       for (const href of nextHrefs) {
-        router.prefetch(href)
+        if (!shouldSkipDashboardRouterPrefetch(href)) {
+          router.prefetch(href)
+        }
       }
     }
     if (typeof idleCb === "function") {

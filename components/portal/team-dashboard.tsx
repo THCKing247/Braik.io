@@ -1037,9 +1037,11 @@ export function TeamDashboard({ session, teamId, canAddCalendarEvents }: TeamDas
                 canCreate={canAddCalendarEvents}
                 viewerUserId={user.id}
                 viewerRole={user.role}
-                bootstrapLoading={dashboardBootstrapState === "loading"}
+                bootstrapLoading={dashboardBootstrapState === "loading" || awaitingDeferredCore}
                 initialAnnouncements={
-                  dashboardBootstrapState === "ok" && !awaitingDeferredCore ? dashQ.data?.announcements : undefined
+                  dashboardBootstrapState === "ok" && !awaitingDeferredCore
+                    ? dashQ.data?.announcements
+                    : undefined
                 }
               />
             </div>

@@ -19,6 +19,7 @@ import {
   fetchDashboardBootstrapLight,
 } from "@/lib/api/dashboard/bootstrap"
 import { queryKeys } from "@/lib/queries/keys"
+import { seedTeamAnnouncementsCache } from "@/lib/api/team/team-announcements-query"
 
 /** Light payload can stay warm across short navigations. */
 export const DASHBOARD_BOOTSTRAP_STALE_MS = 90 * 1000
@@ -110,6 +111,9 @@ function applyDeferredCoreToCache(
     applied = true
     const merged = mergeDashboardBootstrapDeferredCore(prev, core)
     writeLightweightMemory(dashboardBootstrapMemoryKey(t), merged)
+    if (Array.isArray(merged.announcements)) {
+      seedTeamAnnouncementsCache(queryClient, t, merged.announcements)
+    }
     return merged
   })
   if (applied) {

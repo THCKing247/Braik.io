@@ -399,17 +399,20 @@ export function MessagingManager({
 
   const visibleThreadIds = useMemo(() => threadsBase.map((t) => t.id), [threadsBase])
 
-  const threadsListHydrated = Boolean(messagesThreadsQuery.data?.threads?.length)
+  const threadsListHydrated = messagesThreadsQuery.data !== undefined
+  const bootstrapInboxReady = bootstrapThreadsInbox !== undefined && bootstrapCoreReady !== false
+  const inboxStatsFallbackEnabled =
+    Boolean(teamId && userId) && !threadsListHydrated && !bootstrapInboxReady
   const messagingUnreadTotalQuery = useMessagingUnreadTotalQuery({
     userId,
     teamId,
-    enabled: !threadsListHydrated,
+    enabled: inboxStatsFallbackEnabled,
   })
   const messageThreadInboxStatsQuery = useMessageThreadInboxStatsQuery({
     userId,
     teamId,
     visibleThreadIds,
-    enabled: !threadsListHydrated,
+    enabled: inboxStatsFallbackEnabled && visibleThreadIds.length > 0,
   })
 
   const threads = useMemo(() => {
@@ -488,6 +491,10 @@ export function MessagingManager({
   const optimisticReadRef = useRef<{ threadId: string; prevUnread: number } | null>(null)
   /** Skip duplicate POST /read when reopening a thread that is already at zero unread. */
   const threadReadAckRef = useRef<Set<string>>(new Set())
+  /** In-flight POST /read per threadId (Strict Mode / remount dedupe). */
+  const threadReadInFlightRef = useRef<Set<string>>(new Set())
+  /** Coalesce concurrent GET /api/messages/thread/[id] for the same thread + cursor. */
+  const threadDetailFetchInFlightRef = useRef<Map<string, Promise<Response>>>(new Map())
 
   const lastHydratedBootstrapSigRef = useRef<string>("")
 
@@ -974,6 +981,10 @@ export function MessagingManager({
       if (currentUnread === 0 && threadReadAckRef.current.has(threadId)) {
         return true
       }
+      if (threadReadInFlightRef.current.has(threadId)) {
+        return true
+      }
+      threadReadInFlightRef.current.add(threadId)
       const rollback = optimisticReadRef.current
       try {
         // Inline POST kept here: optimistic rollback branches on HTTP status without throwing — revisit with a typed helper later.
@@ -1026,10 +1037,23 @@ export function MessagingManager({
         optimisticReadRef.current = null
         console.error("markThreadReadAndSync", e)
         return false
+      } finally {
+        threadReadInFlightRef.current.delete(threadId)
       }
     },
     [shell, messagingUnread, queryClient, userId, teamId, patchMessagesThreadsCache]
   )
+
+  const fetchThreadDetailOnce = useCallback((threadId: string, extra?: Record<string, string>) => {
+    const key = `${threadId}\u0000${extra?.before ?? ""}`
+    const existing = threadDetailFetchInFlightRef.current.get(key)
+    if (existing) return existing
+    const p = fetch(threadDetailFetchUrl(threadId, extra)).finally(() => {
+      threadDetailFetchInFlightRef.current.delete(key)
+    })
+    threadDetailFetchInFlightRef.current.set(key, p)
+    return p
+  }, [])
 
   const resolveRealtimeCreator = (senderId: string): Message["creator"] => {
     if (senderId === userId) {
@@ -1096,7 +1120,7 @@ export function MessagingManager({
       void markThreadReadAndSync(threadId)
       // TODO(Phase 4): Keep direct detail fetch for now; this flow coordinates pagination, optimistic state,
       // and realtime hydration in one transaction and needs a dedicated typed helper before extraction.
-      const response = await fetch(threadDetailFetchUrl(threadId))
+      const response = await fetchThreadDetailOnce(threadId)
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}))
         throw new Error(errorData.error || "Failed to load messages")
@@ -1214,7 +1238,7 @@ export function MessagingManager({
     const prevScrollHeight = container?.scrollHeight ?? 0
     try {
       // TODO(Phase 4): Older-page fetch intentionally remains local until thread detail pagination is centralized.
-      const res = await fetch(threadDetailFetchUrl(threadId, { before: oldest }))
+      const res = await fetchThreadDetailOnce(threadId, { before: oldest })
       if (!res.ok) return
       const data = await res.json()
       const pag = data.pagination as { hasMoreOlder?: boolean } | undefined

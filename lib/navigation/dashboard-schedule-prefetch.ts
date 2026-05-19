@@ -1,3 +1,5 @@
+import { stripDashboardPortalPrefix } from "@/lib/portal/dashboard-path"
+
 /**
  * Next.js App Router prefetches visible `<Link>` RSC payloads by default.
  * Team-scoped dashboard routes often trigger large client trees + data hooks; use the return value as
@@ -37,7 +39,8 @@ const HEAVY_DASHBOARD_PREFIXES = [
 ] as const
 
 export function prefetchPropForDashboardScheduleHref(href: string): boolean | undefined {
-  const pathOnly = (href.split("#")[0] ?? href).split("?")[0] ?? ""
+  const rawPath = (href.split("#")[0] ?? href).split("?")[0] ?? ""
+  const pathOnly = stripDashboardPortalPrefix(rawPath)
   if (pathOnly === "/dashboard") {
     return false
   }
@@ -47,4 +50,9 @@ export function prefetchPropForDashboardScheduleHref(href: string): boolean | un
     }
   }
   return undefined
+}
+
+/** True when `router.prefetch` should be skipped for this dashboard href (canonical org/team URLs included). */
+export function shouldSkipDashboardRouterPrefetch(href: string): boolean {
+  return prefetchPropForDashboardScheduleHref(href) === false
 }

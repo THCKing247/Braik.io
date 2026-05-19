@@ -9,6 +9,7 @@ import {
 } from "react"
 import { useDashboardShellIdentity } from "@/lib/hooks/use-dashboard-shell-identity"
 import {
+  AdPortalMeProvider,
   useAdPortalMeQuery,
   writeCachedAdPortalDefaultPath,
 } from "@/lib/api/me/ad-portal-query"
@@ -29,7 +30,7 @@ const AdPortalLinkContext = createContext<AdPortalLinkContextValue>({
   ready: false,
 })
 
-export function AdPortalLinkProvider({ children }: { children: ReactNode }) {
+function AdPortalLinkProviderInner({ children }: { children: ReactNode }) {
   const identity = useDashboardShellIdentity()
   const isHeadCoach = identity.hasIdentity && identity.roleUpper === "HEAD_COACH"
   const query = useAdPortalMeQuery({ enabled: isHeadCoach })
@@ -53,6 +54,16 @@ export function AdPortalLinkProvider({ children }: { children: ReactNode }) {
 
   return (
     <AdPortalLinkContext.Provider value={value}>{children}</AdPortalLinkContext.Provider>
+  )
+}
+
+export function AdPortalLinkProvider({ children }: { children: ReactNode }) {
+  const identity = useDashboardShellIdentity()
+  const isHeadCoach = identity.hasIdentity && identity.roleUpper === "HEAD_COACH"
+  return (
+    <AdPortalMeProvider enabled={isHeadCoach}>
+      <AdPortalLinkProviderInner>{children}</AdPortalLinkProviderInner>
+    </AdPortalMeProvider>
   )
 }
 

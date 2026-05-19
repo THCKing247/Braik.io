@@ -4,13 +4,14 @@ import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { requireTeamAccessWithUser } from "@/lib/auth/rbac"
 import { loadMessageThreadsInboxPayload } from "@/lib/messaging/load-message-threads-inbox"
 import { mapLegacyFormattedThreadsToWire } from "@/lib/messaging/thread-list-wire"
+import { withApiDevLogging } from "@/lib/api/core/api-dev-log"
 
 /**
  * GET /api/messages/threads?teamId=xxx
  * Returns a **wire** thread list (threadId, lastMessage preview, participants, unread, updatedAt) —
  * no full message history. Maps server-side from the same inbox loader used by bootstrap (legacy shape).
  */
-export async function GET(request: Request) {
+async function getHandler(request: Request) {
   try {
     const { searchParams } = new URL(request.url)
     const teamId = searchParams.get("teamId")
@@ -54,3 +55,5 @@ export async function GET(request: Request) {
     )
   }
 }
+
+export const GET = withApiDevLogging("GET /api/messages/threads", getHandler)

@@ -47,7 +47,9 @@ export async function GET(request: Request) {
       label: l.label,
     }))
 
-    return NextResponse.json(formatted)
+    const res = NextResponse.json(formatted)
+    res.headers.set("Cache-Control", "private, max-age=120, stale-while-revalidate=600")
+    return res
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : "Failed to load position labels"
     console.error("[GET /api/roster/depth-chart/position-labels]", error)

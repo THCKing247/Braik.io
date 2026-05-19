@@ -202,15 +202,11 @@ function fetchReadinessBundleOnce(teamId: string, bustNonce: number) {
   const existing = readinessBundleInFlight.get(key)
   if (existing) return existing
   const p = (async () => {
-    const [sumRes, flagsRes] = await Promise.all([
-      fetch(`/api/teams/${encodeURIComponent(teamId)}/readiness?summaryOnly=1`),
-      fetch(`/api/teams/${encodeURIComponent(teamId)}/readiness?playerFlagsOnly=1`),
-    ])
-    if (!sumRes.ok || !flagsRes.ok) return null
-    const sumData = (await sumRes.json()) as { summary?: TeamReadinessSummary }
-    const flagsData = (await flagsRes.json()) as { summary?: TeamReadinessSummary; players?: PlayerReadinessItem[] }
-    if (!sumData?.summary || typeof sumData.summary.total !== "number") return null
-    return { summary: sumData.summary, flags: flagsData.players ?? [] }
+    const res = await fetch(`/api/teams/${encodeURIComponent(teamId)}/readiness?bundle=1`)
+    if (!res.ok) return null
+    const data = (await res.json()) as { summary?: TeamReadinessSummary; players?: PlayerReadinessItem[] }
+    if (!data?.summary || typeof data.summary.total !== "number") return null
+    return { summary: data.summary, flags: data.players ?? [] }
   })().finally(() => readinessBundleInFlight.delete(key))
   readinessBundleInFlight.set(key, p)
   return p
@@ -842,6 +838,7 @@ export function RosterManagerEnhanced({
 
   useEffect(() => {
     if (!canEdit || !teamId) return
+    if (activeTab !== "roster" && activeTab !== "readiness") return
     if (readinessRefetchNonce === 0 && prefetchedReadinessDetail?.summary) {
       setReadinessSummary(prefetchedReadinessDetail.summary)
       if (prefetchedReadinessDetail.players && prefetchedReadinessDetail.players.length > 0) {
@@ -873,7 +870,7 @@ export function RosterManagerEnhanced({
     return () => {
       cancelled = true
     }
-  }, [canEdit, teamId, readinessRefetchNonce, prefetchedReadinessDetail])
+  }, [canEdit, teamId, activeTab, readinessRefetchNonce, prefetchedReadinessDetail])
 
   useEffect(() => {
     if (readinessRefetchNonce > 0) {
@@ -883,7 +880,7 @@ export function RosterManagerEnhanced({
   }, [readinessRefetchNonce])
 
   useEffect(() => {
-    if (!canEdit || !teamId || activeTab !== "readiness") return
+    if (!canEdit || !teamId || activeTab !== "readiness" || readinessSubTab !== "attention") return
     let cancelled = false
     setAttentionLoading(true)
     const q = new URLSearchParams({
@@ -911,10 +908,10 @@ export function RosterManagerEnhanced({
     return () => {
       cancelled = true
     }
-  }, [canEdit, teamId, activeTab, attentionPage, attentionQ, readinessRefetchNonce])
+  }, [canEdit, teamId, activeTab, readinessSubTab, attentionPage, attentionQ, readinessRefetchNonce])
 
   useEffect(() => {
-    if (!canEdit || !teamId || activeTab !== "readiness") return
+    if (!canEdit || !teamId || activeTab !== "readiness" || readinessSubTab !== "checklist") return
     let cancelled = false
     setChecklistLoading(true)
     const q = new URLSearchParams({
@@ -942,10 +939,10 @@ export function RosterManagerEnhanced({
     return () => {
       cancelled = true
     }
-  }, [canEdit, teamId, activeTab, checklistPage, checklistQ, readinessRefetchNonce])
+  }, [canEdit, teamId, activeTab, readinessSubTab, checklistPage, checklistQ, readinessRefetchNonce])
 
   useEffect(() => {
-    if (!canEdit || !teamId || activeTab !== "readiness") return
+    if (!canEdit || !teamId || activeTab !== "readiness" || readinessSubTab !== "activity") return
     setTeamActivityLoading(true)
     let cancelled = false
     Promise.all([
@@ -980,7 +977,7 @@ export function RosterManagerEnhanced({
     return () => {
       cancelled = true
     }
-  }, [canEdit, teamId, activeTab, followUpsRefetchNonce])
+  }, [canEdit, teamId, activeTab, readinessSubTab, followUpsRefetchNonce])
 
   const isFootball = teamSport?.toLowerCase() === "football"
 

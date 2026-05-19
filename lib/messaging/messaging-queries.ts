@@ -3,7 +3,7 @@
 import { useMemo } from "react"
 import { keepPreviousData, useQuery, type QueryClient } from "@tanstack/react-query"
 import type { MessageThreadWireItem } from "@/lib/messaging/thread-list-wire"
-import { supabase } from "@/lib/supabaseClient"
+import { fetchMessagingInboxStats } from "@/lib/api/messaging/inbox-stats-api"
 import { fetchMessagesThreadsList as fetchMessagesThreadsListApi } from "@/lib/api/messaging/threads"
 import { messagingQueryRoot, queryKeys } from "@/lib/queries/keys"
 
@@ -25,26 +25,6 @@ export function messageThreadInboxStatsQueryKey(userId: string, visibleThreadIds
   return queryKeys.messaging.inboxStats(userId, visibleThreadIds)
 }
 
-export function useMessagingUnreadTotalQuery(opts: { userId: string; teamId: string }) {
-  const { userId, teamId } = opts
-  return useQuery({
-    queryKey: messagingUnreadTotalQueryKey(userId, teamId),
-    queryFn: async () => {
-      const { data, error } = await supabase.rpc("messaging_unread_total_for_team_user", {
-        p_user_id: userId,
-        p_team_id: teamId,
-      })
-      if (error) throw error
-      return Number(data ?? 0)
-    },
-    enabled: Boolean(userId && teamId),
-    staleTime: 30_000,
-    refetchOnMount: false,
-    refetchOnWindowFocus: false,
-    placeholderData: keepPreviousData,
-  })
-}
-
 export type MessageThreadInboxStatRow = {
   thread_id: string
   message_count: number | string
@@ -55,8 +35,33 @@ export type MessageThreadInboxStatRow = {
   last_sender_id: string | null
 }
 
-export function useMessageThreadInboxStatsQuery(opts: { userId: string; visibleThreadIds: string[] }) {
-  const { userId, visibleThreadIds } = opts
+export function useMessagingUnreadTotalQuery(opts: {
+  userId: string
+  teamId: string
+  enabled?: boolean
+}) {
+  const { userId, teamId, enabled = true } = opts
+  return useQuery({
+    queryKey: messagingUnreadTotalQueryKey(userId, teamId),
+    queryFn: async () => {
+      const data = await fetchMessagingInboxStats(teamId)
+      return Number(data.totalUnread ?? 0)
+    },
+    enabled: Boolean(userId && teamId && enabled),
+    staleTime: 30_000,
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
+    placeholderData: keepPreviousData,
+  })
+}
+
+export function useMessageThreadInboxStatsQuery(opts: {
+  userId: string
+  teamId: string
+  visibleThreadIds: string[]
+  enabled?: boolean
+}) {
+  const { userId, teamId, visibleThreadIds, enabled = true } = opts
   const stableThreadIds = useMemo(
     () => normalizeThreadIds(visibleThreadIds),
     [visibleThreadIds.join("\u0000")]
@@ -65,14 +70,10 @@ export function useMessageThreadInboxStatsQuery(opts: { userId: string; visibleT
   return useQuery({
     queryKey: messageThreadInboxStatsQueryKey(userId, stableThreadIds),
     queryFn: async () => {
-      const { data, error } = await supabase.rpc("message_threads_inbox_stats", {
-        p_user_id: userId,
-        p_thread_ids: stableThreadIds,
-      })
-      if (error) throw error
-      return (data ?? []) as MessageThreadInboxStatRow[]
+      const data = await fetchMessagingInboxStats(teamId, stableThreadIds)
+      return (data.stats ?? []) as MessageThreadInboxStatRow[]
     },
-    enabled: Boolean(userId && stableThreadIds.length),
+    enabled: Boolean(userId && teamId && stableThreadIds.length && enabled),
     staleTime: 10_000,
     refetchOnMount: false,
     refetchOnWindowFocus: false,

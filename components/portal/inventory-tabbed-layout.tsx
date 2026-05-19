@@ -21,6 +21,17 @@ import { BulkEditModal } from "./bulk-edit-modal"
 import { PortalUnderlineTabs, type PortalUnderlineTab } from "./portal-underline-tabs"
 import { isPlayerAssignableBucket } from "@/lib/inventory-category-policy"
 
+type ServerExpenseRollupRow = {
+  key: string
+  bucket: string
+  typeKey: string
+  totalQty: number
+  totalLine: number
+  uniformUnit: number | null
+}
+
+const expenseGroupsInFlight = new Map<string, Promise<ServerExpenseRollupRow[] | null>>()
+
 interface InventoryItem {
   id: string
   category: string
@@ -950,20 +961,31 @@ export function InventoryTabbedLayout({
     if (mainView !== "expenses" || !teamId) return
     let cancelled = false
     const expenseUrl = `/api/teams/${teamId}/inventory?expenseGroups=1&bucket=${encodeURIComponent(bucketFilter)}`
-    fetch(expenseUrl)
+    const expenseKey = expenseUrl
+    const existing = expenseGroupsInFlight.get(expenseKey)
+    if (existing) {
+      void existing.then((groups) => {
+        if (!cancelled && groups) setServerExpenseGroups(groups)
+      })
+      return () => {
+        cancelled = true
+      }
+    }
+    const fetchPromise = fetch(expenseUrl)
       .then((r) => (r.ok ? r.json() : null))
-      .then((d: { expenseGroups?: NonNullable<typeof serverExpenseGroups> }) => {
-        if (cancelled) return
-        if (Array.isArray(d?.expenseGroups)) {
-          setServerExpenseGroups(d.expenseGroups)
-        } else {
-          setServerExpenseGroups([])
-        }
+      .then((d: { expenseGroups?: ServerExpenseRollupRow[] }) => {
+        if (Array.isArray(d?.expenseGroups)) return d.expenseGroups
+        return []
       })
-      .catch(() => {
-        if (cancelled) return
-        setServerExpenseGroups([])
+      .catch(() => [] as ServerExpenseRollupRow[])
+      .finally(() => {
+        expenseGroupsInFlight.delete(expenseKey)
       })
+    expenseGroupsInFlight.set(expenseKey, fetchPromise)
+    void fetchPromise.then((groups) => {
+      if (cancelled || !groups) return
+      setServerExpenseGroups(groups)
+    })
     return () => {
       cancelled = true
     }
@@ -971,6 +993,7 @@ export function InventoryTabbedLayout({
 
   useEffect(() => {
     if (!teamId) return
+    if (!conditionPanelOpen && (pendingConditionReportCount ?? 0) <= 0) return
     let cancelled = false
     fetch(`/api/teams/${teamId}/inventory/condition-reports`)
       .then((r) => (r.ok ? r.json() : { reports: [] }))
@@ -983,7 +1006,7 @@ export function InventoryTabbedLayout({
     return () => {
       cancelled = true
     }
-  }, [teamId, pendingConditionReportCount])
+  }, [teamId, pendingConditionReportCount, conditionPanelOpen])
 
   useEffect(() => {
     if (assignModalItem) {

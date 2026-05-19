@@ -11,16 +11,18 @@ import {
   tagTeamDashboardBootstrap,
   tagTeamReadinessSummary,
 } from "@/lib/cache/lightweight-get-cache"
+import { withApiDevLogging } from "@/lib/api/core/api-dev-log"
 
 /**
  * GET /api/teams/[teamId]/readiness?summaryOnly=1
  * Team-wide readiness. Coach only.
  * summaryOnly=1: aggregated counts (RPC) + short-lived Data Cache per teamId (tags align with dashboard bootstrap).
+ * bundle=1: summary + playerFlags in one response (same underlying full compute once).
  * Full: per-player rows, not cached so roster filters stay fresh after edits.
  * section=attention|checklist&page=1&limit=10&q= : paginated rows for Needs attention or Roster checklist.
  * playerFlagsOnly=1 : all players with readiness flags; missingItems omitted (lighter JSON for roster filters).
  */
-export async function GET(
+async function getHandler(
   request: Request,
   { params }: { params: Promise<{ teamId: string }> }
 ) {
@@ -37,6 +39,7 @@ export async function GET(
 
     const sp = new URL(request.url).searchParams
     const summaryOnly = sp.get("summaryOnly") === "1"
+    const bundle = sp.get("bundle") === "1"
     const playerFlagsOnly = sp.get("playerFlagsOnly") === "1"
     const sectionRaw = sp.get("section")?.trim().toLowerCase()
     const section =
@@ -44,6 +47,14 @@ export async function GET(
     const page = Math.max(1, parseInt(sp.get("page") ?? "1", 10) || 1)
     const limit = Math.min(100, Math.max(1, parseInt(sp.get("limit") ?? "10", 10) || 10))
     const q = sp.get("q")?.trim() ?? ""
+
+    if (bundle) {
+      const body = await computeTeamReadinessPayload(teamId, false, { playerFlagsOnly: true })
+      return NextResponse.json({
+        summary: body.summary,
+        players: "players" in body ? body.players : [],
+      })
+    }
 
     const paginatedOpts: TeamReadinessRequestOptions | undefined =
       section != null
@@ -76,3 +87,5 @@ export async function GET(
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }
+
+export const GET = withApiDevLogging("GET /api/teams/[teamId]/readiness", getHandler)

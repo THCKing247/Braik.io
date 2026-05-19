@@ -8,6 +8,7 @@ import {
 import { getCachedAdPortalAccessForUser } from "@/lib/ad-portal-access-cache"
 import { getSupabaseServer } from "@/src/lib/supabaseServer"
 import { shouldLogRoutePerf, routePerf, logRoutePerf, type RoutePerfSink } from "@/lib/debug/route-perf"
+import { withApiDevLogging } from "@/lib/api/core/api-dev-log"
 import {
   buildOrganizationPortalPath,
   resolveDefaultShortOrgIdForUser,
@@ -17,7 +18,7 @@ import {
 export const runtime = "nodejs"
 
 /** Client helper: varsity HC / AD portal entry and nav scope (no separate “director” shell). */
-export async function GET() {
+async function getHandler() {
   const started = performance.now()
   const sink: RoutePerfSink | null = shouldLogRoutePerf() ? [] : null
 
@@ -79,3 +80,5 @@ export async function GET() {
     return NextResponse.json({ error: "Internal error" }, { status: 500 })
   }
 }
+
+export const GET = withApiDevLogging("GET /api/me/ad-portal", async () => getHandler())

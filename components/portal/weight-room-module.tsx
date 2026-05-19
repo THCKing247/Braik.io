@@ -162,12 +162,15 @@ export function WeightRoomModule({ teamId, canEdit = true }: { teamId: string; c
   useEffect(() => {
     setLoading(true)
     setErr(null)
-    const loads = [loadSchedule(), loadRoster()] as Promise<unknown>[]
-    if (canEdit) loads.push(loadMaxes())
-    Promise.all(loads)
+    Promise.all([loadSchedule(), loadRoster()])
       .catch((e) => setErr(e instanceof Error ? e.message : "Load failed"))
       .finally(() => setLoading(false))
-  }, [loadSchedule, loadMaxes, loadRoster, canEdit])
+  }, [loadSchedule, loadRoster])
+
+  useEffect(() => {
+    if (tab !== "maxes" || !canEdit) return
+    void loadMaxes().catch((e) => setErr(e instanceof Error ? e.message : "Load failed"))
+  }, [tab, canEdit, loadMaxes])
 
   const positionOptions = useMemo(() => {
     const s = new Set<string>()

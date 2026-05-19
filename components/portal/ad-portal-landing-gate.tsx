@@ -3,8 +3,9 @@
 import { useSession } from "@/lib/auth/client-auth"
 import { DashboardPageShellSkeleton } from "@/components/portal/dashboard-page-shell"
 import { CANONICAL_DASHBOARD_TEAM_PATH_RE } from "@/lib/navigation/organization-routes"
+import { useAdPortalMeQuery } from "@/lib/api/me/ad-portal-query"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
-import { useEffect, useState, type ReactNode } from "react"
+import { useEffect, type ReactNode } from "react"
 
 /**
  * Varsity head coaches with football AD portal scope default to the organization portal unless they are
@@ -16,55 +17,49 @@ export function AdPortalLandingGate({ children }: { children: ReactNode }) {
   const searchParams = useSearchParams()
   const router = useRouter()
   const teamId = searchParams.get("teamId")
-  const [ready, setReady] = useState(false)
+
+  const path = pathname ?? ""
+  const onCanonicalTeamDashboard = CANONICAL_DASHBOARD_TEAM_PATH_RE.test(path)
+  const needsAdPortalCheck =
+    status === "authenticated" &&
+    session?.user?.role?.toUpperCase() === "HEAD_COACH" &&
+    !teamId &&
+    !onCanonicalTeamDashboard
+
+  const adPortalQuery = useAdPortalMeQuery({ enabled: needsAdPortalCheck })
 
   useEffect(() => {
-    if (status !== "authenticated") {
-      if (status === "unauthenticated") setReady(true)
-      return
+    if (!needsAdPortalCheck || adPortalQuery.isPending) return
+    const data = adPortalQuery.data
+    if (data?.canEnterAdPortal && data.defaultPath) {
+      router.replace(data.defaultPath)
     }
-    if (session?.user?.role?.toUpperCase() !== "HEAD_COACH") {
-      setReady(true)
-      return
-    }
-    const path = pathname ?? ""
-    const onCanonicalTeamDashboard = CANONICAL_DASHBOARD_TEAM_PATH_RE.test(path)
-    if (teamId || onCanonicalTeamDashboard) {
-      setReady(true)
-      return
-    }
+  }, [needsAdPortalCheck, adPortalQuery.isPending, adPortalQuery.data, router])
 
-    let cancelled = false
-    ;(async () => {
-      try {
-        const res = await fetch("/api/me/ad-portal")
-        if (!res.ok) {
-          if (!cancelled) setReady(true)
-          return
-        }
-        const data = (await res.json()) as { canEnterAdPortal?: boolean; defaultPath?: string }
-        if (!cancelled && data.canEnterAdPortal && data.defaultPath) {
-          router.replace(data.defaultPath)
-          return
-        }
-      } catch {
-        /* fall through */
-      }
-      if (!cancelled) setReady(true)
-    })()
+  if (status !== "authenticated") {
+    if (status === "unauthenticated") return <>{children}</>
+    return <DashboardLandingSkeleton />
+  }
 
-    return () => {
-      cancelled = true
-    }
-  }, [status, session, teamId, pathname, router])
+  if (session?.user?.role?.toUpperCase() !== "HEAD_COACH") {
+    return <>{children}</>
+  }
 
-  if (!ready) {
-    return (
-      <div className="min-h-[50vh] w-full" aria-busy="true" aria-label="Loading dashboard">
-        <DashboardPageShellSkeleton />
-      </div>
-    )
+  if (teamId || onCanonicalTeamDashboard) {
+    return <>{children}</>
+  }
+
+  if (adPortalQuery.isPending) {
+    return <DashboardLandingSkeleton />
   }
 
   return <>{children}</>
+}
+
+function DashboardLandingSkeleton() {
+  return (
+    <div className="min-h-[50vh] w-full" aria-busy="true" aria-label="Loading dashboard">
+      <DashboardPageShellSkeleton />
+    </div>
+  )
 }

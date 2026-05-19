@@ -399,10 +399,21 @@ export function MessagingManager({
 
   const visibleThreadIds = useMemo(() => threadsBase.map((t) => t.id), [threadsBase])
 
-  const messagingUnreadTotalQuery = useMessagingUnreadTotalQuery({ userId, teamId })
-  const messageThreadInboxStatsQuery = useMessageThreadInboxStatsQuery({ userId, visibleThreadIds })
+  const threadsListHydrated = Boolean(messagesThreadsQuery.data?.threads?.length)
+  const messagingUnreadTotalQuery = useMessagingUnreadTotalQuery({
+    userId,
+    teamId,
+    enabled: !threadsListHydrated,
+  })
+  const messageThreadInboxStatsQuery = useMessageThreadInboxStatsQuery({
+    userId,
+    teamId,
+    visibleThreadIds,
+    enabled: !threadsListHydrated,
+  })
 
   const threads = useMemo(() => {
+    if (threadsListHydrated) return threadsBase
     const rows = messageThreadInboxStatsQuery.data
     if (!rows?.length) return threadsBase
     const byId = new Map(rows.map((r) => [r.thread_id, r]))
@@ -437,7 +448,7 @@ export function MessagingManager({
       }
       return next
     })
-  }, [threadsBase, messageThreadInboxStatsQuery.data, selectedThread?.id])
+  }, [threadsBase, threadsListHydrated, messageThreadInboxStatsQuery.data, selectedThread?.id])
 
   const threadsRef = useRef<Thread[]>([])
   useEffect(() => {
@@ -456,9 +467,14 @@ export function MessagingManager({
     : null
 
   useEffect(() => {
+    const fromThreads = messagesThreadsQuery.data?.meta.totalUnread
+    if (typeof fromThreads === "number") {
+      messagingUnreadRef.current?.syncThreadUnreadFromServer(fromThreads)
+      return
+    }
     if (messagingUnreadTotalQuery.data === undefined) return
     messagingUnreadRef.current?.syncThreadUnreadFromServer(messagingUnreadTotalQuery.data)
-  }, [messagingUnreadTotalQuery.data])
+  }, [messagesThreadsQuery.data?.meta.totalUnread, messagingUnreadTotalQuery.data])
 
   const messageIngressRef = useRef<"idle" | "full-load" | "poll" | "realtime" | "user-send" | "optimistic">("idle")
   const scrollIntentAfterNextMessagesRef = useRef<"bottom" | "keep">("keep")
@@ -470,6 +486,8 @@ export function MessagingManager({
   const messagesRef = useRef<Message[]>([])
   /** Snapshot for rollback if POST /read fails after optimistic UI. */
   const optimisticReadRef = useRef<{ threadId: string; prevUnread: number } | null>(null)
+  /** Skip duplicate POST /read when reopening a thread that is already at zero unread. */
+  const threadReadAckRef = useRef<Set<string>>(new Set())
 
   const lastHydratedBootstrapSigRef = useRef<string>("")
 
@@ -952,6 +970,10 @@ export function MessagingManager({
 
   const markThreadReadAndSync = useCallback(
     async (threadId: string): Promise<boolean> => {
+      const currentUnread = threadsRef.current.find((t) => t.id === threadId)?.unreadCount ?? 0
+      if (currentUnread === 0 && threadReadAckRef.current.has(threadId)) {
+        return true
+      }
       const rollback = optimisticReadRef.current
       try {
         // Inline POST kept here: optimistic rollback branches on HTTP status without throwing — revisit with a typed helper later.
@@ -974,6 +996,7 @@ export function MessagingManager({
           return false
         }
         optimisticReadRef.current = null
+        threadReadAckRef.current.add(threadId)
         const data = (await res.json()) as {
           unreadNotifications?: number
           markedNotificationCount?: number

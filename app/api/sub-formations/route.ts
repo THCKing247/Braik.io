@@ -57,7 +57,9 @@ export async function GET(request: Request) {
       updatedAt: s.updated_at,
     }))
 
-    return NextResponse.json(formatted)
+    const res = NextResponse.json(formatted)
+    res.headers.set("Cache-Control", "private, max-age=60, stale-while-revalidate=300")
+    return res
   } catch (error: unknown) {
     const err = error as { message?: string }
     const msg = err?.message ?? "Failed to load sub-formations"

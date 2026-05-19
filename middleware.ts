@@ -11,6 +11,13 @@ import {
   canonicalDashboardOrgTeamPathFromLegacyPadded,
   canonicalOrgPortalPathFromLegacyPadded,
 } from "@/lib/navigation/canonical-short-id-paths"
+import {
+  resolveApiRequestId,
+  sanitizeSearchParamsForLog,
+  shouldLogApiDev,
+  attachApiRequestId,
+} from "@/lib/api/core/api-dev-log"
+import { CLIENT_REQUEST_ID_HEADER } from "@/lib/api/core/request-id"
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
@@ -32,6 +39,21 @@ export async function middleware(request: NextRequest) {
   // Never run auth or redirects for static assets (avoids ERR_HTTP2_PROTOCOL_ERROR on chunks)
   if (pathname.startsWith("/_next/") || pathname.startsWith("/favicon")) {
     return finish(NextResponse.next())
+  }
+
+  if (pathname.startsWith("/api/") && !pathname.startsWith("/api/dev/")) {
+    const requestId = resolveApiRequestId(request)
+    const reqHeaders = new Headers(request.headers)
+    if (!reqHeaders.has(CLIENT_REQUEST_ID_HEADER)) {
+      reqHeaders.set(CLIENT_REQUEST_ID_HEADER, requestId)
+    }
+    reqHeaders.set("x-request-id", requestId)
+    if (shouldLogApiDev()) {
+      const search = sanitizeSearchParamsForLog(request.nextUrl)
+      console.info(`[braik-api] --> ${request.method} ${pathname}${search} id=${requestId}`)
+    }
+    const res = NextResponse.next({ request: { headers: reqHeaders } })
+    return finish(attachApiRequestId(res, requestId))
   }
 
   // Legacy calendar deep links used /dashboard/schedule?eventId= — games now live at /dashboard/schedule
@@ -331,7 +353,7 @@ export const config = {
     "/org/:path*",
     "/player/:path*",
     "/parent/:path*",
-    "/api/dev/:path*",
+    "/api/:path*",
     "/signup",
     "/signup/:path*",
   ],

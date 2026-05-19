@@ -65,28 +65,41 @@ function PlaybookDetailContent({
       .finally(() => setFormationDeleteImpactLoading(false))
   }, [formationToDeleteId])
 
-  const load = useCallback(async () => {
-    setLoading(true)
+  const loadDepthChart = useCallback(async () => {
     try {
-      const [pbRes, fRes, pRes, sfRes, dcRes] = await Promise.all([
-        fetch(`/api/playbooks/${playbookId}`),
-        fetch(`/api/formations?teamId=${teamId}&playbookId=${playbookId}`),
-        fetch(`/api/plays?teamId=${teamId}&playbookId=${playbookId}`),
-        fetch(`/api/sub-formations?teamId=${teamId}`),
-        fetch(`/api/roster/depth-chart?teamId=${teamId}`),
-      ])
-      if (pbRes.ok) setPlaybook(await pbRes.json())
-      if (fRes.ok) setFormations(await fRes.json())
-      if (pRes.ok) {
-        setPlays(await pRes.json())
-      } else {
-        setPlays([])
-        showToast("Could not load plays", "error")
-      }
-      if (sfRes.ok) setSubFormations(await sfRes.json())
+      const dcRes = await fetch(`/api/roster/depth-chart?teamId=${teamId}`)
       if (dcRes.ok) {
         const dc = await dcRes.json()
         setDepthChartEntries(dc.entries ?? [])
+      }
+    } catch (e) {
+      console.error("Failed to load depth chart for playbook", e)
+    }
+  }, [teamId])
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    try {
+      const wsRes = await fetch(
+        `/api/playbooks/${playbookId}/workspace?teamId=${encodeURIComponent(teamId)}`
+      )
+      if (wsRes.ok) {
+        const data = (await wsRes.json()) as {
+          playbook?: PlaybookRecord
+          formations?: FormationRecord[]
+          plays?: PlayRecord[]
+          subFormations?: SubFormationRecord[]
+        }
+        if (data.playbook) setPlaybook(data.playbook)
+        if (Array.isArray(data.formations)) setFormations(data.formations)
+        if (Array.isArray(data.plays)) setPlays(data.plays)
+        else {
+          setPlays([])
+          showToast("Could not load plays", "error")
+        }
+        if (Array.isArray(data.subFormations)) setSubFormations(data.subFormations)
+      } else {
+        showToast("Could not load playbook", "error")
       }
     } catch (e) {
       console.error("Failed to load playbook detail", e)
@@ -94,6 +107,11 @@ function PlaybookDetailContent({
       setLoading(false)
     }
   }, [playbookId, teamId, showToast])
+
+  useEffect(() => {
+    if (loading) return
+    void loadDepthChart()
+  }, [loading, loadDepthChart])
 
   useEffect(() => {
     load()

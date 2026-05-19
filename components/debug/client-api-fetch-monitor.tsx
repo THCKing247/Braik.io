@@ -10,7 +10,9 @@ import { installClientApiFetchMonitor, logClientApiFetchSummary } from "@/lib/de
 export function ClientApiFetchMonitor() {
   useEffect(() => {
     installClientApiFetchMonitor()
-    if (process.env.NODE_ENV === "development") {
+    const autoSummary =
+      process.env.NODE_ENV === "development" || process.env.NEXT_PUBLIC_DEBUG_FETCHES === "1"
+    if (autoSummary) {
       const t = window.setTimeout(() => logClientApiFetchSummary(), 8_000)
       return () => window.clearTimeout(t)
     }

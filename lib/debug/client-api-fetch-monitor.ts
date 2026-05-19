@@ -82,16 +82,42 @@ export function installClientApiFetchMonitor(): void {
 
   window.addEventListener("popstate", resetForNavigation)
 
-  if (process.env.NODE_ENV === "development") {
-    ;(window as Window & { __braikFetchSummary?: () => void }).__braikFetchSummary = logClientApiFetchSummary
+  if (monitorEnabled()) {
+    const w = window as Window & {
+      __braikFetchSummary?: () => ClientApiFetchSummary | null
+      __braikFetchReset?: () => void
+    }
+    w.__braikFetchSummary = logClientApiFetchSummary
+    w.__braikFetchReset = resetClientApiFetchMonitor
   }
 }
 
-export function logClientApiFetchSummary(): void {
-  if (!monitorEnabled()) return
+export type ClientApiFetchSummaryRow = { url: string; count: number; methods: string }
+
+export type ClientApiFetchSummary = {
+  pageLoadId: string
+  total: number
+  duplicates: ClientApiFetchSummaryRow[]
+  rows: ClientApiFetchSummaryRow[]
+}
+
+export function getClientApiFetchSummary(): ClientApiFetchSummary | null {
+  if (!monitorEnabled()) return null
   const rows = [...counts.entries()]
     .map(([url, e]) => ({ url, count: e.count, methods: [...e.methods].join(",") }))
     .sort((a, b) => b.count - a.count || a.url.localeCompare(b.url))
   const duplicates = rows.filter((r) => r.count > 1)
-  console.info("[braik-fetch] same-origin /api summary", { pageLoadId, total: rows.length, duplicates, rows })
+  return { pageLoadId, total: rows.length, duplicates, rows }
+}
+
+export function resetClientApiFetchMonitor(): void {
+  if (!monitorEnabled()) return
+  resetForNavigation()
+}
+
+export function logClientApiFetchSummary(): ClientApiFetchSummary | null {
+  const summary = getClientApiFetchSummary()
+  if (!summary) return null
+  console.info("[braik-fetch] same-origin /api summary", summary)
+  return summary
 }

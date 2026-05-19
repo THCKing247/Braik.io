@@ -75,38 +75,42 @@ export function GameVideoLibrary({
     }
   }, [teamId])
 
-  const loadAllClips = useCallback(
-    async (videoList: GameVideoRow[]) => {
-      if (videoList.length === 0) {
+  const loadAllClips = useCallback(async (videoList: GameVideoRow[]) => {
+    setLoadingClips(true)
+    try {
+      const res = await fetch(`/api/teams/${teamId}/game-videos/clips`)
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
         setAllClips([])
         return
       }
-      setLoadingClips(true)
-      try {
-        const batches = await Promise.all(
-          videoList.map(async (v) => {
-            const res = await fetch(`/api/teams/${teamId}/game-videos/${v.id}/clips`)
-            const data = await res.json().catch(() => ({}))
-            if (!res.ok) return [] as ClipLibraryRow[]
-            const raw = data.clips ?? []
-            return (raw as unknown[]).map((row) => normalizeClipRow(row, v))
-          }),
-        )
-        setAllClips(batches.flat())
-      } finally {
-        setLoadingClips(false)
-      }
-    },
-    [teamId],
-  )
+      const raw = (data.clips ?? []) as Array<Record<string, unknown>>
+      const byFilmId = new Map(videoList.map((v) => [v.id, v]))
+      setAllClips(
+        raw.map((row) => {
+          const gameVideoId = String(row.game_video_id ?? "")
+          const film =
+            byFilmId.get(gameVideoId) ??
+            ({
+              id: gameVideoId,
+              title: typeof row.film_title === "string" ? row.film_title : null,
+            } as GameVideoRow)
+          return normalizeClipRow(row, film)
+        }),
+      )
+    } finally {
+      setLoadingClips(false)
+    }
+  }, [teamId])
 
   useEffect(() => {
     void loadList()
   }, [loadList])
 
   useEffect(() => {
+    if (loadingVideos) return
     void loadAllClips(videos)
-  }, [videos, loadAllClips])
+  }, [loadingVideos, videos, loadAllClips])
 
   useEffect(() => () => clearUploadSuccessTimer(), [clearUploadSuccessTimer])
 

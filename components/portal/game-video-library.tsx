@@ -60,22 +60,48 @@ export function GameVideoLibrary({
 
   const modalVideo = videos.find((v) => v.id === filmRoomVideoId) ?? null
 
-  const loadList = useCallback(async () => {
+  const mapTeamClipsToLibrary = useCallback((raw: unknown[], videoList: GameVideoRow[]) => {
+    const byId = new Map(videoList.map((v) => [v.id, v]))
+    return (raw as unknown[]).map((row) => {
+      const o = row as Record<string, unknown>
+      const vid = String(o.game_video_id ?? "")
+      const film = byId.get(vid) ?? ({ id: vid, title: null } satisfies GameVideoRow)
+      return normalizeClipRow(row, film)
+    })
+  }, [])
+
+  const loadLibrary = useCallback(async () => {
     setLoadingVideos(true)
+    setLoadingClips(true)
     setError(null)
     try {
-      const res = await fetch(`/api/teams/${teamId}/game-videos`)
-      const data = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error(data.error || "Failed to load videos")
-      setVideos(data.videos ?? [])
+      const [videosRes, clipsRes] = await Promise.all([
+        fetch(`/api/teams/${teamId}/game-videos`),
+        fetch(`/api/teams/${teamId}/game-videos/clips`),
+      ])
+      const videosData = await videosRes.json().catch(() => ({}))
+      if (!videosRes.ok) throw new Error(videosData.error || "Failed to load videos")
+      const list = (videosData.videos ?? []) as GameVideoRow[]
+      setVideos(list)
+
+      const clipsData = await clipsRes.json().catch(() => ({}))
+      if (!clipsRes.ok) {
+        setAllClips([])
+      } else {
+        const raw = clipsData.clips ?? []
+        setAllClips(mapTeamClipsToLibrary(raw, list))
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load")
+      setVideos([])
+      setAllClips([])
     } finally {
       setLoadingVideos(false)
+      setLoadingClips(false)
     }
-  }, [teamId])
+  }, [teamId, mapTeamClipsToLibrary])
 
-  const loadAllClips = useCallback(
+  const reloadLibraryClips = useCallback(
     async (videoList: GameVideoRow[]) => {
       if (videoList.length === 0) {
         setAllClips([])
@@ -83,30 +109,24 @@ export function GameVideoLibrary({
       }
       setLoadingClips(true)
       try {
-        const batches = await Promise.all(
-          videoList.map(async (v) => {
-            const res = await fetch(`/api/teams/${teamId}/game-videos/${v.id}/clips`)
-            const data = await res.json().catch(() => ({}))
-            if (!res.ok) return [] as ClipLibraryRow[]
-            const raw = data.clips ?? []
-            return (raw as unknown[]).map((row) => normalizeClipRow(row, v))
-          }),
-        )
-        setAllClips(batches.flat())
+        const res = await fetch(`/api/teams/${teamId}/game-videos/clips`)
+        const data = await res.json().catch(() => ({}))
+        if (!res.ok) {
+          setAllClips([])
+          return
+        }
+        const raw = data.clips ?? []
+        setAllClips(mapTeamClipsToLibrary(raw, videoList))
       } finally {
         setLoadingClips(false)
       }
     },
-    [teamId],
+    [teamId, mapTeamClipsToLibrary],
   )
 
   useEffect(() => {
-    void loadList()
-  }, [loadList])
-
-  useEffect(() => {
-    void loadAllClips(videos)
-  }, [videos, loadAllClips])
+    void loadLibrary()
+  }, [loadLibrary])
 
   useEffect(() => () => clearUploadSuccessTimer(), [clearUploadSuccessTimer])
 
@@ -182,8 +202,8 @@ export function GameVideoLibrary({
   const refreshClipsForWorkspace = useCallback(async () => {
     if (!filmRoomVideoId) return
     await loadModalClips(filmRoomVideoId)
-    await loadAllClips(videos)
-  }, [filmRoomVideoId, loadModalClips, loadAllClips, videos])
+    await reloadLibraryClips(videos)
+  }, [filmRoomVideoId, loadModalClips, reloadLibraryClips, videos])
 
   const closeFilmRoom = useCallback(() => {
     setFilmRoomVideoId(null)
@@ -191,8 +211,8 @@ export function GameVideoLibrary({
     setPlaybackUrl(null)
     setModalClips([])
     setError(null)
-    void loadList()
-  }, [loadList])
+    void loadLibrary()
+  }, [loadLibrary])
 
   const openFilmRoom = useCallback((videoId: string, opts?: { clipId?: string }) => {
     setError(null)
@@ -208,7 +228,7 @@ export function GameVideoLibrary({
       const data = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(data.error || "Delete failed")
       if (filmRoomVideoId === v.id) closeFilmRoom()
-      await loadList()
+      await loadLibrary()
     } catch (e) {
       setError(e instanceof Error ? e.message : "Delete failed")
     }
@@ -222,7 +242,7 @@ export function GameVideoLibrary({
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(data.error || "Delete failed")
-      await loadList()
+      await loadLibrary()
       if (filmRoomVideoId === c.game_video_id) await loadModalClips(c.game_video_id)
     } catch (e) {
       setError(e instanceof Error ? e.message : "Delete failed")
@@ -362,7 +382,7 @@ export function GameVideoLibrary({
         })
         const comp = await compRes.json().catch(() => ({}))
         if (!compRes.ok) throw new Error(comp.error || "Complete failed")
-        await loadList()
+        await loadLibrary()
         setUploadUi({ phase: "success", pct: 100, fileName: file.name, displayTitle })
         clearUploadSuccessTimer()
         uploadSuccessClearRef.current = setTimeout(() => {
@@ -440,7 +460,7 @@ export function GameVideoLibrary({
         })
         const comp = await compRes.json().catch(() => ({}))
         if (!compRes.ok) throw new Error(comp.error || "Complete failed")
-        await loadList()
+        await loadLibrary()
         setUploadUi({ phase: "success", pct: 100, fileName: file.name, displayTitle })
         clearUploadSuccessTimer()
         uploadSuccessClearRef.current = setTimeout(() => {

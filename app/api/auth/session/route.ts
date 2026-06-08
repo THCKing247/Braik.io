@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server"
+import { cookies } from "next/headers"
 import { getServerSession, applyRefreshedSessionCookies } from "@/lib/auth/server-auth"
+import { readPersistLongSessionFromCookies } from "@/lib/auth/persist-session-cookie"
 import { isSupabaseServerConfigured } from "@/src/lib/supabase-project-env"
 
 /** Cookie JWT + `getUser` via `getServerSession` — not `auth.getSession()`. */
@@ -11,6 +13,9 @@ export async function GET() {
   try {
     const session = await getServerSession()
     if (session?.user) {
+      const persistLongSession = readPersistLongSessionFromCookies((name) =>
+        cookies().get(name)?.value
+      )
       const res = NextResponse.json({
         user: {
           id: session.user.id,
@@ -25,6 +30,8 @@ export async function GET() {
           isPlatformOwner: session.user.isPlatformOwner,
           defaultAppPath: session.user.defaultAppPath,
         },
+        /** False when user chose “remember me” — no 1h inactivity sign-out. */
+        idleLogoutEnabled: !persistLongSession,
       })
       if (session.refreshedSession) applyRefreshedSessionCookies(res, session.refreshedSession)
       return res

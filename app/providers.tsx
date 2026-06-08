@@ -21,6 +21,14 @@ const LastVisitedRouteTracker = dynamic(
   { ssr: false }
 )
 
+const PortalSessionInactivityGuard = dynamic(
+  () =>
+    import("@/components/portal/portal-session-inactivity-guard").then(
+      (m) => m.PortalSessionInactivityGuard
+    ),
+  { ssr: false }
+)
+
 export function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(
     () =>
@@ -39,6 +47,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
       <SessionProvider>
         <NativeAppBootstrap />
         <LastVisitedRouteTracker />
+        <PortalSessionInactivityGuard />
         <ThemeProvider
           attribute="class"
           defaultTheme="system"

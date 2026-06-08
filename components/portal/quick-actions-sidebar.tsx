@@ -12,8 +12,8 @@ import { cn } from "@/lib/utils"
 import { usePortalShellKind } from "@/components/portal/portal-shell-context"
 import { usePortalTeam } from "@/components/portal/portal-team-context"
 import {
+  coachDashboardHrefWithTeamFallback,
   stripDashboardPortalPrefix,
-  teamScopedDashboardHref,
 } from "@/lib/portal/dashboard-path"
 
 export function QuickActionsSidebar() {
@@ -30,7 +30,12 @@ export function QuickActionsSidebar() {
       if (!href.startsWith("/dashboard")) return href
       const rawRest = href.slice("/dashboard".length)
       const suffix = rawRest === "" ? "/" : rawRest.startsWith("/") ? rawRest : `/${rawRest}`
-      return teamScopedDashboardHref(portalKind, suffix, portalTeam?.currentTeamRouteIds ?? null)
+      return coachDashboardHrefWithTeamFallback(
+        portalKind,
+        suffix,
+        portalTeam?.currentTeamRouteIds ?? null,
+        portalTeam?.currentTeamId
+      )
     },
   })
 

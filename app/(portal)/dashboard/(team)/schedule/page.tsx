@@ -9,9 +9,11 @@ import { prefetchPropForDashboardScheduleHref } from "@/lib/navigation/dashboard
 import { useRouter } from "next/navigation"
 import { DashboardPageShell } from "@/components/portal/dashboard-page-shell"
 import { useAppBootstrapOptional } from "@/components/portal/app-bootstrap-context"
+import { useDashboardBootstrapQuery } from "@/lib/dashboard/dashboard-bootstrap-query"
 import { PortalStandardPageHeader, PortalStandardPageRoot } from "@/components/portal/portal-standard-page"
 import { PortalUnderlineTabs } from "@/components/portal/portal-underline-tabs"
 import { ScheduleGameListSkeleton } from "@/components/portal/dashboard-route-skeletons"
+import { ScheduleGameCentricView } from "@/components/portal/schedule-game-centric-view"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import {
@@ -33,12 +35,6 @@ import {
   upsertTeamGameInGamesQueries,
 } from "@/lib/stats/fetch-team-games-client"
 import { getSchedulePageGamesRange } from "@/lib/stats/schedule-games-windows"
-
-const ScheduleGameCentricView = dynamic(
-  () =>
-    import("@/components/portal/schedule-game-centric-view").then((m) => m.ScheduleGameCentricView),
-  { loading: () => <div className="min-h-[200px] animate-pulse rounded-lg bg-muted" aria-hidden /> }
-)
 
 const TeamGameFormDialog = dynamic(
   () => import("@/components/portal/team-game-form-dialog").then((m) => m.TeamGameFormDialog),
@@ -83,9 +79,16 @@ function TeamScheduleContent({ teamId, canEdit }: { teamId: string; canEdit: boo
   const router = useRouter()
   const queryClient = useQueryClient()
   const bootstrap = useAppBootstrapOptional()
+  const bootstrapQ = useDashboardBootstrapQuery(teamId)
 
   /** Stable for the lifetime of this mount — one query key + one network round-trip per team. */
   const scheduleRange = useMemo(() => getSchedulePageGamesRange(), [])
+
+  const deferredCoreReady = Boolean(bootstrapQ.data && bootstrapQ.data.deferredPending === false)
+  const bootstrapGamesPlaceholder = useMemo(() => {
+    if (!deferredCoreReady || !bootstrapQ.data) return undefined
+    return { games: bootstrapQ.data.dashboard.games }
+  }, [bootstrapQ.data, deferredCoreReady])
 
   const [formOpen, setFormOpen] = useState(false)
   const [importOpen, setImportOpen] = useState(false)
@@ -96,13 +99,14 @@ function TeamScheduleContent({ teamId, canEdit }: { teamId: string; canEdit: boo
     queryKey: teamGamesQueryKey(teamId, scheduleRange.startIso, scheduleRange.endIso),
     queryFn: () => fetchTeamGamesForRange(teamId, scheduleRange.startIso, scheduleRange.endIso),
     enabled: Boolean(teamId?.trim()),
+    placeholderData: bootstrapGamesPlaceholder,
     staleTime: SCHEDULE_TEAM_GAMES_STALE_MS,
     gcTime: SCHEDULE_TEAM_GAMES_STALE_MS * 2,
     refetchOnWindowFocus: false,
     refetchOnMount: false,
   })
 
-  const gamesLoading = gamesQuery.isPending
+  const gamesLoading = gamesQuery.isPending && bootstrapGamesPlaceholder === undefined
   const gamesError = gamesQuery.isError
 
   const games = useMemo(() => {

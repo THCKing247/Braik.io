@@ -11,6 +11,7 @@ import React, {
 import { useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query"
 import type { Session } from "@supabase/supabase-js"
 import { getDefaultAppPathForRole } from "@/lib/auth/default-app-path-for-role"
+import { pickPreferredDefaultAppPath, resolvePostAuthDestination } from "@/lib/auth/post-auth-entry-path"
 import { NATIVE_SESSION_UNLOCK_EVENT } from "@/lib/auth/session-unlock-events"
 import { supabaseClient } from "@/src/lib/supabaseClient"
 import {
@@ -161,7 +162,12 @@ export async function signIn(provider: string, options: SignInOptions = {}) {
       expires_at?: number
     }
   }
-  const callbackUrl = options.callbackUrl || data.redirectTo || getDefaultAppPathForRole(data.role)
+  const callbackUrl = resolvePostAuthDestination({
+    callbackUrl: options.callbackUrl,
+    redirectTo: data.redirectTo,
+    defaultAppPath: data.user?.defaultAppPath,
+    role: data.role,
+  })
   const isSuccess = response.ok && data.success === true
 
   authTimingClient("sign_in_response", {
@@ -264,7 +270,7 @@ function mergePreferRicherSession(
       organizationName: a.organizationName ?? b.organizationName,
       positionGroups: a.positionGroups ?? b.positionGroups,
       isPlatformOwner: a.isPlatformOwner ?? b.isPlatformOwner,
-      defaultAppPath: a.defaultAppPath ?? b.defaultAppPath,
+      defaultAppPath: pickPreferredDefaultAppPath(a.defaultAppPath, b.defaultAppPath),
     },
   }
 }

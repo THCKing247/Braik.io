@@ -14,7 +14,7 @@ import {
 import { isNativeAppSync } from "@/lib/native/app-environment"
 import { useMinWidthLg } from "@/lib/hooks/use-min-width-lg"
 import { supabaseClient } from "@/src/lib/supabaseClient"
-import { getDefaultAppPathForRole } from "@/lib/auth/default-app-path-for-role"
+import { resolvePostAuthDestination } from "@/lib/auth/post-auth-entry-path"
 
 /** Same rules as `HeroLoginForm` — safe in-app paths only. */
 function normalizeCallbackUrl(value: string | null): string | undefined {
@@ -85,10 +85,11 @@ export default function LoginPage() {
         if (serverUser?.id && hasAuthRedirectTarget) {
           if (hasRedirected.current) return
           hasRedirected.current = true
-          const destination =
-            callbackUrl ??
-            serverUser.defaultAppPath ??
-            getDefaultAppPathForRole(serverUser.role)
+          const destination = resolvePostAuthDestination({
+            callbackUrl,
+            defaultAppPath: serverUser.defaultAppPath,
+            role: serverUser.role,
+          })
           console.log("[login] redirect destination:", destination)
           window.location.href = destination
           return

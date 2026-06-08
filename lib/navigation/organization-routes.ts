@@ -111,6 +111,10 @@ export function parseFreePortalMessagesPath(pathname: string, basePath: string):
   return { threadId: decodeURIComponent(seg) }
 }
 
+export function buildDashboardTeamHealthPath(parts: DashboardTeamPathParams): string {
+  return buildDashboardTeamPath(parts, "/health")
+}
+
 export function buildDashboardTeamStatsPath(parts: DashboardTeamPathParams): string {
   return buildDashboardTeamPath(parts, "/stats")
 }

@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect } from "react"
+import { useQueryClient } from "@tanstack/react-query"
 import { useRouter } from "next/navigation"
 import { usePortalShellKind } from "@/components/portal/portal-shell-context"
 import { useDashboardShellIdentity } from "@/lib/hooks/use-dashboard-shell-identity"
@@ -8,6 +9,7 @@ import {
   portalPrefixedDashboardHref,
   teamScopedDashboardHref,
 } from "@/lib/portal/dashboard-path"
+import { prefetchTeamScheduleGames } from "@/lib/stats/fetch-team-games-client"
 
 type PrefetchTeam = {
   id: string
@@ -36,6 +38,7 @@ export function DashboardLikelyRoutePrefetch({
   currentTeamId: string
 }) {
   const router = useRouter()
+  const queryClient = useQueryClient()
   const kind = usePortalShellKind()
   const identity = useDashboardShellIdentity()
   const role = identity.roleUpper
@@ -70,8 +73,9 @@ export function DashboardLikelyRoutePrefetch({
       router.prefetch(teamScopedDashboardHref("coach", "/roster", shortIds))
       router.prefetch(teamScopedDashboardHref("coach", "/schedule", shortIds))
       router.prefetch(teamScopedDashboardHref("coach", "/messages", shortIds))
+      void prefetchTeamScheduleGames(queryClient, tid)
     })
-  }, [router, kind, role, teams, currentTeamId])
+  }, [router, queryClient, kind, role, teams, currentTeamId])
 
   return null
 }

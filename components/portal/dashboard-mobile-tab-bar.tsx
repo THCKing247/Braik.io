@@ -14,6 +14,7 @@ import { useAppBootstrapOptional } from "@/components/portal/app-bootstrap-conte
 import { useMessagingUnreadOptional } from "@/components/portal/messaging-unread-context"
 import { usePortalShellKind } from "@/components/portal/portal-shell-context"
 import {
+  coachDashboardHrefWithTeamFallback,
   portalPrefixedDashboardHref,
   stripDashboardPortalPrefix,
   teamScopedDashboardHref,
@@ -97,9 +98,14 @@ export function DashboardMobileTabBar() {
       if (!href.startsWith("/dashboard")) return href
       const rawRest = href.slice("/dashboard".length)
       const suffix = rawRest === "" ? "/" : rawRest.startsWith("/") ? rawRest : `/${rawRest}`
-      return teamScopedDashboardHref(portalKind, suffix, portalTeam?.currentTeamRouteIds ?? null)
+      return coachDashboardHrefWithTeamFallback(
+        portalKind,
+        suffix,
+        portalTeam?.currentTeamRouteIds ?? null,
+        contextTeamId || portalTeam?.currentTeamId
+      )
     },
-    [portalKind, portalTeam?.currentTeamRouteIds]
+    [portalKind, portalTeam?.currentTeamRouteIds, portalTeam?.currentTeamId, contextTeamId]
   )
 
   const baseHome = portalPrefixedDashboardHref(portalKind, "/")

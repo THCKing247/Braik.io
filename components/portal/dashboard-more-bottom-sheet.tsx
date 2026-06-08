@@ -15,7 +15,10 @@ import { useAppBootstrapOptional } from "@/components/portal/app-bootstrap-conte
 import { MobileAppCard } from "@/components/mobile/mobile-app-card"
 import { canUseCoachB, type Role } from "@/lib/auth/roles"
 import { usePortalShellKind } from "@/components/portal/portal-shell-context"
-import { stripDashboardPortalPrefix, teamScopedDashboardHref } from "@/lib/portal/dashboard-path"
+import {
+  coachDashboardHrefWithTeamFallback,
+  stripDashboardPortalPrefix,
+} from "@/lib/portal/dashboard-path"
 
 interface Team {
   id: string
@@ -70,7 +73,12 @@ export function DashboardMoreBottomSheet({
           if (!href.startsWith("/dashboard")) return href
           const rawRest = href.slice("/dashboard".length)
           const suffix = rawRest === "" ? "/" : rawRest.startsWith("/") ? rawRest : `/${rawRest}`
-          return teamScopedDashboardHref(portalKind, suffix, coachRouteIds)
+          return coachDashboardHrefWithTeamFallback(
+            portalKind,
+            suffix,
+            coachRouteIds,
+            currentTeamId
+          )
         },
       }),
     [userRole, videoNav, portalKind, coachRouteIds]

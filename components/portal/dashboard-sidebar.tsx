@@ -18,6 +18,7 @@ import { useCoachBRotatingCopy } from "@/lib/hooks/use-coach-b-rotating-copy"
 import { usePortalShellKind } from "@/components/portal/portal-shell-context"
 import { markBraikRouteIntent } from "@/lib/perf/braik-perf-client"
 import {
+  coachDashboardHrefWithTeamFallback,
   portalPrefixedDashboardHref,
   stripDashboardPortalPrefix,
   teamScopedDashboardHref,
@@ -95,10 +96,15 @@ export function DashboardSidebar({ teams }: { teams: Team[] }) {
           if (!href.startsWith("/dashboard")) return href
           const rest = href.slice("/dashboard".length)
           const suffix = rest === "" ? "/" : rest.startsWith("/") ? rest : `/${rest}`
-          return teamScopedDashboardHref(portalKind, suffix, coachRouteIds)
+          return coachDashboardHrefWithTeamFallback(
+            portalKind,
+            suffix,
+            coachRouteIds,
+            currentTeamId
+          )
         },
       }),
-    [userRole, videoNav, portalKind, coachRouteIds]
+    [userRole, videoNav, portalKind, coachRouteIds, currentTeamId]
   )
   const showCoachB =
     portalKind === "coach" && userRole && canUseCoachB(userRole as Role)

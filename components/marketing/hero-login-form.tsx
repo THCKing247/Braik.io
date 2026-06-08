@@ -1,6 +1,7 @@
 "use client"
 
 import { signIn } from "@/lib/auth/client-auth"
+import { resolvePostAuthDestination } from "@/lib/auth/post-auth-entry-path"
 import { useRouter, useSearchParams } from "next/navigation"
 import { authTimingClient } from "@/lib/auth/login-flow-timing"
 import { useId, useState } from "react"
@@ -121,7 +122,10 @@ export function HeroLoginForm({ variant = "default" }: HeroLoginFormProps) {
           variant === "app" ? getFriendlyLoginError(result.error) : getDetailedLoginError(result.error)
         )
       } else if (result?.ok) {
-        const destination = callbackUrl ?? result.url ?? "/dashboard"
+        const destination = resolvePostAuthDestination({
+          callbackUrl,
+          redirectTo: result.url,
+        })
         authTimingClient("login_client_navigate_start", { destination })
         window.location.href = destination
         return

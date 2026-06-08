@@ -1,6 +1,7 @@
 "use client"
 
 import { useSession } from "@/lib/auth/client-auth"
+import { isAdPortalEntryPath } from "@/lib/auth/post-auth-entry-path"
 import { DashboardPageShellSkeleton } from "@/components/portal/dashboard-page-shell"
 import { CANONICAL_DASHBOARD_TEAM_PATH_RE } from "@/lib/navigation/organization-routes"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
@@ -19,18 +20,39 @@ export function AdPortalLandingGate({ children }: { children: ReactNode }) {
   const [ready, setReady] = useState(false)
 
   useEffect(() => {
-    if (status !== "authenticated") {
-      if (status === "unauthenticated") setReady(true)
-      return
-    }
-    if (session?.user?.role?.toUpperCase() !== "HEAD_COACH") {
+    if (status === "loading") return
+
+    if (status === "unauthenticated") {
       setReady(true)
       return
     }
+
     const path = pathname ?? ""
     const onCanonicalTeamDashboard = CANONICAL_DASHBOARD_TEAM_PATH_RE.test(path)
     if (teamId || onCanonicalTeamDashboard) {
       setReady(true)
+      return
+    }
+
+    const roleUpper = session?.user?.role?.toUpperCase()
+    const defaultAppPath = session?.user?.defaultAppPath
+
+    if (isAdPortalEntryPath(defaultAppPath)) {
+      const target = defaultAppPath!.split("?")[0]!
+      if (path !== target && !path.startsWith(`${target}/`)) {
+        router.replace(defaultAppPath!)
+        return
+      }
+      setReady(true)
+      return
+    }
+
+    if (roleUpper && roleUpper !== "HEAD_COACH") {
+      setReady(true)
+      return
+    }
+
+    if (!roleUpper) {
       return
     }
 
@@ -56,7 +78,7 @@ export function AdPortalLandingGate({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true
     }
-  }, [status, session, teamId, pathname, router])
+  }, [status, session?.user?.role, session?.user?.defaultAppPath, teamId, pathname, router])
 
   if (!ready) {
     return (

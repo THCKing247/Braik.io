@@ -1,5 +1,6 @@
 import type { QueryClient } from "@tanstack/react-query"
 import type { TeamGameRow } from "@/lib/team-schedule-games"
+import { getSchedulePageGamesRange } from "@/lib/stats/schedule-games-windows"
 
 /** Root segment shared by all schedule `useQueries` range keys — use for invalidation. */
 export const TEAM_GAMES_QUERY_ROOT = "games" as const
@@ -103,4 +104,18 @@ export async function fetchTeamGamesForRange(
     throw new Error(`games ${res.status}`)
   }
   return res.json() as Promise<{ games: TeamGameRow[] }>
+}
+
+/** Warm schedule React Query cache on idle (paired with route prefetch in dashboard shell). */
+export function prefetchTeamScheduleGames(queryClient: QueryClient, teamId: string): Promise<void> {
+  const tid = teamId.trim()
+  if (!tid) return Promise.resolve()
+  const { startIso, endIso } = getSchedulePageGamesRange()
+  return queryClient
+    .prefetchQuery({
+      queryKey: teamGamesQueryKey(tid, startIso, endIso),
+      queryFn: () => fetchTeamGamesForRange(tid, startIso, endIso),
+      staleTime: SCHEDULE_TEAM_GAMES_STALE_MS,
+    })
+    .then(() => undefined)
 }

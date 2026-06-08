@@ -43,6 +43,24 @@ export function stripDashboardPortalPrefix(pathname: string): string {
  * Coach team dashboard: canonical `/dashboard/org/:shortOrgId/team/:shortTeamId/...` when short IDs exist;
  * otherwise legacy `/dashboard/coach/...`. Other portal kinds keep prefixed URLs.
  */
+/**
+ * Team-scoped coach URL with `?teamId=` when short org/team segments are unavailable.
+ * Keeps deep links (e.g. Injury Report) on the team dashboard instead of bouncing to org portal home.
+ */
+export function coachDashboardHrefWithTeamFallback(
+  kind: BraikPortalKind,
+  rest: string,
+  shortIds: TeamRouteShortIds | null | undefined,
+  teamId: string | null | undefined
+): string {
+  const scoped = teamScopedDashboardHref(kind, rest, shortIds)
+  if (shortIds?.shortOrgId && shortIds?.shortTeamId) return scoped
+  const tid = teamId?.trim()
+  if (!tid) return scoped
+  const sep = scoped.includes("?") ? "&" : "?"
+  return `${scoped}${sep}teamId=${encodeURIComponent(tid)}`
+}
+
 export function teamScopedDashboardHref(
   kind: BraikPortalKind,
   rest: string,

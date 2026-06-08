@@ -270,14 +270,24 @@ export async function middleware(request: NextRequest) {
       const shortTeamId = decodeURIComponent(canonicalTeamMatch[2] ?? "")
       const rest = canonicalTeamMatch[3] ? `/${canonicalTeamMatch[3]}` : ""
       const lookupUrl = `${origin}/api/routing/team-from-short?shortOrgId=${encodeURIComponent(shortOrgId)}&shortTeamId=${encodeURIComponent(shortTeamId)}`
+      const redirectCanonicalLookupFailure = () => {
+        const fallback = request.nextUrl.clone()
+        fallback.pathname = rest ? `/dashboard${rest}` : "/dashboard"
+        fallback.search = ""
+        const teamHint = request.cookies.get(BRAIK_DASHBOARD_TEAM_HINT_COOKIE)?.value?.trim()
+        if (teamHint && UUID_RE.test(teamHint)) {
+          fallback.searchParams.set("teamId", teamHint)
+        }
+        return finish(NextResponse.redirect(fallback))
+      }
       try {
         const lookupRes = await fetch(lookupUrl, { headers: { cookie: cookieHeader } })
         if (!lookupRes.ok) {
-          return finish(NextResponse.redirect(new URL("/dashboard", request.url)))
+          return redirectCanonicalLookupFailure()
         }
         const json = (await lookupRes.json()) as { teamId?: string }
         if (!json.teamId || !UUID_RE.test(json.teamId)) {
-          return finish(NextResponse.redirect(new URL("/dashboard", request.url)))
+          return redirectCanonicalLookupFailure()
         }
         const rewriteUrl = request.nextUrl.clone()
         rewriteUrl.pathname = rest ? `/dashboard${rest}` : "/dashboard"
@@ -285,7 +295,7 @@ export async function middleware(request: NextRequest) {
         rewriteUrl.searchParams.set("teamId", json.teamId)
         return finish(NextResponse.rewrite(rewriteUrl))
       } catch {
-        return finish(NextResponse.redirect(new URL("/dashboard", request.url)))
+        return redirectCanonicalLookupFailure()
       }
     }
 

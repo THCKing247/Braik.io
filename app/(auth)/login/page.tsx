@@ -82,11 +82,11 @@ export default function LoginPage() {
         const serverUser = json?.user ?? null
         console.log("[login] server session present:", Boolean(serverUser?.id))
 
-        if (serverUser?.id && hasAuthRedirectTarget) {
+        if (serverUser?.id) {
           if (hasRedirected.current) return
           hasRedirected.current = true
           const destination = resolvePostAuthDestination({
-            callbackUrl,
+            callbackUrl: hasAuthRedirectTarget ? callbackUrl : null,
             defaultAppPath: serverUser.defaultAppPath,
             role: serverUser.role,
           })
@@ -157,6 +157,14 @@ export default function LoginPage() {
                 >
                   Forgot your password?
                 </Link>
+              </div>
+
+              <div className="rounded-lg border border-[#E5E7EB] bg-[#F8FAFC] px-4 py-3 text-center">
+                <p className="text-xs leading-relaxed text-[#6c757d]">
+                  <span className="font-semibold text-[#495057]">Braik Beta</span>
+                  {" — "}
+                  Access is for invited coaches, players, and parents. This version is being tested to improve program operations and collect feedback before final release.
+                </p>
               </div>
 
               <div className="border-t border-[#E5E7EB] pt-5 text-center space-y-3">

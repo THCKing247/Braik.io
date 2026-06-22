@@ -19,7 +19,46 @@ function isSafeInternalPath(p: string | null | undefined): p is string {
 }
 
 /**
+ * Returns true when the callbackUrl targets a portal the authenticated role cannot access.
+ *
+ * Prevents cross-portal contamination such as a PLAYER being redirected into `/parent/…`
+ * when the middleware set `callbackUrl=/parent/join` (e.g. via the /enter-player-code redirect).
+ * When no role is provided the check is skipped (safe — role is always known after login).
+ */
+export function isCallbackUrlCrossPortal(
+  callbackUrl: string,
+  role: string | null | undefined
+): boolean {
+  if (!role) return false
+  const r = role.toUpperCase().replace(/ /g, "_").replace(/-/g, "_")
+  const isPlayer = r === "PLAYER" || r === "ATHLETE"
+  const isParent = r === "PARENT"
+
+  const cb = callbackUrl.toLowerCase().split("?")[0] ?? callbackUrl
+
+  // Parent-only portal paths
+  if (cb === "/parent" || cb.startsWith("/parent/")) return !isParent
+  if (cb.startsWith("/dashboard/parent")) return !isParent
+
+  // Player-only portal paths
+  if (cb === "/player" || cb.startsWith("/player/")) return !isPlayer
+  if (cb.startsWith("/dashboard/player")) return !isPlayer
+
+  // Coach/staff-only paths that players and parents must not be sent into
+  if (
+    cb.startsWith("/dashboard/coach") ||
+    cb.startsWith("/dashboard/org/") ||
+    cb.startsWith("/dashboard/ad")
+  ) {
+    return isPlayer || isParent
+  }
+
+  return false
+}
+
+/**
  * Prefer server-resolved portal entry over generic `/dashboard` callbackUrl from middleware.
+ * When `role` is provided, cross-portal callbackUrls are rejected in favour of `defaultAppPath`.
  */
 export function resolvePostAuthDestination(opts: {
   callbackUrl?: string | null
@@ -28,12 +67,20 @@ export function resolvePostAuthDestination(opts: {
   role?: string | null
 }): string {
   const { callbackUrl, redirectTo, defaultAppPath, role } = opts
-  if (callbackUrl && isSafeInternalPath(callbackUrl) && !isGenericDashboardHome(callbackUrl)) {
+  if (
+    callbackUrl &&
+    isSafeInternalPath(callbackUrl) &&
+    !isGenericDashboardHome(callbackUrl) &&
+    !isCallbackUrlCrossPortal(callbackUrl, role)
+  ) {
     return callbackUrl
   }
   if (isSafeInternalPath(redirectTo)) return redirectTo
   if (isSafeInternalPath(defaultAppPath)) return defaultAppPath
-  if (callbackUrl && isSafeInternalPath(callbackUrl)) return callbackUrl
+  // Final callbackUrl fallback only when role is absent (legacy callers without role context)
+  if (callbackUrl && isSafeInternalPath(callbackUrl) && !isCallbackUrlCrossPortal(callbackUrl, role)) {
+    return callbackUrl
+  }
   return getDefaultAppPathForRole(role)
 }
 

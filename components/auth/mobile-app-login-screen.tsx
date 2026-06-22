@@ -116,6 +116,11 @@ export function MobileAppLoginScreen() {
       </main>
 
       <footer className="relative z-10 shrink-0 px-6 pb-[max(1rem,env(safe-area-inset-bottom))] pt-2">
+        <p className="mx-auto mb-3 max-w-sm text-center text-[11px] leading-relaxed text-slate-500">
+          <span className="font-semibold text-slate-400">Braik Beta</span>
+          {" — "}
+          For invited coaches, players, and parents. This version is being tested before final release.
+        </p>
         <div className="mx-auto flex max-w-md flex-wrap items-center justify-center gap-x-3 gap-y-1 text-center text-xs text-slate-500">
           <Link href="/privacy" className="font-medium text-slate-400 transition-colors hover:text-slate-300">
             Privacy

@@ -45,6 +45,10 @@ next-env.d.ts
 /uploads
 !/uploads/.gitkeep
 
+# audit screenshots (keep markdown reports, ignore image captures)
+audit/screenshots/
+audit/deployed-screenshots/
+
 # Capacitor / native builds
 android/.gradle
 android/app/build

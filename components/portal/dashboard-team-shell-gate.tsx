@@ -155,10 +155,15 @@ export function DashboardTeamShellGate({ children }: { children: React.ReactNode
 
   const currentTeam = teams.find((t) => t.id === currentTeamId) || teams[0]
 
+  // When the shell resolves no active team_members but the profile has a team_id, thread that
+  // ID as the currentTeamId so downstream PortalTeamContext / DashboardPageShell can resolve
+  // a non-empty teamId and avoid showing ConnectToTeam to an already-connected coach.
+  const resolvedCurrentTeamId = currentTeamId || user.teamId || ""
+
   return (
     <PortalShellProvider portalKind={portalKind}>
       <PortalRouteEnforcer portalKind={portalKind} portalHomeHref={user.defaultAppPath}>
-        <DashboardShellWithMobileNav teams={teams} currentTeamId={currentTeamId}>
+        <DashboardShellWithMobileNav teams={teams} currentTeamId={resolvedCurrentTeamId}>
           <div className="app-shell dashboard-app-shell flex min-h-screen flex-col bg-background">
             <header className="shrink-0">
               <DashboardNav teams={teams} />

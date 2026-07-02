@@ -35,7 +35,10 @@ function resolveCurrentTeamIdForPortal(args: {
   if (fromCanon && valid.has(fromCanon)) return fromCanon
   if (args.urlTeamId && valid.has(args.urlTeamId)) return args.urlTeamId
   if (args.serverResolved && valid.has(args.serverResolved)) return args.serverResolved
-  return args.teams[0]?.id || ""
+  // Degraded state: shell resolved no teams (stale team_members) but serverResolved carries
+  // profiles.team_id — use it so PortalTeamContext has a non-empty currentTeamId and
+  // DashboardPageShell renders the page instead of ConnectToTeam.
+  return args.teams[0]?.id || args.serverResolved || ""
 }
 
 function UrlResolvedTeamBootstrap({ teams, children }: { teams: Team[]; children: ReactNode }) {
@@ -94,8 +97,12 @@ export function DashboardTeamInner({
   const shellTeamIds = teams.map((t) => t.id)
   const validTeamIds = useMemo(() => new Set(shellTeamIds), [shellTeamIds])
   const serverTrim = serverCurrentTeamId.trim()
+  // When no teams are in the valid set (degraded: stale team_members, valid profiles.team_id),
+  // bypass the has() check so the profile team ID passes through as serverResolved.
   const serverResolved =
-    serverTrim && validTeamIds.has(serverTrim) ? serverTrim : teams[0]?.id || ""
+    serverTrim && (validTeamIds.has(serverTrim) || validTeamIds.size === 0)
+      ? serverTrim
+      : teams[0]?.id || ""
   /** Client navigation (e.g. AD portal → /dashboard?teamId=…) — URL must win over server-resolved default. */
   const urlTeamId = searchParams.get("teamId")
   const currentTeamIdForPortal = resolveCurrentTeamIdForPortal({

@@ -24,25 +24,21 @@ export function mapTeamAnnouncementsToFeedPosts(
   return rows.map((row) => {
     const coachBadgeLabel = inferCoachBadge(row)
     return {
-    id: `announcement-${row.id}`,
-    kind: "coach_announcement",
-    authorLabel: row.author_name?.trim() || "Coach",
-    authorSubtitle: coachBadgeLabel,
-    coachBadgeLabel,
-    visibilityLabel:
-      row.audience === "all" ||
-      row.audience === "staff" ||
-      row.audience === "players" ||
-      row.audience === "parents"
-        ? AUDIENCE_LABELS[row.audience]
-        : undefined,
-    announcementBadge: true,
-    timeLabel: feedRelativeTime(row.created_at),
-    title: row.title,
-    body: row.body,
-    pinned: row.is_pinned,
-    createdAtForSort: row.created_at,
-    cta: { label: "Details", href: announcementsHref },
+      id: `announcement-${row.id}`,
+      announcementId: row.id,
+      kind: "coach_announcement" as const,
+      authorLabel: row.author_name?.trim() || "Coach",
+      authorRole: "coach" as const,
+      authorSubtitle: `${coachBadgeLabel} · ${feedRelativeTime(row.created_at)}`,
+      coachBadgeLabel,
+      timeLabel: feedRelativeTime(row.created_at),
+      title: row.title,
+      body: row.body,
+      pinned: row.is_pinned,
+      createdAtForSort: row.created_at,
+      reactions: [{ emoji: "🔥", count: 0 }, { emoji: "💪", count: 0 }, { emoji: "❤️", count: 0 }, { emoji: "👍", count: 0 }, { emoji: "👀", count: 0 }],
+      commentCount: 0,
+      cta: { label: "Details", href: announcementsHref },
     }
   })
 }

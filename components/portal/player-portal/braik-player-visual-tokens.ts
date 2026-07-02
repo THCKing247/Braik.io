@@ -1,34 +1,25 @@
 /**
- * Logo-aligned Braik athlete portal palette — deep navy to Braik orange accents.
- * Use via Tailwind arbitrary classes or compose in components.
+ * Braik athlete portal — "sports social" redesign palette.
+ * midnight/turf dark surfaces, braik-orange + flame accents.
  */
-import { braikBrand, braikPlayerTheme } from "@/components/portal/portal-brand-tokens"
+import { braikPlayerTheme } from "@/components/portal/portal-brand-tokens"
 
 export const braikPlayerChrome = {
   shell: braikPlayerTheme.shell,
-  bloomCool:
-    `radial-gradient(ellipse 115% 75% at 45% -15%, ${hexToRgba(braikBrand.navy[900], 0.42)}, transparent 52%)`,
+  /** warm orange bloom top-left (matches spec radial at 12% -8%) */
   bloomWarm:
-    `radial-gradient(ellipse 70% 45% at 98% -5%, ${hexToRgba(braikBrand.orange[500], 0.2)}, transparent 45%)`,
-  bloomAccent:
-    `radial-gradient(ellipse 55% 40% at 12% 95%, ${hexToRgba(braikBrand.orange[700], 0.18)}, transparent 55%)`,
-  /** Primary CTA / Braik gradient button */
+    "radial-gradient(900px 500px at 12% -8%, rgba(255,122,51,0.10), transparent 60%)",
+  /** cool sky bloom bottom-right */
+  bloomCool:
+    "radial-gradient(900px 600px at 95% 105%, rgba(77,155,255,0.09), transparent 60%)",
+  bloomAccent: "none",
+  /** Primary CTA gradient button: braik → flame */
   ctaButton:
-    "bg-gradient-to-r from-[#F85808] to-[#D83808] text-[#F8F8F8] hover:brightness-105",
+    "bg-gradient-to-r from-[#FF7A33] to-[#FF3D1F] text-[#160A02] shadow-[0_10px_24px_-8px_rgba(255,90,30,0.65)] active:scale-[0.96] hover:brightness-105",
+  /** Coach role ring — braik orange */
+  coachRing: "[box-shadow:0_0_0_2px_#060D22,0_0_0_4px_#FF7A33]",
+  /** Team account role ring — sky blue */
+  teamRing: "[box-shadow:0_0_0_2px_#060D22,0_0_0_4px_#4D9BFF]",
   /** Avatar / badge ring */
-  avatarRing: "bg-gradient-to-br from-[#F85808] to-[#D83808]",
+  avatarRing: "bg-gradient-to-br from-[#FF7A33] to-[#FF3D1F]",
 } as const
-
-function hexToRgba(hex: string, alpha: number): string {
-  const normalized = hex.replace("#", "")
-  const value = normalized.length === 3
-    ? normalized
-        .split("")
-        .map((c) => `${c}${c}`)
-        .join("")
-    : normalized
-  const r = Number.parseInt(value.slice(0, 2), 16)
-  const g = Number.parseInt(value.slice(2, 4), 16)
-  const b = Number.parseInt(value.slice(4, 6), 16)
-  return `rgba(${r}, ${g}, ${b}, ${alpha})`
-}

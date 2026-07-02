@@ -16,11 +16,19 @@ export type PlayerFeedCta = {
   href: string
 }
 
+export type PlayerFeedReaction = {
+  emoji: string
+  count: number
+  reactedByMe?: boolean
+}
+
 export type PlayerFeedPost = {
   id: string
   kind: PlayerFeedPostKind
   /** Display name — coach staff or "Team" */
   authorLabel: string
+  /** "coach" = orange ring, "team" = sky ring, "player" = no ring */
+  authorRole?: "coach" | "team" | "player"
   authorSubtitle?: string
   coachBadgeLabel?: string
   visibilityLabel?: string
@@ -36,8 +44,13 @@ export type PlayerFeedPost = {
   pinned?: boolean
   /** Extra line — e.g. opponent, kickoff */
   highlightMeta?: string
-  /** Conceptual engagement — wire when API exists */
+  /** Reaction pills with counts */
+  reactions?: PlayerFeedReaction[]
+  commentCount?: number
+  /** Facepile line text */
   reactionSummary?: string
   /** ISO timestamp for ordering mixed feed items (newer first after pin rules) */
   createdAtForSort?: string
+  /** UUID from team_announcements.id — enables reaction/comment/view API calls */
+  announcementId?: string
 }

@@ -6,13 +6,19 @@ import type { TeamHighlightPostRow } from "@/lib/team-highlight-posts/types"
 export function mapTeamHighlightPostsToFeedPosts(rows: TeamHighlightPostRow[]): PlayerFeedPost[] {
   return rows.map((row) => ({
     id: `highlight-${row.id}`,
-    kind: "highlight",
+    kind: "highlight" as const,
     authorLabel: row.author_name?.trim() || "Teammate",
-    authorSubtitle: "Player Highlight",
+    authorRole: "player" as const,
+    authorSubtitle: `Player · ${feedRelativeTime(row.created_at)}`,
     timeLabel: feedRelativeTime(row.created_at),
     title: row.title,
     body: row.body || undefined,
     createdAtForSort: row.created_at,
-    mediaPlaceholder: "field",
+    mediaPlaceholder: "field" as const,
+    reactions: [
+      { emoji: "🔥", count: 0 },
+      { emoji: "💪", count: 0 },
+    ],
+    commentCount: 0,
   }))
 }

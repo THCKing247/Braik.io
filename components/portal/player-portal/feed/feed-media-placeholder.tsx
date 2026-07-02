@@ -1,27 +1,40 @@
 "use client"
 
-import {
-  Camera,
-  Clapperboard,
-  Landmark,
-  Sparkles,
-  Tent,
-  Trees,
-  Users,
-} from "lucide-react"
 import type { PlayerFeedPost } from "@/components/portal/player-portal/feed/player-feed-types"
 import { cn } from "@/lib/utils"
 
 const PRESETS: Record<
   NonNullable<PlayerFeedPost["mediaPlaceholder"]>,
-  { gradient: string; icon: typeof Sparkles }
+  { bg: string; emoji?: string; hasPlay?: boolean; duration?: string }
 > = {
-  stadium: { gradient: "from-[#081848] via-[#081838] to-[#10265f]", icon: Landmark },
-  practice: { gradient: "from-[#F85808] via-[#D83808] to-[#8e2507]", icon: Tent },
-  film: { gradient: "from-[#081838] via-[#0c1739] to-[#081848]", icon: Clapperboard },
-  locker: { gradient: "from-[#101f4d] via-[#0f2768] to-[#081838]", icon: Trees },
-  field: { gradient: "from-[#0f2768] via-[#10265f] to-[#081848]", icon: Trees },
-  crowd: { gradient: "from-[#D83808] via-[#F85808] to-[#8e2507]", icon: Users },
+  film: {
+    bg: "radial-gradient(340px 200px at 20% 0%, rgba(77,155,255,0.4), transparent 60%), linear-gradient(135deg,#123A78,#081431)",
+    hasPlay: true,
+    duration: "4:32",
+  },
+  locker: {
+    bg: "radial-gradient(340px 200px at 80% 100%, rgba(255,122,51,0.35), transparent 60%), linear-gradient(135deg,#1A3468,#0A1531)",
+    emoji: "🚌",
+  },
+  practice: {
+    bg: "radial-gradient(300px 190px at 15% 10%, rgba(255,198,61,0.28), transparent 55%), linear-gradient(135deg,#8C3A0E,#4A1A05)",
+    emoji: "📋",
+  },
+  stadium: {
+    bg: "radial-gradient(420px 220px at 50% 120%, rgba(43,213,118,0.22), transparent 65%), linear-gradient(135deg,#0F2B66,#081231)",
+    hasPlay: true,
+    duration: "2:18",
+  },
+  field: {
+    bg: "radial-gradient(340px 200px at 50% 0%, rgba(43,213,118,0.28), transparent 55%), linear-gradient(135deg,#0B3A1E,#061A0D)",
+    hasPlay: true,
+    duration: "1:04",
+  },
+  crowd: {
+    bg: "radial-gradient(340px 200px at 80% 0%, rgba(255,122,51,0.35), transparent 60%), linear-gradient(135deg,#6A2800,#2A0E00)",
+    hasPlay: true,
+    duration: "0:55",
+  },
 }
 
 export function FeedMediaPlaceholder({
@@ -32,26 +45,37 @@ export function FeedMediaPlaceholder({
   className?: string
 }) {
   const key = variant ?? "practice"
-  const { gradient, icon: Icon } = PRESETS[key]
+  const preset = PRESETS[key]
+
   return (
     <div
       className={cn(
-        "relative aspect-[16/10] overflow-hidden rounded-2xl bg-gradient-to-br shadow-inner",
-        gradient,
+        "relative h-[190px] cursor-pointer overflow-hidden rounded-[16px] border border-white/[0.07]",
+        "flex items-center justify-center",
         className
       )}
+      style={{ background: preset.bg }}
       aria-hidden
     >
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_30%_20%,rgba(255,255,255,0.22),transparent_55%)]" />
-      <div className="absolute inset-0 flex items-center justify-center opacity-90">
-        <div className="rounded-2xl bg-black/25 p-4 backdrop-blur-sm">
-          <Icon className="h-10 w-10 text-white/95 drop-shadow-lg" strokeWidth={1.25} />
+      {preset.emoji ? (
+        <span className="text-[52px]" style={{ filter: "drop-shadow(0 8px 18px rgba(0,0,0,0.45))" }}>
+          {preset.emoji}
+        </span>
+      ) : null}
+
+      {preset.hasPlay ? (
+        <div className="flex h-14 w-14 items-center justify-center rounded-full border border-white/[0.28] bg-[rgba(3,8,26,0.55)] backdrop-blur-[6px] transition-transform hover:scale-[1.08]">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" className="text-white ml-0.5">
+            <polygon points="6 3 21 12 6 21" />
+          </svg>
         </div>
-      </div>
-      <div className="absolute bottom-3 left-3 flex items-center gap-1.5 rounded-full bg-black/40 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-white backdrop-blur-md">
-        <Camera className="h-3.5 w-3.5 opacity-90" aria-hidden />
-        Preview
-      </div>
+      ) : null}
+
+      {preset.duration ? (
+        <span className="absolute bottom-[10px] right-[10px] rounded-[7px] bg-[rgba(3,8,26,0.7)] px-[8px] py-[4px] text-[10px] font-bold text-white">
+          {preset.duration}
+        </span>
+      ) : null}
     </div>
   )
 }

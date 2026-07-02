@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Megaphone, Pin } from "lucide-react"
+import { ChevronDown, ChevronUp, Eye, Megaphone, Pin } from "lucide-react"
 import {
   AUDIENCE_LABELS,
   formatAnnouncementDateTime,
@@ -13,6 +13,50 @@ import {
   type TeamAnnouncementRow,
 } from "@/lib/team-announcements"
 import { ROLES, type Role } from "@/lib/auth/roles"
+
+// ── Reaction types ────────────────────────────────────────────────────────────
+const EMOJI_OPTIONS = ["🔥", "💪", "❤️", "👍", "👀"] as const
+
+type ReactionCount = {
+  emoji: string
+  total_count: number
+  player_count: number
+  parent_count: number
+  staff_count: number
+}
+
+type Reactor = {
+  user_id: string
+  full_name: string | null
+  role: string
+  emoji: string
+  created_at: string
+}
+
+type AnnouncementEngagement = {
+  counts: ReactionCount[]
+  mine: string[]
+  reactors: Reactor[]
+  viewCount: number
+}
+
+function relativeTime(iso: string): string {
+  const s = Math.floor((Date.now() - Date.parse(iso)) / 1000)
+  if (s < 60) return "just now"
+  const m = Math.floor(s / 60)
+  if (m < 60) return `${m}m ago`
+  const h = Math.floor(m / 60)
+  if (h < 24) return `${h}h ago`
+  return `${Math.floor(h / 24)}d ago`
+}
+
+function roleLabel(r: string) {
+  const v = r.toLowerCase().replace(/_/g, " ")
+  if (v.includes("head")) return "HC"
+  if (v.includes("coach")) return "Coach"
+  if (v === "parent") return "Parent"
+  return "Player"
+}
 
 function sessionRoleToRole(s?: string | null): Role {
   const u = (s || "").toUpperCase().replace(/-/g, "_")
@@ -55,6 +99,11 @@ export function AnnouncementsManager({
   const [editError, setEditError] = useState<string | null>(null)
   const [editSaving, setEditSaving] = useState(false)
 
+  // Engagement: reactions + views per announcement
+  const [engagement, setEngagement] = useState<Record<string, AnnouncementEngagement>>({})
+  const [engagementLoading, setEngagementLoading] = useState<Set<string>>(new Set())
+  const [reactorsOpen, setReactorsOpen] = useState<Set<string>>(new Set())
+
   const load = useCallback(async () => {
     if (!teamId) return
     try {
@@ -77,6 +126,93 @@ export function AnnouncementsManager({
     setLoading(true)
     load()
   }, [load])
+
+  // After announcements load, fetch engagement for all in parallel
+  useEffect(() => {
+    if (announcements.length === 0 || !teamId) return
+    const ids = announcements.map((a) => a.id)
+    setEngagementLoading(new Set(ids))
+    void Promise.all(
+      ids.map(async (id) => {
+        const base = `/api/teams/${encodeURIComponent(teamId)}/team-announcements/${encodeURIComponent(id)}`
+        const [rxRes, vwRes] = await Promise.all([
+          fetch(`${base}/reactions`).then((r) => r.ok ? r.json() : null),
+          fetch(`${base}/views`).then((r) => r.ok ? r.json() : null),
+        ])
+        return { id, rx: rxRes, vw: vwRes }
+      })
+    ).then((results) => {
+      const next: Record<string, AnnouncementEngagement> = {}
+      for (const { id, rx, vw } of results) {
+        next[id] = {
+          counts: (rx as { counts?: ReactionCount[] } | null)?.counts ?? [],
+          mine: (rx as { mine?: string[] } | null)?.mine ?? [],
+          reactors: (rx as { reactors?: Reactor[] } | null)?.reactors ?? [],
+          viewCount: (vw as { count?: number } | null)?.count ?? 0,
+        }
+      }
+      setEngagement(next)
+      setEngagementLoading(new Set())
+    })
+  }, [announcements, teamId])
+
+  const toggleEngagementReaction = useCallback(async (announcementId: string, emoji: string) => {
+    const current = engagement[announcementId]
+    if (!current) return
+    const isActive = current.mine.includes(emoji)
+    const action = isActive ? "remove" : "add"
+
+    // Optimistic update
+    setEngagement((prev) => {
+      const e = prev[announcementId]
+      if (!e) return prev
+      return {
+        ...prev,
+        [announcementId]: {
+          ...e,
+          mine: isActive ? e.mine.filter((m) => m !== emoji) : [...e.mine, emoji],
+          counts: e.counts.map((c) =>
+            c.emoji === emoji ? { ...c, total_count: c.total_count + (isActive ? -1 : 1) } : c
+          ).concat(
+            !isActive && !e.counts.find((c) => c.emoji === emoji)
+              ? [{ emoji, total_count: 1, player_count: 0, parent_count: 0, staff_count: 1 }]
+              : []
+          ),
+        },
+      }
+    })
+
+    try {
+      const res = await fetch(
+        `/api/teams/${encodeURIComponent(teamId)}/team-announcements/${encodeURIComponent(announcementId)}/reactions`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ emoji, action }),
+        }
+      )
+      if (res.ok) {
+        const data = await res.json() as { counts: ReactionCount[]; mine: string[] }
+        setEngagement((prev) => ({
+          ...prev,
+          [announcementId]: { ...(prev[announcementId] ?? { reactors: [], viewCount: 0 }), counts: data.counts, mine: data.mine },
+        }))
+      }
+    } catch {
+      // revert on error
+      setEngagement((prev) => {
+        const e = prev[announcementId]
+        if (!e) return prev
+        return {
+          ...prev,
+          [announcementId]: {
+            ...e,
+            mine: isActive ? [...e.mine, emoji] : e.mine.filter((m) => m !== emoji),
+          },
+        }
+      })
+    }
+  }, [engagement, teamId])
 
   const handleAddAnnouncement = async () => {
     if (!title.trim() || !body.trim()) {
@@ -328,6 +464,98 @@ export function AnnouncementsManager({
                     <p className="mb-4 whitespace-pre-wrap" style={{ color: "rgb(var(--text))" }}>
                       {announcement.body}
                     </p>
+
+                    {/* ── Reactions section ──────────────────────────── */}
+                    {engagementLoading.has(announcement.id) ? (
+                      <p className="mb-3 text-xs" style={{ color: "rgb(var(--muted))" }}>Loading reactions…</p>
+                    ) : (
+                      <div className="mb-4 space-y-3">
+                        {/* Coach's own reaction strip */}
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          {EMOJI_OPTIONS.map((emoji) => {
+                            const eng = engagement[announcement.id]
+                            const count = eng?.counts.find((c) => c.emoji === emoji)?.total_count ?? 0
+                            const active = eng?.mine.includes(emoji) ?? false
+                            return (
+                              <button
+                                key={emoji}
+                                type="button"
+                                onClick={() => void toggleEngagementReaction(announcement.id, emoji)}
+                                className="inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-semibold transition-colors"
+                                style={{
+                                  borderColor: active ? "rgb(var(--accent))" : "rgb(var(--border))",
+                                  backgroundColor: active ? "rgba(var(--accent), 0.1)" : "transparent",
+                                  color: "rgb(var(--text))",
+                                }}
+                              >
+                                {emoji}
+                                {count > 0 && <span>{count}</span>}
+                              </button>
+                            )
+                          })}
+                        </div>
+
+                        {/* Player count summary */}
+                        {(() => {
+                          const eng = engagement[announcement.id]
+                          const playerLines = (eng?.counts ?? [])
+                            .filter((c) => c.player_count > 0)
+                            .map((c) => `${c.emoji} ${c.player_count} player${c.player_count > 1 ? "s" : ""}`)
+                          return playerLines.length > 0 ? (
+                            <p className="text-xs" style={{ color: "rgb(var(--muted))" }}>
+                              {playerLines.join(" · ")}
+                            </p>
+                          ) : null
+                        })()}
+
+                        {/* Seen by */}
+                        {(engagement[announcement.id]?.viewCount ?? 0) > 0 && (
+                          <p className="flex items-center gap-1 text-xs" style={{ color: "rgb(var(--muted))" }}>
+                            <Eye className="h-3.5 w-3.5" />
+                            Seen by {engagement[announcement.id]?.viewCount}
+                          </p>
+                        )}
+
+                        {/* Collapsible who reacted (staff only — API returns empty array for others) */}
+                        {(engagement[announcement.id]?.reactors.length ?? 0) > 0 && (
+                          <div>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setReactorsOpen((prev) => {
+                                  const next = new Set(prev)
+                                  next.has(announcement.id) ? next.delete(announcement.id) : next.add(announcement.id)
+                                  return next
+                                })
+                              }
+                              className="flex items-center gap-1 text-xs font-medium transition-colors hover:underline"
+                              style={{ color: "rgb(var(--muted))" }}
+                            >
+                              Who reacted
+                              {reactorsOpen.has(announcement.id)
+                                ? <ChevronUp className="h-3 w-3" />
+                                : <ChevronDown className="h-3 w-3" />}
+                            </button>
+                            {reactorsOpen.has(announcement.id) && (
+                              <div className="mt-2 space-y-1.5">
+                                {engagement[announcement.id]!.reactors.map((r, i) => (
+                                  <div key={`${r.user_id}-${r.emoji}-${i}`} className="flex items-center gap-2 text-xs" style={{ color: "rgb(var(--text))" }}>
+                                    <span className="font-medium">{r.full_name ?? "Unknown"}</span>
+                                    <span className="rounded px-1 py-0.5 text-[9px] uppercase font-bold" style={{ background: "rgb(var(--platinum))", color: "rgb(var(--muted))" }}>
+                                      {roleLabel(r.role)}
+                                    </span>
+                                    <span>{r.emoji}</span>
+                                    <span style={{ color: "rgb(var(--muted))" }}>{relativeTime(r.created_at)}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    {/* ── end reactions ──────────────────────────────── */}
+
                     <div className="space-y-0.5 text-xs" style={{ color: "rgb(var(--muted))" }}>
                       <p>
                         {formatAnnouncementDateTime(announcement.created_at)} · By {announcement.author_name || "Staff"}

@@ -2,19 +2,15 @@
 
 import type { PlayerFeedPost } from "@/components/portal/player-portal/feed/player-feed-types"
 import { FeedPostCard } from "@/components/portal/player-portal/feed/feed-post-card"
-import { braikPlayerTheme } from "@/components/portal/portal-brand-tokens"
 
 export function PlayerFeedList({
   posts,
   accountBasePath,
-  hasCoachAnnouncementPosts = false,
-  hasPlayerHighlightPosts = false,
 }: {
   posts: PlayerFeedPost[]
   accountBasePath: string
-  /** True when at least one post comes from live `team_announcements` — adjusts the list subtitle badge. */
+  /** Kept for API compat — no longer used in render */
   hasCoachAnnouncementPosts?: boolean
-  /** True when at least one post comes from `team_highlight_posts`. */
   hasPlayerHighlightPosts?: boolean
 }) {
   const sortMs = (p: PlayerFeedPost) =>
@@ -28,30 +24,13 @@ export function PlayerFeedList({
     return sortMs(b) - sortMs(a)
   })
 
-  const liveBadge =
-    hasCoachAnnouncementPosts || hasPlayerHighlightPosts ? "Live feed" : "Sample posts"
-
   return (
-    <div className="space-y-5">
-      <div className="flex items-end justify-between gap-3 px-0.5">
-        <div>
-          <h3 className={`text-[11px] font-bold uppercase tracking-[0.22em] ${braikPlayerTheme.textSecondary}`}>Feed</h3>
-          <p className="mt-0.5 bg-gradient-to-r from-[#F8F8F8] via-[#F8F8E8] to-[#F85808] bg-clip-text text-lg font-black text-transparent">
-            Team posts
-          </p>
-        </div>
-        <span className="rounded-full bg-gradient-to-r from-[#F85808]/45 to-[#D83808]/45 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-[#F8F8F8] ring-1 ring-[#F85808]/40">
-          {liveBadge}
-        </span>
-      </div>
-
-      <ul className="space-y-5">
-        {sorted.map((post) => (
-          <li key={post.id}>
-            <FeedPostCard post={post} accountBasePath={accountBasePath} />
-          </li>
-        ))}
-      </ul>
-    </div>
+    <ul className="space-y-[14px]">
+      {sorted.map((post) => (
+        <li key={post.id}>
+          <FeedPostCard post={post} accountBasePath={accountBasePath} />
+        </li>
+      ))}
+    </ul>
   )
 }

@@ -21,18 +21,29 @@ export function PlayerPortalMessages({ routeThreadId }: { routeThreadId?: string
   )
 
   return (
-    <div className="flex min-h-[min(720px,calc(100dvh-13rem))] flex-1 flex-col overflow-hidden rounded-2xl border border-white/40 bg-white shadow-xl">
-      <PortalStandardPageRoot className="flex min-h-0 flex-1 flex-col !space-y-0 overflow-hidden pb-0">
-        <MessagingManager
-          teamId={teamId}
-          userRole="PLAYER"
-          userId={userId}
-          bootstrapThreadsInbox={bootstrapThreadsInbox}
-          bootstrapCoreReady={bootstrapCoreReady}
-          routeThreadId={routeThreadId ?? undefined}
-          freePortalBasePath={freePortalBasePath}
-        />
-      </PortalStandardPageRoot>
+    <div className="mx-auto w-full max-w-lg pb-4 lg:max-w-2xl">
+      {/* Screen title */}
+      <div className="mb-[16px] flex items-baseline justify-between">
+        <span className="font-black text-[22px] uppercase tracking-[0.02em] text-[#EEF3FF]">Messages</span>
+      </div>
+
+      {/* Dark-themed chat container */}
+      <div
+        className="overflow-hidden rounded-[22px] border border-[rgba(125,155,255,0.14)]"
+        style={{ background: "linear-gradient(180deg,#13234E,#0E1B3E)" }}
+      >
+        <PortalStandardPageRoot className="flex min-h-0 flex-col !space-y-0 overflow-hidden pb-0">
+          <MessagingManager
+            teamId={teamId}
+            userRole="PLAYER"
+            userId={userId}
+            bootstrapThreadsInbox={bootstrapThreadsInbox}
+            bootstrapCoreReady={bootstrapCoreReady}
+            routeThreadId={routeThreadId ?? undefined}
+            freePortalBasePath={freePortalBasePath}
+          />
+        </PortalStandardPageRoot>
+      </div>
     </div>
   )
 }

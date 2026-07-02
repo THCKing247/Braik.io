@@ -1,26 +1,14 @@
 "use client"
 
-import Image from "next/image"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Calendar, Home, LogOut, MessageSquare, Settings, Shield, UserRound } from "lucide-react"
+import { Bell, Home, Calendar, MessageSquare, Shield, UserRound } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { SuspensionBanner } from "@/components/marketing/suspension-banner"
-import { signOut } from "@/lib/auth/client-auth"
 import { braikPlayerChrome } from "@/components/portal/player-portal/braik-player-visual-tokens"
 import { braikPlayerTheme } from "@/components/portal/portal-brand-tokens"
 import { usePlayerPortal } from "@/components/portal/player-portal/player-portal-context"
 import { playerFilmHubRoot } from "@/lib/player-portal/player-development-routes"
-import { braikLogo } from "@/lib/marketing/landing-images"
-
-function navLinkClass(active: boolean) {
-  return cn(
-    "flex flex-col items-center gap-0.5 rounded-xl px-2 py-2 text-[10px] font-semibold uppercase tracking-wide transition-colors min-w-[3.5rem]",
-    active
-      ? cn(braikPlayerTheme.activeTab, "[&_svg]:text-[#F8F8F8]")
-      : cn(braikPlayerTheme.inactiveTab, "[&_svg]:text-[#d2dbec]")
-  )
-}
 
 export function PlayerPortalChrome({
   children,
@@ -33,16 +21,28 @@ export function PlayerPortalChrome({
   const base = `/player/${encodeURIComponent(accountSegment)}`
   const pathname = usePathname() ?? ""
 
-  /** First tab = primary feed screen (`/player/:id`). */
   const items = [
     {
       href: base,
       label: "Feed",
       icon: Home,
       match: (p: string) => p === base || p === `${base}/`,
+      unread: false,
     },
-    { href: `${base}/calendar`, label: "Calendar", icon: Calendar, match: (p: string) => p.startsWith(`${base}/calendar`) },
-    { href: `${base}/messages`, label: "Messages", icon: MessageSquare, match: (p: string) => p.startsWith(`${base}/messages`) },
+    {
+      href: `${base}/calendar`,
+      label: "Schedule",
+      icon: Calendar,
+      match: (p: string) => p.startsWith(`${base}/calendar`),
+      unread: false,
+    },
+    {
+      href: `${base}/messages`,
+      label: "Chats",
+      icon: MessageSquare,
+      match: (p: string) => p.startsWith(`${base}/messages`),
+      unread: true,
+    },
     {
       href: playerFilmHubRoot(accountSegment),
       label: "Team",
@@ -52,29 +52,37 @@ export function PlayerPortalChrome({
         p.startsWith(`${base}/film-room`) ||
         p.startsWith(`${base}/study-guides`) ||
         p.startsWith(`${base}/playbooks`),
+      unread: false,
     },
-    { href: `${base}/profile`, label: "Profile", icon: UserRound, match: (p: string) => p.startsWith(`${base}/profile`) },
+    {
+      href: `${base}/profile`,
+      label: "Profile",
+      icon: UserRound,
+      match: (p: string) => p.startsWith(`${base}/profile`),
+      unread: false,
+    },
   ]
 
   return (
     <div className={cn("flex min-h-[100dvh] flex-col", braikPlayerChrome.shell)}>
+      {/* ambient bloom backgrounds */}
       <div
-        className="pointer-events-none fixed inset-0"
-        style={{ background: braikPlayerChrome.bloomCool }}
-        aria-hidden
-      />
-      <div
-        className="pointer-events-none fixed inset-0"
+        className="pointer-events-none fixed inset-0 z-0"
         style={{ background: braikPlayerChrome.bloomWarm }}
         aria-hidden
       />
       <div
-        className="pointer-events-none fixed inset-0"
-        style={{ background: braikPlayerChrome.bloomAccent }}
+        className="pointer-events-none fixed inset-0 z-0"
+        style={{ background: braikPlayerChrome.bloomCool }}
         aria-hidden
       />
 
-      <header className={cn("relative z-20 shrink-0 border-b px-4 py-3 backdrop-blur-sm", braikPlayerTheme.header)}>
+      <header
+        className={cn(
+          "relative z-20 shrink-0 border-b px-4 py-2.5 backdrop-blur-sm",
+          braikPlayerTheme.header
+        )}
+      >
         <PlayerPortalHeaderInner />
       </header>
 
@@ -85,17 +93,46 @@ export function PlayerPortalChrome({
 
       <nav
         className={cn(
-          "fixed bottom-0 left-0 right-0 z-30 border-t px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 shadow-[0_-12px_40px_-18px_rgba(0,0,0,0.72)] backdrop-blur-[2px]",
+          "fixed bottom-0 left-0 right-0 z-30 flex items-center border-t px-2 pb-[max(0.625rem,env(safe-area-inset-bottom))] pt-2.5 backdrop-blur-[18px]",
           braikPlayerTheme.nav
         )}
         aria-label="Player portal primary navigation"
       >
-        <div className="mx-auto flex max-w-lg items-center justify-between gap-1">
-          {items.map(({ href, label, icon: Icon, match }) => {
+        <div className="mx-auto flex w-full max-w-lg items-center justify-between gap-1">
+          {items.map(({ href, label, icon: Icon, match, unread }) => {
             const active = match(pathname)
             return (
-              <Link key={href} href={href} className={navLinkClass(active)} prefetch={false}>
-                <Icon className="h-5 w-5" aria-hidden />
+              <Link
+                key={href}
+                href={href}
+                prefetch={false}
+                className={cn(
+                  "flex flex-1 flex-col items-center gap-1 py-0.5 font-body text-[9.5px] font-bold uppercase tracking-[0.08em] transition-colors",
+                  active ? "text-[#FF7A33]" : "text-[#92A5CC]"
+                )}
+              >
+                <span
+                  className={cn(
+                    "relative flex h-8 w-11 items-center justify-center rounded-xl transition-all duration-[180ms]",
+                    active
+                      ? "bg-gradient-to-br from-[#FF7A33] to-[#FF3D1F] shadow-[0_8px_20px_-6px_rgba(255,90,30,0.7)]"
+                      : ""
+                  )}
+                >
+                  <Icon
+                    className={cn(
+                      "h-5 w-5",
+                      active ? "text-[#160A02]" : "text-[#92A5CC]"
+                    )}
+                    aria-hidden
+                  />
+                  {unread && !active && (
+                    <span
+                      className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full border-2 border-[#060D22] bg-[#FF3D1F]"
+                      aria-hidden
+                    />
+                  )}
+                </span>
                 {label}
               </Link>
             )
@@ -106,62 +143,55 @@ export function PlayerPortalChrome({
   )
 }
 
-function playerPortalSectionEyebrow(pathname: string, base: string): string {
-  const p = pathname.split("?")[0] ?? pathname
-  if (p === base || p === `${base}/`) return "Feed"
-  if (p.startsWith(`${base}/prep`)) return "Team"
-  if (p.startsWith(`${base}/calendar`)) return "Calendar"
-  if (p.startsWith(`${base}/messages`)) return "Messages"
-  if (p.startsWith(`${base}/profile`)) return "Profile"
-  if (p.startsWith(`${base}/announcements`)) return "News"
-  if (p.startsWith(`${base}/reminders`)) return "Alerts"
-  return "Feed"
-}
-
 function PlayerPortalHeaderInner() {
-  const pathname = usePathname() ?? ""
-  const { teamName, sport, accountSegment } = usePlayerPortal()
-  const base = `/player/${encodeURIComponent(accountSegment)}`
-  const eyebrow = playerPortalSectionEyebrow(pathname, base)
-  const settingsHref = `${base}/profile?panel=settings`
+  const { teamName, sport, userName } = usePlayerPortal()
+
+  const initials = (userName ?? "")
+    .split(/\s+/)
+    .map((w) => w.charAt(0))
+    .join("")
+    .slice(0, 2)
+    .toUpperCase() || "BA"
+
+  const teamInitial = teamName?.trim().charAt(0).toUpperCase() ?? "B"
 
   return (
-    <div className="mx-auto flex max-w-3xl items-start justify-between gap-3">
-      <div className="min-w-0 flex-1">
-        <div className="mb-1 flex items-center gap-2.5">
-          <Image
-            src={braikLogo.webp}
-            alt="Braik"
-            width={braikLogo.width}
-            height={braikLogo.height}
-            className="h-7 w-auto max-w-[92px] object-contain drop-shadow-md"
-          />
-          <p className={cn("text-[11px] font-bold uppercase tracking-[0.2em]", braikPlayerTheme.textSecondary)}>{eyebrow}</p>
-        </div>
-        <h1 className="truncate bg-gradient-to-r from-[#F8F8F8] via-[#F8F8E8] to-[#F85808] bg-clip-text text-xl font-black text-transparent drop-shadow-sm">
-          {teamName}
-        </h1>
-        {sport?.trim() ? <p className={cn("text-sm font-medium", braikPlayerTheme.textMuted)}>{sport}</p> : null}
+    <div className="mx-auto flex max-w-3xl items-center gap-3">
+      {/* crest */}
+      <div
+        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[11px] bg-gradient-to-br from-[#FF7A33] to-[#FF3D1F] font-black text-[17px] text-[#160A02]"
+        style={{ boxShadow: "0 6px 18px -6px rgba(255,90,30,0.7)" }}
+        aria-hidden
+      >
+        {teamInitial}
       </div>
-      <div className="flex shrink-0 flex-col items-end gap-1.5">
-        <button
-          type="button"
-          onClick={() => void signOut({ callbackUrl: "/login" })}
-          className="flex items-center gap-1.5 rounded-xl border border-[#2a3152] bg-[#0c1739]/80 px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-[#F8F8E8] backdrop-blur-sm transition hover:bg-[#101f4d] active:scale-[0.98]"
-        >
-          <LogOut className="h-4 w-4 text-[#F85808]" aria-hidden />
-          <span className="hidden sm:inline">Sign out</span>
-          <span className="sm:hidden">Out</span>
-        </button>
-        <Link
-          href={settingsHref}
-          prefetch={false}
-          className="flex h-9 w-9 items-center justify-center rounded-xl border border-[#2a3152] bg-[#0c1739]/80 text-[#d2dbec] transition hover:bg-[#101f4d] hover:text-[#F8F8F8] active:scale-[0.98]"
-          aria-label="Portal settings"
-          title="Portal settings"
-        >
-          <Settings className="h-4 w-4 text-[#F85808]" aria-hidden />
-        </Link>
+
+      {/* wordmark */}
+      <div className="min-w-0 flex-1">
+        <p className="truncate font-black text-[16px] uppercase tracking-[0.04em] text-[#EEF3FF]">
+          {teamName}
+        </p>
+        <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#92A5CC]">
+          {sport?.trim() || "Football"}
+        </p>
+      </div>
+
+      {/* notification bell */}
+      <button
+        type="button"
+        className="relative flex h-[38px] w-[38px] items-center justify-center rounded-full border border-[rgba(125,155,255,0.14)] bg-white/[0.04] text-[#EEF3FF] transition hover:bg-white/[0.08]"
+        aria-label="Notifications"
+      >
+        <Bell className="h-[18px] w-[18px]" />
+        <span
+          className="absolute right-[8px] top-[7px] h-[9px] w-[9px] rounded-full border-2 border-[#060D22] bg-[#FF3D1F]"
+          aria-hidden
+        />
+      </button>
+
+      {/* user avatar */}
+      <div className="flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-full border border-[rgba(125,155,255,0.14)] bg-gradient-to-br from-[#2C4E9E] to-[#152B63] text-[12px] font-black text-[#EEF3FF]">
+        {initials}
       </div>
     </div>
   )

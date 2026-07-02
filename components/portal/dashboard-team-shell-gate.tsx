@@ -54,8 +54,12 @@ export function DashboardTeamShellGate({ children }: { children: React.ReactNode
     const payload = q.data
     if (!payload || payload.shellMode !== "full") return
     const layoutUserRole = payload.user.role?.toUpperCase()
+    // Only redirect a HEAD_COACH to onboarding when they have no teams AND no profile team_id.
+    // A non-null teamId means they have a historical team association (even if the shell
+    // couldn't resolve it), so they are an existing coach — not a brand-new user.
     if (
       payload.teams.length === 0 &&
+      !payload.user.teamId &&
       layoutUserRole === "HEAD_COACH" &&
       !payload.user.isPlatformOwner &&
       payload.portalKind !== "recruiter"
@@ -141,6 +145,7 @@ export function DashboardTeamShellGate({ children }: { children: React.ReactNode
   const layoutUserRole = user.role?.toUpperCase()
   if (
     teams.length === 0 &&
+    !user.teamId &&
     layoutUserRole === "HEAD_COACH" &&
     !user.isPlatformOwner &&
     portalKind !== "recruiter"

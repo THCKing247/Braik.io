@@ -34,7 +34,21 @@ export function isCallbackUrlCrossPortal(
   const isPlayer = r === "PLAYER" || r === "ATHLETE"
   const isParent = r === "PARENT"
 
-  const cb = callbackUrl.toLowerCase().split("?")[0] ?? callbackUrl
+  const cb = callbackUrl.toLowerCase().split("?")[0].split("#")[0]
+
+  // Auth/setup flow pages (e.g. /onboarding, /signup/*) redirect unauthenticated visitors to
+  // /login?callbackUrl=<themselves>. Honoring that callbackUrl after login would send an
+  // existing HEAD_COACH into the new-user setup wizard. Block these for any known role.
+  if (
+    cb === "/onboarding" ||
+    cb.startsWith("/onboarding/") ||
+    cb === "/signup" ||
+    cb.startsWith("/signup/") ||
+    cb === "/login" ||
+    cb.startsWith("/login/")
+  ) {
+    return true
+  }
 
   // Parent-only portal paths
   if (cb === "/parent" || cb.startsWith("/parent/")) return !isParent

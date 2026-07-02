@@ -41,6 +41,7 @@ function MyProfileContent({ teamId, userId }: { teamId: string; userId: string }
   const [inviteCode, setInviteCode] = useState("")
   const [submitting, setSubmitting] = useState(false)
   const [claimError, setClaimError] = useState<string | null>(null)
+  const [checkingInvites, setCheckingInvites] = useState(false)
   const replaceStarted = useRef(false)
 
   const tryAutoLink = useCallback(async (): Promise<boolean> => {
@@ -150,7 +151,6 @@ function MyProfileContent({ teamId, userId }: { teamId: string; userId: string }
     )
   }
 
-  const [checkingInvites, setCheckingInvites] = useState(false)
   const handleCheckInvites = async () => {
     setCheckingInvites(true)
     setClaimError(null)

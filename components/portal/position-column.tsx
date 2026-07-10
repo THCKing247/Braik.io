@@ -13,9 +13,9 @@ interface PositionColumnProps {
   emptySlotHint?: string | null
   players: Array<{ player: RosterPlayerForSlot; string: number }>
   canEdit: boolean
-  /** When null: not dragging. When boolean: true = valid drop target, false = dimmed (invalid for dragged player). */
+  /** When null: not dragging. When true: best-fit slot for dragged player. When false: position mismatch — drops are still allowed; amber styling is advisory only. */
   isSlotValidForDrop?: boolean | null
-  /** Called when drag starts from an assigned slot (roster or slot); used to show valid/invalid slot guidance. */
+  /** Called when drag starts from an assigned slot (roster or slot); used to show best-fit vs mismatch slot guidance. */
   onDragStartPlayer?: (playerId: string) => void
   onDrop?: (position: string, string: number, playerId: string) => void
   onRemove?: (position: string, string: number) => void
@@ -36,8 +36,8 @@ export function PositionColumn({
   onReorder,
 }: PositionColumnProps) {
   const [dragOverString, setDragOverString] = useState<number | null>(null)
-  const [draggedString, setDraggedString] = useState<number | null>(null)
-  const isDimmed = isSlotValidForDrop === false
+  const isPositionMismatch = isSlotValidForDrop === false
+  const isDragging = isSlotValidForDrop !== null
 
   const starter = players.find((p) => p.string === 1)
   const secondString = players.find((p) => p.string === 2)
@@ -49,51 +49,81 @@ export function PositionColumn({
     const playerId = e.dataTransfer.getData("playerId")
     const sourceString = e.dataTransfer.getData("sourceString")
 
-    if (playerId && onDrop) {
+    if (playerId) {
       if (sourceString && onReorder) {
         onReorder(position, parseInt(sourceString, 10), targetString)
-      } else {
+      } else if (onDrop) {
         onDrop(position, targetString, playerId)
       }
     }
     setDragOverString(null)
-    setDraggedString(null)
   }
 
-  const handleSlotDragStart = (playerId: string, stringNum: number) => {
+  const handleSlotDragStart = (playerId: string) => {
     onDragStartPlayer?.(playerId)
-    setDraggedString(stringNum)
   }
 
   const handlePromote = (fromString: number) => {
     if (onReorder) onReorder(position, fromString, 1)
   }
 
-  const dropZoneStyle = (stringNum: number) => ({
-    backgroundColor:
-      dragOverString === stringNum && !isDimmed ? "rgba(37, 99, 235, 0.1)" : "transparent",
-    borderRadius: "4px",
-    transition: "background-color 0.2s",
-    border: dragOverString === stringNum && !isDimmed ? "2px dashed rgb(var(--accent))" : "none",
-  })
+  const columnRingClass = isDragging
+    ? isPositionMismatch
+      ? "ring-2 ring-amber-500/45 ring-offset-2 ring-offset-background rounded-xl"
+      : "ring-2 ring-primary/40 ring-offset-2 ring-offset-background rounded-xl"
+    : ""
+
+  const dropZoneClass = (stringNum: number, minH: string) => {
+    const over = dragOverString === stringNum
+    const base = `rounded-xl border-2 border-dashed transition-all duration-200 ${minH} shrink-0 box-border`
+    if (!isDragging) {
+      return `${base} border-transparent bg-transparent`
+    }
+    if (isPositionMismatch) {
+      if (over) {
+        return `${base} border-amber-500 bg-amber-500/12 ring-2 ring-amber-500/30`
+      }
+      return `${base} border-amber-500/40 bg-amber-500/[0.06]`
+    }
+    if (over) {
+      return `${base} border-primary bg-primary/10 ring-2 ring-primary/20`
+    }
+    return `${base} border-transparent bg-transparent`
+  }
+
+  const emptyStarterClass =
+    "w-full h-[104px] rounded-xl border-2 border-dashed flex flex-col items-center justify-center gap-1 py-2 px-2 shrink-0 transition-colors duration-200 " +
+    (isPositionMismatch && isDragging
+      ? "border-amber-500/45 bg-amber-500/[0.07] text-muted-foreground"
+      : isDragging && !isPositionMismatch
+        ? "border-primary/25 bg-primary/[0.04] text-muted-foreground"
+        : "border-slate-300/80 dark:border-slate-600 bg-slate-50/80 dark:bg-slate-900/40 text-slate-600 dark:text-slate-300")
+
+  const emptyBenchClass = (label: string) =>
+    `w-full rounded-xl border-2 border-dashed flex items-center justify-center shrink-0 transition-colors duration-200 ${
+      label === "2nd" ? "h-[76px]" : "h-[64px]"
+    } ` +
+    (isPositionMismatch && isDragging
+      ? "border-amber-500/40 bg-amber-500/[0.05] text-muted-foreground/80"
+      : isDragging && !isPositionMismatch
+        ? "border-primary/20 bg-primary/[0.03] text-muted-foreground"
+        : "border-slate-200 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-900/35 text-slate-500 dark:text-slate-400")
 
   return (
-    <div className="flex flex-col h-full min-w-[120px]">
+    <div className={`flex flex-col h-full min-w-[120px] ${columnRingClass}`}>
       <div className="text-center py-1.5 mb-2">
-        <div className="text-sm font-semibold tracking-tight text-slate-800">
+        <div className="text-sm font-semibold tracking-tight text-foreground">
           {positionLabel}
         </div>
         {secondaryLabel && (
-          <div className="text-[11px] mt-0.5 font-normal normal-case text-slate-500">
+          <div className="text-[11px] mt-0.5 font-normal normal-case text-muted-foreground">
             {secondaryLabel}
           </div>
         )}
       </div>
 
-      <div
-        className={`flex-1 flex flex-col gap-2 ${isDimmed ? "opacity-60 pointer-events-none" : ""}`}
-      >
-        {/* Starter (1st String) - visually emphasized */}
+      <div className="flex-1 flex flex-col gap-2.5">
+        {/* Starter (1st String) */}
         <div
           className="h-[104px] shrink-0"
           onDragOver={(e) => {
@@ -103,35 +133,35 @@ export function PositionColumn({
           }}
           onDragLeave={() => setDragOverString(null)}
           onDrop={(e) => handleDrop(e, 1)}
-          style={dropZoneStyle(1)}
         >
-          {starter ? (
-            <DepthSlotCard
-              player={starter.player}
-              depthLevel={1}
-              canEdit={canEdit}
-              onRemove={onRemove ? () => onRemove(position, 1) : undefined}
-              draggable={canEdit}
-              onDragStart={(e) => {
-                e.dataTransfer.setData("playerId", starter.player.id)
-                e.dataTransfer.setData("sourceString", "1")
-                e.dataTransfer.effectAllowed = "move"
-                handleSlotDragStart(starter.player.id, 1)
-              }}
-            />
-          ) : (
-            <div
-              className="w-full h-[104px] border-2 border-dashed rounded-lg flex flex-col items-center justify-center gap-1 py-2 px-2 bg-slate-50/50 box-border shrink-0"
-              style={{ borderColor: "rgb(var(--focus))" }}
-            >
-              <span className="text-sm font-medium text-slate-600">Empty</span>
-              {emptySlotHint && (
-                <span className="text-[11px] text-slate-400 text-center px-1 max-w-full">
-                  {emptySlotHint}
+          <div className={dropZoneClass(1, "h-full")}>
+            {starter ? (
+              <DepthSlotCard
+                player={starter.player}
+                depthLevel={1}
+                canEdit={canEdit}
+                onRemove={onRemove ? () => onRemove(position, 1) : undefined}
+                draggable={canEdit}
+                onDragStart={(e) => {
+                  e.dataTransfer.setData("playerId", starter.player.id)
+                  e.dataTransfer.setData("sourceString", "1")
+                  e.dataTransfer.effectAllowed = "move"
+                  handleSlotDragStart(starter.player.id)
+                }}
+              />
+            ) : (
+              <div className={emptyStarterClass}>
+                <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Open slot
                 </span>
-              )}
-            </div>
-          )}
+                {emptySlotHint && (
+                  <span className="text-[11px] text-center px-1 max-w-full leading-snug text-muted-foreground/90">
+                    {emptySlotHint}
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
         </div>
 
         {/* 2nd String */}
@@ -144,31 +174,29 @@ export function PositionColumn({
           }}
           onDragLeave={() => setDragOverString(null)}
           onDrop={(e) => handleDrop(e, 2)}
-          style={dropZoneStyle(2)}
         >
-          {secondString ? (
-            <DepthSlotCard
-              player={secondString.player}
-              depthLevel={2}
-              canEdit={canEdit}
-              onPromote={canEdit ? () => handlePromote(2) : undefined}
-              onRemove={onRemove ? () => onRemove(position, 2) : undefined}
-              draggable={canEdit}
-              onDragStart={(e) => {
-                e.dataTransfer.setData("playerId", secondString.player.id)
-                e.dataTransfer.setData("sourceString", "2")
-                e.dataTransfer.effectAllowed = "move"
-                handleSlotDragStart(secondString.player.id, 2)
-              }}
-            />
-          ) : (
-            <div
-              className="w-full h-[76px] border-2 border-dashed rounded-lg flex items-center justify-center bg-slate-50/50 box-border shrink-0"
-              style={{ borderColor: "rgb(var(--focus))" }}
-            >
-              <span className="text-xs font-medium text-slate-500">2nd</span>
-            </div>
-          )}
+          <div className={dropZoneClass(2, "h-full")}>
+            {secondString ? (
+              <DepthSlotCard
+                player={secondString.player}
+                depthLevel={2}
+                canEdit={canEdit}
+                onPromote={canEdit ? () => handlePromote(2) : undefined}
+                onRemove={onRemove ? () => onRemove(position, 2) : undefined}
+                draggable={canEdit}
+                onDragStart={(e) => {
+                  e.dataTransfer.setData("playerId", secondString.player.id)
+                  e.dataTransfer.setData("sourceString", "2")
+                  e.dataTransfer.effectAllowed = "move"
+                  handleSlotDragStart(secondString.player.id)
+                }}
+              />
+            ) : (
+              <div className={emptyBenchClass("2nd")}>
+                <span className="text-[11px] font-semibold tracking-wide">2nd string</span>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* 3rd String */}
@@ -181,43 +209,33 @@ export function PositionColumn({
           }}
           onDragLeave={() => setDragOverString(null)}
           onDrop={(e) => handleDrop(e, 3)}
-          style={dropZoneStyle(3)}
         >
-          {thirdString ? (
-            <DepthSlotCard
-              player={thirdString.player}
-              depthLevel={3}
-              canEdit={canEdit}
-              onPromote={canEdit ? () => handlePromote(3) : undefined}
-              onRemove={onRemove ? () => onRemove(position, 3) : undefined}
-              draggable={canEdit}
-              onDragStart={(e) => {
-                e.dataTransfer.setData("playerId", thirdString.player.id)
-                e.dataTransfer.setData("sourceString", "3")
-                e.dataTransfer.effectAllowed = "move"
-                handleSlotDragStart(thirdString.player.id, 3)
-              }}
-            />
-          ) : (
-            <div
-              className="w-full h-[64px] border-2 border-dashed rounded-lg flex items-center justify-center bg-slate-50/50 box-border shrink-0"
-              style={{ borderColor: "rgb(var(--focus))" }}
-            >
-              <span className="text-xs font-medium text-slate-500">3rd</span>
-            </div>
-          )}
+          <div className={dropZoneClass(3, "h-full")}>
+            {thirdString ? (
+              <DepthSlotCard
+                player={thirdString.player}
+                depthLevel={3}
+                canEdit={canEdit}
+                onPromote={canEdit ? () => handlePromote(3) : undefined}
+                onRemove={onRemove ? () => onRemove(position, 3) : undefined}
+                draggable={canEdit}
+                onDragStart={(e) => {
+                  e.dataTransfer.setData("playerId", thirdString.player.id)
+                  e.dataTransfer.setData("sourceString", "3")
+                  e.dataTransfer.effectAllowed = "move"
+                  handleSlotDragStart(thirdString.player.id)
+                }}
+              />
+            ) : (
+              <div className={emptyBenchClass("3rd")}>
+                <span className="text-[11px] font-semibold tracking-wide">3rd string</span>
+              </div>
+            )}
+          </div>
         </div>
 
         {moreCount > 0 && (
-          <div
-            className="text-xs text-center py-1 px-2 rounded border"
-            style={{
-              color: "#000000",
-              backgroundColor: "rgb(var(--platinum))",
-              borderColor: "rgb(var(--border))",
-              borderWidth: "1px",
-            }}
-          >
+          <div className="text-xs text-center py-1.5 px-2 rounded-lg border border-border bg-muted/40 text-foreground">
             +{moreCount} more
           </div>
         )}
